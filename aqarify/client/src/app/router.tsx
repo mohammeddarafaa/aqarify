@@ -4,6 +4,7 @@ import { ProtectedRoute } from "@/features/auth/components/protected-route";
 import { useIsMarketingSite } from "@/hooks/use-tenant-slug";
 import { useAuthStore } from "@/stores/auth.store";
 import { roleHomePath } from "@/lib/rbac";
+import { RouteErrorBoundary } from "@/components/shared/route-error-boundary";
 
 // ── Marketing site (apex) ──────────────────────────────────────
 const MarketingLayout = lazy(() => import("@/app/layouts/marketing-layout"));
@@ -25,7 +26,7 @@ const RegisterPage = lazy(() => import("@/features/auth/pages/register-page"));
 const ForgotPasswordPage = lazy(() => import("@/features/auth/pages/forgot-password-page"));
 const ResetPasswordPage = lazy(() => import("@/features/auth/pages/reset-password-page"));
 
-const CustomerDashboardPage = lazy(() => import("@/features/customer-dashboard/pages/customer-dashboard-page"));
+const CustomerDashboardPage = lazy(() => import("@/features/customer-dashboard/pages/overview-page"));
 const ReservationsPage = lazy(() => import("@/features/customer-dashboard/pages/reservations-page"));
 const PaymentsPage = lazy(() => import("@/features/customer-dashboard/pages/payments-page"));
 const DocumentsPage = lazy(() => import("@/features/customer-dashboard/pages/documents-page"));
@@ -40,7 +41,7 @@ const AgentFollowUpsPage = lazy(() => import("@/features/agent-dashboard/pages/a
 const AgentOverviewPage = lazy(() => import("@/features/agent-dashboard/pages/overview-page"));
 const AgentDocumentsPage = lazy(() => import("@/features/agent-dashboard/pages/agent-documents-page"));
 
-const ManagerDashboardPage = lazy(() => import("@/features/manager-dashboard/pages/manager-dashboard-page"));
+const ManagerDashboardPage = lazy(() => import("@/features/manager-dashboard/pages/overview-page"));
 const ManagerUnitsPage = lazy(() => import("@/features/manager-dashboard/pages/manager-units-page"));
 const ManagerProjectsPage = lazy(() => import("@/features/manager-dashboard/pages/manager-projects-page"));
 const ManagerWaitingListPage = lazy(() => import("@/features/manager-dashboard/pages/manager-waiting-list-page"));
@@ -52,6 +53,7 @@ const AdminSettingsPage = lazy(() => import("@/features/admin/pages/admin-settin
 const AdminOverviewPage = lazy(() => import("@/features/admin-dashboard/pages/overview-page"));
 const ActivityLogsPage = lazy(() => import("@/features/admin-dashboard/pages/activity-logs-page"));
 const NotificationsPage = lazy(() => import("@/features/notifications/pages/notifications-page"));
+const DiscoveryPage = lazy(() => import("@/features/discovery/pages/discovery-page"));
 
 const Loader = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -211,6 +213,7 @@ const routes = [
   {
     path: "/",
     element: <IndexLayout />,
+    errorElement: <RouteErrorBoundary />,
     children: [{ index: true, element: <IndexPage /> }],
   },
   { path: "/pricing", element: <Navigate to="/#pricing" replace /> },
@@ -249,6 +252,7 @@ const routes = [
   {
     path: "/t/:tenantSlug",
     element: <Outlet />,
+    errorElement: <RouteErrorBoundary />,
     children: [
       {
         path: "login",
@@ -276,6 +280,11 @@ const routes = [
         children: [{ index: true, element: <S><BrowsePage /></S> }],
       },
       {
+        path: "discover",
+        element: <S><PublicLayout /></S>,
+        children: [{ index: true, element: <S><DiscoveryPage /></S> }],
+      },
+      {
         path: "units/:id",
         element: <S><PublicLayout /></S>,
         children: [{ index: true, element: <S><UnitDetailPage /></S> }],
@@ -296,15 +305,24 @@ const routes = [
   {
     path: "/browse",
     element: <TenantPublicBranch />,
+    errorElement: <RouteErrorBoundary />,
     children: [{ index: true, element: <S><BrowsePage /></S> }],
+  },
+  {
+    path: "/discover",
+    element: <TenantPublicBranch />,
+    errorElement: <RouteErrorBoundary />,
+    children: [{ index: true, element: <S><DiscoveryPage /></S> }],
   },
   {
     path: "/units/:id",
     element: <TenantPublicBranch />,
+    errorElement: <RouteErrorBoundary />,
     children: [{ index: true, element: <S><UnitDetailPage /></S> }],
   },
   {
     element: <DashboardGate />,
+    errorElement: <RouteErrorBoundary />,
     children: [
       { path: "/dashboard", element: <RoleHomeRedirect /> },
       { path: "/dashboard/customer", element: <Navigate to="/dashboard" replace /> },

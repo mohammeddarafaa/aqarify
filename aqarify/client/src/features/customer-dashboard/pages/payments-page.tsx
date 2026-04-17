@@ -1,7 +1,9 @@
 import { Helmet } from "react-helmet-async";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { toast } from "@/lib/app-toast";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -36,6 +38,21 @@ export default function PaymentsPage() {
     },
   });
 
+  const payInstallment = useMutation({
+    mutationFn: async (paymentId: string) => {
+      const res = await api.post(`/payments/${paymentId}/pay-intent`);
+      return res.data.data as { payment_key: string; iframe_id: string | null };
+    },
+    onSuccess: (data) => {
+      if (data.payment_key && data.iframe_id) {
+        window.location.href = `https://accept.paymob.com/api/acceptance/iframes/${data.iframe_id}?payment_token=${data.payment_key}`;
+      } else {
+        toast.error("لم يتم إعداد بوابة الدفع. تواصل مع المبيعات.");
+      }
+    },
+    onError: () => toast.error("فشل بدء الدفع. حاول مرة أخرى."),
+  });
+
   return (
     <>
       <Helmet><title>مدفوعاتي</title></Helmet>
@@ -57,6 +74,7 @@ export default function PaymentsPage() {
                   <TableHead>تاريخ الاستحقاق</TableHead>
                   <TableHead>تاريخ الدفع</TableHead>
                   <TableHead>المبلغ</TableHead>
+                  <TableHead>إجراء</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -71,6 +89,18 @@ export default function PaymentsPage() {
                       {p.paid_at ? new Date(p.paid_at).toLocaleDateString("ar-EG") : "—"}
                     </TableCell>
                     <TableCell className="font-medium">{p.amount.toLocaleString("ar-EG")} ج.م</TableCell>
+                    <TableCell>
+                      {["pending", "overdue"].includes(p.status) ? (
+                        <Button
+                          size="sm"
+                          variant={p.status === "overdue" ? "destructive" : "default"}
+                          onClick={() => payInstallment.mutate(p.id)}
+                          disabled={payInstallment.isPending}
+                        >
+                          {payInstallment.isPending ? "جاري..." : "ادفع الآن"}
+                        </Button>
+                      ) : null}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

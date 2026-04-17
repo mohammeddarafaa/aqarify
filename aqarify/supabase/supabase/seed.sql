@@ -83,6 +83,11 @@ VALUES
   ('00000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000000022','C-101',1,'فيلا',4,3,2,320,'حديقة خاصة','كامل التشطيب',9500000,190000,20,84,'available'),
   ('00000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000000022','C-201',2,'فيلا',5,4,3,420,'حديقة خاصة','كامل التشطيب',13000000,260000,25,96,'available');
 
+-- Map pins (requires migration 00029_add_unit_location_lat_lng.sql)
+UPDATE units SET location_lat = 30.0626, location_lng = 31.2497 WHERE tenant_id = '00000000-0000-0000-0000-000000000001' AND unit_number = 'A-101';
+UPDATE units SET location_lat = 30.0628, location_lng = 31.2501 WHERE tenant_id = '00000000-0000-0000-0000-000000000001' AND unit_number = 'B-101';
+UPDATE units SET location_lat = 30.0630, location_lng = 31.2495 WHERE tenant_id = '00000000-0000-0000-0000-000000000001' AND unit_number = 'C-101';
+
 -- Active subscription for K-Developments
 INSERT INTO tenant_subscriptions (id, tenant_id, plan_id, status, billing_cycle, amount_egp, current_period_start, current_period_end)
 VALUES (

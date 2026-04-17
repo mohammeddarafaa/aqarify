@@ -45,3 +45,10 @@ export async function resolveTenant(
   req.tenantSlug = tenant.slug;
   return next();
 }
+
+export function requireTenant(req: TenantRequest, res: Response, next: NextFunction) {
+  if (!req.tenantId) {
+    return sendError(res, ERROR_CODES.TENANT_NOT_FOUND, "Tenant context required", 400);
+  }
+  return next();
+}

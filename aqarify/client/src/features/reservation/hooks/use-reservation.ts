@@ -27,7 +27,12 @@ export function useCreateReservation() {
   return useMutation({
     mutationFn: async (payload: { unit_id: string } & CheckoutFormData) => {
       const res = await api.post("/reservations", payload);
-      return res.data.data as { reservation: Reservation; payment_key: string | null; method: string };
+      return res.data.data as {
+        reservation: Reservation;
+        payment_key: string | null;
+        iframe_id: string | null;
+        method: string;
+      };
     },
   });
 }

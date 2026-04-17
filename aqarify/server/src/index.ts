@@ -29,6 +29,23 @@ import { startWaitlistTimerCron } from "./jobs/waitlistTimer";
 import { startDailySummaryCron } from "./jobs/dailySummary";
 import { startSubscriptionExpiryCron } from "./jobs/subscriptionExpiry";
 
+function validateEnv() {
+  const required = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "ENCRYPTION_KEY"];
+  const missing = required.filter((k) => !process.env[k]);
+  if (missing.length > 0) {
+    logger.error(`Missing required env vars: ${missing.join(", ")}`);
+    process.exit(1);
+  }
+  const key = process.env.ENCRYPTION_KEY!;
+  if (key.length !== 32) {
+    logger.error(`ENCRYPTION_KEY must be exactly 32 characters. Got: ${key.length}`);
+    process.exit(1);
+  }
+  logger.info("Environment validation passed");
+}
+
+validateEnv();
+
 const app = express();
 const PORT = process.env.PORT ?? 4000;
 
@@ -41,6 +58,8 @@ app.use(cors({
 const limiter = rateLimit({ windowMs: 60_000, max: 300 });
 const authLimiter = rateLimit({ windowMs: 60_000, max: 10 });
 const publicLimiter = rateLimit({ windowMs: 60_000, max: 100 });
+const webhookLimiter = rateLimit({ windowMs: 60_000, max: 100 });
+app.use("/webhooks", webhookLimiter);
 app.use("/api/v1/auth", authLimiter);
 app.use("/api/v1/units", publicLimiter);
 app.use("/api/v1/projects", publicLimiter);

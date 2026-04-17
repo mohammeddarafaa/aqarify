@@ -18,12 +18,12 @@ export default function ManagerReservationsPage() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery<{ items: Reservation[] }>({
     queryKey: ["manager-reservations"],
-    queryFn: async () => (await api.get("/agent/reservations")).data.data,
+    queryFn: async () => (await api.get("/manager/reservations")).data.data,
   });
 
   const change = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: "confirmed" | "rejected" | "cancelled" }) =>
-      api.patch(`/agent/reservations/${id}/status`, { status }),
+      api.patch(`/manager/reservations/${id}/status`, { status }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["manager-reservations"] });
       toast.success("تم تحديث الحجز");

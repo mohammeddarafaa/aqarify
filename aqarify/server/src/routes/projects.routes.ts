@@ -1,13 +1,13 @@
 import { Router } from "express";
 import { z } from "zod";
-import { resolveTenant, type TenantRequest } from "../middleware/tenant";
-import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
+import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
+import { authenticate, optionalAuth, type AuthenticatedRequest } from "../middleware/auth";
 import { requireRole } from "../middleware/rbac";
 import { supabaseAdmin } from "../config/supabase";
 import { sendSuccess, sendError, ERROR_CODES } from "../utils/response";
 
 export const projectRoutes = Router();
-projectRoutes.use(resolveTenant);
+projectRoutes.use(resolveTenant, optionalAuth, requireTenant);
 
 // GET /api/v1/projects — public
 projectRoutes.get("/", async (req: TenantRequest, res, next) => {

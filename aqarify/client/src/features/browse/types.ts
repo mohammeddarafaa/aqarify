@@ -18,6 +18,8 @@ export interface Unit {
   floor_plan_url?: string | null;
   building_id: string;
   project_id: string;
+  location_lat?: number | null;
+  location_lng?: number | null;
 }
 
 export interface BrowseFilters {

@@ -4,6 +4,8 @@ import { CheckCircle2Icon } from "lucide-react";
 import { Button, Card, CardContent, Meteors } from "@/components/ui-kit";
 import { useReservation } from "../hooks/use-reservation";
 import { appendTenantSearch } from "@/lib/tenant-path";
+import { api } from "@/lib/api";
+import { toast } from "@/lib/app-toast";
 
 export default function ReservationSuccessPage() {
   const { id } = useParams<{ id: string }>();
@@ -39,20 +41,36 @@ export default function ReservationSuccessPage() {
                 </span>
               </p>
             ) : null}
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <Button
-                className="flex-1 rounded-full"
+                className="min-w-[140px] flex-1 rounded-full"
                 onClick={() => navigate(withTenant("/dashboard"))}
               >
                 View reservations
               </Button>
               <Button
                 variant="outline"
-                className="flex-1 rounded-full"
+                className="min-w-[140px] flex-1 rounded-full"
                 onClick={() => navigate(withTenant("/browse"))}
               >
                 Browse more
               </Button>
+              {reservation?.status === "confirmed" && reservation?.id ? (
+                <Button
+                  variant="outline"
+                  className="min-w-[140px] flex-1 rounded-full"
+                  onClick={async () => {
+                    try {
+                      const res = await api.get(`/reservations/${reservation.id}/receipt`);
+                      window.open(res.data.data.receipt_url, "_blank");
+                    } catch {
+                      toast.error("الإيصال غير متاح بعد");
+                    }
+                  }}
+                >
+                  تحميل الإيصال
+                </Button>
+              ) : null}
             </div>
           </CardContent>
         </Card>

@@ -49,7 +49,7 @@ authRoutes.post("/logout", authenticate, async (_req, res, next) => {
 });
 
 // GET /api/v1/auth/session — validate token and return tenant context
-authRoutes.get("/session", authenticate, resolveTenant, async (
+authRoutes.get("/session", resolveTenant, authenticate, async (
   req: AuthenticatedRequest & TenantRequest, res, next
 ) => {
   try {

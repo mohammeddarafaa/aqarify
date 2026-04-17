@@ -1,11 +1,11 @@
 import { Router } from "express";
-import { resolveTenant, type TenantRequest } from "../middleware/tenant";
+import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
 import { optionalAuth } from "../middleware/auth";
 import { supabaseAdmin } from "../config/supabase";
 import { sendSuccess, sendError, ERROR_CODES } from "../utils/response";
 
 export const unitRoutes = Router();
-unitRoutes.use(resolveTenant, optionalAuth);
+unitRoutes.use(resolveTenant, optionalAuth, requireTenant);
 
 // GET /api/v1/units
 unitRoutes.get("/", async (req: TenantRequest, res, next) => {
@@ -27,7 +27,10 @@ unitRoutes.get("/", async (req: TenantRequest, res, next) => {
 
     let query = supabaseAdmin
       .from("units")
-      .select("id,unit_number,floor,type,bedrooms,bathrooms,size_sqm,price,reservation_fee,down_payment_pct,installment_months,status,gallery,view_type,finishing,building_id,project_id", { count: "exact" })
+      .select(
+        "id,unit_number,floor,type,bedrooms,bathrooms,size_sqm,price,reservation_fee,down_payment_pct,installment_months,status,gallery,view_type,finishing,building_id,project_id,location_lat,location_lng",
+        { count: "exact" },
+      )
       .eq("tenant_id", req.tenantId!);
 
     if (type && type !== "all") query = query.eq("type", type);

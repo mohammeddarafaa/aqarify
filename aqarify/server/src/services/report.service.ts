@@ -84,33 +84,24 @@ export async function getInventoryReport(tenantId: string) {
 }
 
 export async function getAgentPerformanceReport(tenantId: string, from?: string, to?: string) {
-  const { data: agents } = await supabaseAdmin.from("users")
-    .select("id, full_name, email").eq("tenant_id", tenantId).in("role", ["agent", "manager"]);
+  let query = supabaseAdmin
+    .from("reservations")
+    .select("agent_id, total_price, status, users!agent_id(full_name)")
+    .eq("tenant_id", tenantId)
+    .eq("status", "confirmed");
+  if (from) query = query.gte("created_at", from);
+  if (to) query = query.lte("created_at", to);
+  const { data } = await query;
 
-  const report = await Promise.all((agents ?? []).map(async (agent) => {
-    let q = supabaseAdmin.from("reservations")
-      .select("status, total_price, reservation_fee_paid").eq("tenant_id", tenantId).eq("agent_id", agent.id);
-    if (from) q = q.gte("created_at", from);
-    if (to) q = q.lte("created_at", to);
-    const { data: res } = await q;
-
-    const confirmed = (res ?? []).filter((r) => r.status === "confirmed");
-    const totalSales = confirmed.reduce((s, r) => s + (r.total_price ?? 0), 0);
-
-    const { count: followUps } = await supabaseAdmin.from("follow_ups")
-      .select("*", { count: "exact", head: true }).eq("agent_id", agent.id).eq("tenant_id", tenantId);
-
-    return {
-      agent_id: agent.id,
-      full_name: agent.full_name,
-      email: agent.email,
-      total_reservations: (res ?? []).length,
-      confirmed: confirmed.length,
-      total_sales: totalSales,
-      follow_ups: followUps ?? 0,
-      conversion_rate: (res ?? []).length ? Math.round((confirmed.length / (res ?? []).length) * 100) : 0,
-    };
-  }));
-
-  return report.sort((a, b) => b.total_sales - a.total_sales);
+  const byAgent: Record<string, { agent_name: string; count: number; revenue: number }> = {};
+  (data ?? []).forEach((r) => {
+    const u = r.users as { full_name?: string } | { full_name?: string }[] | null | undefined;
+    const nameFromUser = Array.isArray(u) ? u[0]?.full_name : u?.full_name;
+    const id = r.agent_id ?? "unassigned";
+    const name = nameFromUser ?? "غير معين";
+    if (!byAgent[id]) byAgent[id] = { agent_name: name, count: 0, revenue: 0 };
+    byAgent[id].count++;
+    byAgent[id].revenue += Number(r.total_price ?? 0);
+  });
+  return Object.entries(byAgent).map(([agent_id, v]) => ({ agent_id, ...v }));
 }

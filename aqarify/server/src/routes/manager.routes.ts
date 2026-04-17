@@ -17,6 +17,42 @@ const upload = multer({
   },
 });
 
+// GET /api/v1/manager/reservations — all tenant reservations
+managerRoutes.get("/reservations", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
+  try {
+    const page = Number(req.query.page ?? 1);
+    const limit = Number(req.query.limit ?? 20);
+    const status = req.query.status as string | undefined;
+    let query = supabaseAdmin.from("reservations")
+      .select(
+        "*, units(unit_number, type, projects(name)), users!customer_id(full_name, email, phone)",
+        { count: "exact" },
+      )
+      .eq("tenant_id", req.tenantId!)
+      .order("created_at", { ascending: false })
+      .range((page - 1) * limit, page * limit - 1);
+    if (status) query = query.eq("status", status);
+    const { data, count } = await query;
+    return sendSuccess(res, { items: data ?? [], total: count ?? 0, page, limit });
+  } catch (err) { return next(err); }
+});
+
+managerRoutes.patch("/reservations/:id/status", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
+  try {
+    const body = req.body as { status: string; reason?: string };
+    const { status, reason } = body;
+    if (!status) return sendError(res, ERROR_CODES.VALIDATION_ERROR, "status required", 400);
+    const { data, error } = await supabaseAdmin.from("reservations")
+      .update({ status, ...(reason ? { notes: reason } : {}) })
+      .eq("id", req.params.id)
+      .eq("tenant_id", req.tenantId!)
+      .select()
+      .single();
+    if (error || !data) return sendError(res, ERROR_CODES.NOT_FOUND, "Not found", 404);
+    return sendSuccess(res, data);
+  } catch (err) { return next(err); }
+});
+
 // GET /api/v1/manager/dashboard — key metrics
 managerRoutes.get("/dashboard", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
   try {
@@ -125,7 +161,8 @@ managerRoutes.get("/waiting-list", async (req: TenantRequest & AuthenticatedRequ
   try {
     const { data } = await supabaseAdmin.from("waiting_list")
       .select("*, users!customer_id(full_name, email, phone)")
-      .eq("tenant_id", req.tenantId!).eq("status", "waiting")
+      .eq("tenant_id", req.tenantId!)
+      .in("status", ["waiting", "notified", "active"])
       .order("position", { ascending: true });
     return sendSuccess(res, data ?? []);
   } catch (err) { return next(err); }

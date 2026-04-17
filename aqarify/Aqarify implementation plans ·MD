@@ -1,0 +1,1802 @@
+# Aqarify — Full Implementation Plans
+**Generated:** 2026-04-17 | Covers all Critical → Low issues from the audit
+
+Each plan has: exact files to touch, precise code changes, and a ✅ Definition of Done.
+
+---
+
+## PLAN 01 — Fix Per-Tenant Paymob Iframe ID
+**Severity:** 🔴 Critical | **Owner:** Backend + Frontend | **Est:** 2h
+
+### Problem
+`checkout-page.tsx` uses `import.meta.env.VITE_PAYMOB_IFRAME_ID` — a single build-time value shared across all tenants. Each tenant Paymob integration has a distinct `iframe_id`. Non-primary tenants get payment failures silently.
+
+### Files to change
+1. `server/src/routes/reservations.routes.ts`
+2. `client/src/features/reservation/pages/checkout-page.tsx`
+3. `client/.env.example`
+
+### Step 1 — Add `iframe_id` to tenant Paymob columns (verify migration 00019 has it)
+Migration `00019_add_paymob_and_agent_columns.sql` should already have:
+```sql
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS paymob_iframe_id TEXT;
+```
+Check it exists. If not, add `00029_add_paymob_iframe_id.sql`:
+```sql
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS paymob_iframe_id TEXT;
+```
+
+### Step 2 — Return `iframe_id` from the reservations route
+**File:** `server/src/routes/reservations.routes.ts`
+
+In the POST handler, the tenant select already fetches `paymob_integration_id, paymob_api_key_enc`. Add `paymob_iframe_id` to that select:
+```typescript
+// Change this line:
+const { data: tenant } = await supabaseAdmin.from("tenants")
+  .select("paymob_integration_id, paymob_api_key_enc").eq("id", req.tenantId!).single();
+
+// To:
+const { data: tenant } = await supabaseAdmin.from("tenants")
+  .select("paymob_integration_id, paymob_api_key_enc, paymob_iframe_id")
+  .eq("id", req.tenantId!).single();
+```
+
+Then in the `sendSuccess` response where `payment_key` is returned:
+```typescript
+// Change:
+return sendSuccess(res, { reservation, payment_key: paymentKey, method: payment_method });
+
+// To:
+return sendSuccess(res, {
+  reservation,
+  payment_key: paymentKey,
+  iframe_id: tenant.paymob_iframe_id ?? null,
+  method: payment_method,
+});
+```
+
+### Step 3 — Use `iframe_id` from API response in checkout page
+**File:** `client/src/features/reservation/pages/checkout-page.tsx`
+
+Change the `onSuccess` callback:
+```typescript
+// Change:
+onSuccess: (data) => {
+  if (data.payment_key) {
+    window.location.href = `https://accept.paymob.com/api/acceptance/iframes/${
+      import.meta.env.VITE_PAYMOB_IFRAME_ID
+    }?payment_token=${data.payment_key}`;
+  } else {
+    navigate(`/reservations/${data.reservation.id}/success`);
+  }
+},
+
+// To:
+onSuccess: (data) => {
+  if (data.payment_key && data.iframe_id) {
+    window.location.href = `https://accept.paymob.com/api/acceptance/iframes/${
+      data.iframe_id
+    }?payment_token=${data.payment_key}`;
+  } else if (data.payment_key && !data.iframe_id) {
+    toast.error("Payment gateway not fully configured for this tenant. Contact support.");
+  } else {
+    navigate(`/reservations/${data.reservation.id}/success`);
+  }
+},
+```
+
+### Step 4 — Update types
+**File:** `client/src/features/reservation/hooks/use-reservation.ts`
+
+```typescript
+// Change return type of useCreateReservation mutationFn:
+return res.data.data as {
+  reservation: Reservation;
+  payment_key: string | null;
+  iframe_id: string | null;   // ADD THIS
+  method: string;
+};
+```
+
+### Step 5 — Update admin settings to save iframe_id
+**File:** `client/src/features/admin/pages/admin-settings-page.tsx`
+
+In the `paymobSchema`, `iframe_id` is already `z.string().optional()`. The `PATCH /admin/tenant/paymob` route already accepts `iframe_id`. This already works — just verify the field is saved.
+
+### Step 6 — Clean up `.env.example`
+**File:** `client/.env.example`
+
+Remove the `VITE_PAYMOB_IFRAME_ID` variable entirely (it's no longer needed client-side). The iframe ID now comes from the server per-tenant.
+
+### ✅ Definition of Done
+- [ ] Three tenants each configured with different Paymob `integration_id` + `iframe_id` can each complete a reservation
+- [ ] `VITE_PAYMOB_IFRAME_ID` is removed from client `.env.example`
+- [ ] No `import.meta.env.VITE_PAYMOB_IFRAME_ID` references remain in client code
+
+---
+
+## PLAN 02 — Fix Map Coordinates (Use Real lat/lng)
+**Severity:** 🔴 Critical | **Owner:** Full-stack | **Est:** 1h
+
+### Problem
+`map-view.tsx` uses `pseudoCoord()` to hash unit IDs into fake Cairo coordinates. Units must show their real position from DB or, if null, cluster at the project center.
+
+### Files to change
+1. `server/src/routes/units.routes.ts`
+2. `client/src/features/browse/components/map-view.tsx`
+3. `client/src/features/browse/types.ts`
+
+### Step 1 — Add lat/lng to units query
+**File:** `server/src/routes/units.routes.ts`
+
+In the `GET /` handler, change the `.select(...)` columns:
+```typescript
+// Add location_lat, location_lng to the select:
+let query = supabaseAdmin
+  .from("units")
+  .select(
+    "id,unit_number,floor,type,bedrooms,bathrooms,size_sqm,price," +
+    "reservation_fee,down_payment_pct,installment_months,status,gallery," +
+    "view_type,finishing,building_id,project_id,location_lat,location_lng",
+    { count: "exact" }
+  )
+  .eq("tenant_id", req.tenantId!);
+```
+
+Also in `GET /:id` (single unit detail), add the same fields.
+
+### Step 2 — Add lat/lng to Unit type
+**File:** `client/src/features/browse/types.ts`
+
+```typescript
+export type Unit = {
+  id: string;
+  unit_number: string;
+  floor: number;
+  type: string;
+  bedrooms: number;
+  bathrooms: number;
+  size_sqm: number;
+  price: number;
+  reservation_fee: number;
+  down_payment_pct: number;
+  installment_months: number;
+  status: "available" | "reserved" | "sold";
+  gallery: string[] | null;
+  view_type?: string;
+  finishing?: string;
+  building_id: string;
+  project_id: string;
+  location_lat?: number | null;   // ADD
+  location_lng?: number | null;   // ADD
+};
+```
+
+### Step 3 — Replace pseudoCoord in map-view
+**File:** `client/src/features/browse/components/map-view.tsx`
+
+```typescript
+// DELETE the entire pseudoCoord() function.
+// DELETE the getUnitCoord() function.
+
+// Replace markers useMemo with:
+const CAIRO_CENTER = { lat: 30.05, lng: 31.35 };
+
+const markers = useMemo(
+  () =>
+    units
+      .filter((u) => u.location_lat != null && u.location_lng != null)
+      .map((u) => ({ unit: u, lat: u.location_lat!, lng: u.location_lng! })),
+  [units]
+);
+
+const unlocatedCount = units.length - markers.length;
+```
+
+Also add a small info strip below the map if `unlocatedCount > 0`:
+```tsx
+{unlocatedCount > 0 && (
+  <p className="px-3 py-1 text-xs text-muted-foreground bg-muted/60 border-t">
+    {unlocatedCount} وحدة لا تحتوي على إحداثيات دقيقة — لن تظهر على الخريطة
+  </p>
+)}
+```
+
+### Step 4 — Seed real coordinates in seed.sql (dev)
+In `supabase/seed.sql`, update any sample units to have realistic Cairo-area coordinates. For example:
+```sql
+UPDATE units SET location_lat = 30.0626, location_lng = 31.2497 WHERE unit_number = 'A-101';
+```
+
+### ✅ Definition of Done
+- [ ] Units with real coordinates appear at correct positions on the map
+- [ ] Units without coordinates are excluded from markers (not shown at random positions)
+- [ ] Info strip shows count of unlocated units
+- [ ] `pseudoCoord` function is deleted
+
+---
+
+## PLAN 03 — Guard tenantId in Public Data Routes
+**Severity:** 🔴 Critical | **Owner:** Backend | **Est:** 1h
+
+### Problem
+If `x-tenant-slug` header is missing, `resolveTenant` calls `next()` with `req.tenantId = undefined`. Routes using `req.tenantId!` silently pass `undefined` to Supabase, which may ignore the `.eq()` filter and return cross-tenant data.
+
+### Files to change
+1. `server/src/routes/units.routes.ts`
+2. `server/src/routes/projects.routes.ts`
+3. `server/src/middleware/tenant.ts` (optional guard helper)
+
+### Step 1 — Add tenant guard helper
+**File:** `server/src/middleware/tenant.ts` — add at bottom:
+```typescript
+export function requireTenant(
+  req: TenantRequest,
+  res: Response,
+  next: NextFunction
+) {
+  if (!req.tenantId) {
+    return sendError(res, ERROR_CODES.TENANT_NOT_FOUND, "Tenant context required", 400);
+  }
+  return next();
+}
+```
+
+### Step 2 — Apply to units route
+**File:** `server/src/routes/units.routes.ts`
+
+```typescript
+import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
+
+unitRoutes.use(resolveTenant, optionalAuth, requireTenant);
+// Remove resolveTenant from the route-level middleware since it's on the router now
+```
+
+This ensures ALL unit routes 400-error without a tenant slug.
+
+### Step 3 — Apply to projects route
+**File:** `server/src/routes/projects.routes.ts`
+
+Same pattern:
+```typescript
+import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
+projectRoutes.use(resolveTenant, optionalAuth, requireTenant);
+```
+
+### Step 4 — Fix auth middleware tenantId override
+**File:** `server/src/middleware/auth.ts`
+
+The current code `req.tenantId = profile?.tenant_id ?? req.tenantId` can overwrite a valid header-resolved `tenantId` with the user's stored `tenant_id`. The correct logic: the tenant from the header should win for super_admin; for normal users, use their registered `tenant_id` as a security backstop:
+
+```typescript
+// Current (unsafe):
+req.tenantId = profile?.tenant_id ?? req.tenantId;
+
+// Fix: Only override if no tenantId already resolved from header,
+// OR if the user is not super_admin (prevent cross-tenant header attacks)
+const resolvedByHeader = req.tenantId;
+const userTenantId = profile?.tenant_id;
+
+if (resolvedByHeader && userTenantId && resolvedByHeader !== userTenantId) {
+  // A non-super_admin user is sending a header for a different tenant — reject
+  if (profile?.role !== "super_admin") {
+    return sendError(res, ERROR_CODES.AUTH_FORBIDDEN, "Cross-tenant access denied", 403);
+  }
+}
+req.tenantId = userTenantId ?? resolvedByHeader;
+```
+
+### ✅ Definition of Done
+- [ ] `GET /api/v1/units` without `x-tenant-slug` returns `400 TENANT_NOT_FOUND`
+- [ ] `GET /api/v1/projects` without `x-tenant-slug` returns `400 TENANT_NOT_FOUND`
+- [ ] User from Tenant A with `x-tenant-slug: tenant-b` header gets `403 AUTH_FORBIDDEN` (not Tenant B data)
+- [ ] super_admin can still query any tenant with an explicit header
+
+---
+
+## PLAN 04 — Build Customer Overview Page
+**Severity:** 🔴 Critical | **Owner:** Frontend | **Est:** 3h
+
+### Problem
+`customer-dashboard/pages/overview-page.tsx` is a 3-line stub. This is the first page customers see after login.
+
+### File to replace
+`client/src/features/customer-dashboard/pages/overview-page.tsx`
+
+**Note:** `customer-dashboard-page.tsx` (the `/customer/dashboard` route) is actually already a rich page with BentoGrid. The stub at `overview-page.tsx` maps to the `/customer/overview` sub-route. Check `router.tsx` to confirm which route uses which page.
+
+From `router.tsx`:
+- `/customer/dashboard` → `CustomerDashboardPage` (already rich — this is the main page ✅)
+- `/dashboard` → redirect to `CustomerDashboardPage`
+
+The stub `overview-page.tsx` is the sub-route inside the dashboard layout. It needs to become a proper summary. Replace entirely:
+
+```typescript
+// client/src/features/customer-dashboard/pages/overview-page.tsx
+import { Helmet } from "react-helmet-async";
+import { useQuery } from "@tanstack/react-query";
+import { Link, useLocation } from "react-router-dom";
+import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth.store";
+import { useTenantStore } from "@/stores/tenant.store";
+import { appendTenantSearch } from "@/lib/tenant-path";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { CreditCard, Home, Phone, CalendarDays } from "lucide-react";
+
+type Payment = { id: string; amount: number; due_date: string; status: string };
+type Reservation = {
+  id: string; status: string; total_price: number;
+  units?: { unit_number: string; type: string; projects?: { name: string } };
+  users?: { full_name: string; phone: string };
+};
+
+export default function CustomerOverviewPage() {
+  const user = useAuthStore((s) => s.user);
+  const tenant = useTenantStore((s) => s.tenant);
+  const { pathname, search } = useLocation();
+  const withTenant = (p: string) => appendTenantSearch(pathname, search, p);
+
+  const { data: reservations = [], isLoading: resLoading } = useQuery<Reservation[]>({
+    queryKey: ["my-reservations"],
+    queryFn: async () => (await api.get("/reservations")).data.data,
+  });
+
+  const { data: payments = [], isLoading: payLoading } = useQuery<Payment[]>({
+    queryKey: ["my-payments-overview"],
+    queryFn: async () => (await api.get("/payments")).data.data,
+  });
+
+  const confirmedRes = reservations.find((r) => r.status === "confirmed");
+  const pendingRes = reservations.find((r) => r.status === "pending");
+  const activeRes = confirmedRes ?? pendingRes;
+
+  const nextPayment = payments
+    .filter((p) => p.status === "pending" && new Date(p.due_date) >= new Date())
+    .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())[0];
+
+  const overduePayments = payments.filter((p) => p.status === "overdue");
+
+  return (
+    <>
+      <Helmet><title>نظرتي — {tenant?.name ?? "Aqarify"}</title></Helmet>
+      <div className="mx-auto max-w-4xl px-4 py-8 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">
+            أهلاً، {user?.full_name?.split(" ")[0] ?? "عزيزي العميل"} 👋
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            إليك ملخص حسابك مع {tenant?.name ?? "المنصة"}
+          </p>
+        </div>
+
+        {/* Overdue alert */}
+        {overduePayments.length > 0 && (
+          <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 flex items-center gap-3">
+            <CreditCard className="h-5 w-5 text-destructive shrink-0" />
+            <div className="flex-1">
+              <p className="font-semibold text-destructive text-sm">
+                لديك {overduePayments.length} دفعة متأخرة
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                يرجى التواصل مع موظفك أو الدفع من صفحة المدفوعات
+              </p>
+            </div>
+            <Button size="sm" variant="destructive" asChild>
+              <Link to={withTenant("/payments")}>الدفع الآن</Link>
+            </Button>
+          </div>
+        )}
+
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* Active reservation */}
+          <div className="rounded-xl border bg-card p-5 space-y-3">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <Home className="h-4 w-4 text-primary" /> حجزك الحالي
+            </div>
+            {resLoading ? <Skeleton className="h-12 w-full" /> : activeRes ? (
+              <div className="space-y-1">
+                <p className="font-bold text-lg">
+                  {activeRes.units?.unit_number ?? "—"}
+                  {activeRes.units?.projects?.name
+                    ? ` — ${activeRes.units.projects.name}` : ""}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Badge variant={activeRes.status === "confirmed" ? "default" : "secondary"}>
+                    {activeRes.status === "confirmed" ? "مؤكد" : "في الانتظار"}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {activeRes.total_price.toLocaleString("ar-EG")} ج.م
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                لا يوجد حجز نشط.{" "}
+                <Link to={withTenant("/browse")} className="text-primary underline">
+                  تصفح الوحدات
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* Next payment */}
+          <div className="rounded-xl border bg-card p-5 space-y-3">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <CalendarDays className="h-4 w-4 text-primary" /> الدفعة القادمة
+            </div>
+            {payLoading ? <Skeleton className="h-12 w-full" /> : nextPayment ? (
+              <div className="space-y-1">
+                <p className="font-bold text-2xl">
+                  {nextPayment.amount.toLocaleString("ar-EG")} ج.م
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  تاريخ الاستحقاق:{" "}
+                  {new Date(nextPayment.due_date).toLocaleDateString("ar-EG")}
+                </p>
+                <Button size="sm" className="mt-1" asChild>
+                  <Link to={withTenant("/payments")}>عرض الجدول</Link>
+                </Button>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">لا توجد دفعات قادمة</p>
+            )}
+          </div>
+        </div>
+
+        {/* Agent contact */}
+        {activeRes?.users && (
+          <div className="rounded-xl border bg-card p-5 flex items-center gap-4">
+            <div className="h-10 w-10 rounded-full bg-primary/10 grid place-items-center shrink-0">
+              <Phone className="h-4 w-4 text-primary" />
+            </div>
+            <div className="flex-1">
+              <p className="text-xs text-muted-foreground">موظفك المعين</p>
+              <p className="font-semibold">{activeRes.users.full_name}</p>
+              <p className="text-sm text-muted-foreground">{activeRes.users.phone}</p>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <a href={`tel:${activeRes.users.phone}`}>اتصال</a>
+            </Button>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+```
+
+### Step 2 — Wire agent info to reservation query
+**File:** `server/src/routes/reservations.routes.ts`
+
+Ensure the `GET /reservations` (customer's own) query joins agent user info:
+```typescript
+// In GET / (customer reservations)
+.select("*, units(unit_number, type, projects(name)), users!agent_id(full_name, phone)")
+```
+
+### ✅ Definition of Done
+- [ ] Customer overview shows active reservation card with unit name + status
+- [ ] Next payment due card with amount + date + "View Schedule" button
+- [ ] Overdue payment alert visible if any overdue entries exist
+- [ ] Assigned agent contact card with call button
+- [ ] No "coming soon" text anywhere in the customer portal
+
+---
+
+## PLAN 05 — Wire Installment "Pay Now" Button
+**Severity:** 🔴 Critical | **Owner:** Frontend + Backend | **Est:** 4h
+
+### Problem
+`payments-page.tsx` shows the payment table but has no "Pay Now" action. Customers cannot pay installments online.
+
+### Files to change
+1. `server/src/routes/payments.routes.ts` — add `POST /:id/pay-intent`
+2. `client/src/features/customer-dashboard/pages/payments-page.tsx` — add Pay button
+
+### Step 1 — Add payment intent endpoint
+**File:** `server/src/routes/payments.routes.ts` — append:
+```typescript
+// POST /api/v1/payments/:id/pay-intent — initiate Paymob for an installment
+paymentRoutes.post("/:id/pay-intent", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
+  try {
+    // Fetch payment & verify ownership
+    const { data: payment } = await supabaseAdmin
+      .from("payments")
+      .select("*, users!customer_id(full_name, email, phone), reservations(unit_id)")
+      .eq("id", req.params.id)
+      .eq("tenant_id", req.tenantId!)
+      .eq("customer_id", req.userId!)
+      .single();
+
+    if (!payment) return sendError(res, "NOT_FOUND", "Payment not found", 404);
+    if (!["pending", "overdue"].includes(payment.status)) {
+      return sendError(res, "ALREADY_PAID", "Payment is not payable", 409);
+    }
+
+    const { data: tenant } = await supabaseAdmin
+      .from("tenants")
+      .select("paymob_integration_id, paymob_api_key_enc, paymob_iframe_id")
+      .eq("id", req.tenantId!)
+      .single();
+
+    if (!tenant?.paymob_integration_id || !tenant.paymob_api_key_enc) {
+      return sendError(res, "PAYMOB_NOT_CONFIGURED", "Payment gateway not configured", 503);
+    }
+
+    const apiKey = decrypt(tenant.paymob_api_key_enc, process.env.ENCRYPTION_KEY!);
+    const customer = payment.users as { full_name: string; email: string; phone: string };
+    const nameParts = customer.full_name.split(" ");
+
+    const { paymentKey } = await createPaymobIntention({
+      apiKey,
+      integrationId: tenant.paymob_integration_id,
+      amountCents: Math.round(payment.amount * 100),
+      currency: "EGP",
+      orderId: payment.id,
+      billingData: {
+        first_name: nameParts[0] ?? customer.full_name,
+        last_name: nameParts[1] ?? ".",
+        email: customer.email,
+        phone_number: customer.phone,
+      },
+    });
+
+    return sendSuccess(res, {
+      payment_key: paymentKey,
+      iframe_id: tenant.paymob_iframe_id ?? null,
+    });
+  } catch (err) { return next(err); }
+});
+```
+
+Add the needed imports at the top of `payments.routes.ts`:
+```typescript
+import { createPaymobIntention } from "../services/paymob.service";
+import { decrypt } from "../utils/hmac";
+```
+
+### Step 2 — Wire webhook to handle installment payments
+**File:** `server/src/routes/webhooks.routes.ts`
+
+The existing webhook confirms reservations by `merchant_order_id`. For installments, `orderId` is the `payment.id`. Add logic to handle installment payments:
+```typescript
+// In webhookRoutes.post("/paymob/callback") after the reservation check fails:
+
+// Check if it's a payment (installment/down_payment)
+const { data: installment } = await supabaseAdmin.from("payments")
+  .select("id, status, tenant_id").eq("id", orderId).single();
+
+if (installment && ["pending", "overdue"].includes(installment.status)) {
+  await supabaseAdmin.from("payments").update({
+    status: "paid",
+    paid_at: new Date().toISOString(),
+    paymob_transaction_id: txId,
+  }).eq("id", installment.id);
+  logger.info(`Webhook confirmed installment payment ${installment.id}`);
+  return res.json({ received: true });
+}
+```
+
+### Step 3 — Add Pay button to payments page
+**File:** `client/src/features/customer-dashboard/pages/payments-page.tsx`
+
+```typescript
+// Add to imports:
+import { useMutation } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+
+// Add mutation hook:
+const payInstallment = useMutation({
+  mutationFn: async (paymentId: string) => {
+    const res = await api.post(`/payments/${paymentId}/pay-intent`);
+    return res.data.data as { payment_key: string; iframe_id: string | null };
+  },
+  onSuccess: (data) => {
+    if (data.payment_key && data.iframe_id) {
+      window.location.href =
+        `https://accept.paymob.com/api/acceptance/iframes/${data.iframe_id}?payment_token=${data.payment_key}`;
+    } else {
+      toast.error("لم يتم إعداد بوابة الدفع. تواصل مع المبيعات.");
+    }
+  },
+  onError: () => toast.error("فشل بدء الدفع. حاول مرة أخرى."),
+});
+
+// In the table row, add a new column "إجراء":
+<TableHead>إجراء</TableHead>
+// In each row:
+<TableCell>
+  {["pending", "overdue"].includes(p.status) ? (
+    <Button
+      size="sm"
+      variant={p.status === "overdue" ? "destructive" : "default"}
+      onClick={() => payInstallment.mutate(p.id)}
+      disabled={payInstallment.isPending}
+    >
+      {payInstallment.isPending ? "جاري..." : "ادفع الآن"}
+    </Button>
+  ) : null}
+</TableCell>
+```
+
+Also add `toast` import and `import { toast } from "@/lib/app-toast"`.
+
+### ✅ Definition of Done
+- [ ] "ادفع الآن" button visible for `pending` + `overdue` payments
+- [ ] Clicking redirects to correct tenant Paymob iframe
+- [ ] Paymob webhook marks the payment `paid` on success
+- [ ] Already-paid installments show no Pay button
+
+---
+
+## PLAN 06 — Fix Waitlist Page to Show All Entries
+**Severity:** 🟠 High | **Owner:** Frontend + Backend | **Est:** 2h
+
+### Problem
+`GET /waiting-list/my` returns a single object (`.maybeSingle()`). A customer can join multiple unit waitlists. The page renders only one entry.
+
+### Files to change
+1. `server/src/routes/waitingList.routes.ts`
+2. `client/src/features/customer-dashboard/pages/waitlist-page.tsx`
+3. `client/src/features/waiting-list/hooks/use-waiting-list.ts`
+
+### Step 1 — Return array from server
+**File:** `server/src/routes/waitingList.routes.ts`
+
+```typescript
+// Change GET /my from:
+const { data } = await supabaseAdmin.from("waiting_list")
+  .select("*, units(unit_number, type), projects(name)")
+  .eq("customer_id", req.userId!).eq("tenant_id", req.tenantId!).maybeSingle();
+return sendSuccess(res, data);
+
+// To (return all entries for this customer):
+const { data } = await supabaseAdmin.from("waiting_list")
+  .select("*, units(unit_number, type, projects(name))")
+  .eq("customer_id", req.userId!)
+  .eq("tenant_id", req.tenantId!)
+  .not("status", "eq", "cancelled")
+  .order("position", { ascending: true });
+return sendSuccess(res, data ?? []);
+```
+
+Also fix `DELETE /my` to require a `unit_id` body param so the customer can leave a specific waitlist:
+```typescript
+// PATCH: accept unit_id to remove specific entry
+waitingListRoutes.delete("/my", async (req, res, next) => {
+  try {
+    const unitId = req.query.unit_id as string | undefined;
+    let query = supabaseAdmin.from("waiting_list")
+      .update({ status: "cancelled" })
+      .eq("customer_id", req.userId!).eq("tenant_id", req.tenantId!);
+    if (unitId) query = query.eq("unit_id", unitId);
+    await query;
+    return sendSuccess(res, { removed: true });
+  } catch (err) { return next(err); }
+});
+```
+
+### Step 2 — Update hook
+**File:** `client/src/features/waiting-list/hooks/use-waiting-list.ts`
+
+```typescript
+// Add (or update) useMyWaitingEntries:
+export function useMyWaitingEntries() {
+  return useQuery<WaitlistEntry[]>({
+    queryKey: ["my-waitlist-entries"],
+    queryFn: async () => (await api.get("/waiting-list/my")).data.data,
+  });
+}
+
+// Keep useMyWaitingEntry for backwards compat (returns first item):
+export function useMyWaitingEntry() {
+  const q = useMyWaitingEntries();
+  return { ...q, data: q.data?.[0] ?? null };
+}
+```
+
+### Step 3 — Rewrite waitlist page
+**File:** `client/src/features/customer-dashboard/pages/waitlist-page.tsx`
+
+```typescript
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { toast } from "@/lib/app-toast";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { useMyWaitingEntries } from "@/features/waiting-list/hooks/use-waiting-list";
+
+const STATUS_LABEL: Record<string, string> = {
+  waiting: "في الانتظار",
+  notified: "تم الإشعار",
+  expired: "انتهت المدة",
+  cancelled: "ملغي",
+};
+
+export default function WaitlistPage() {
+  const qc = useQueryClient();
+  const { data: entries = [], isLoading } = useMyWaitingEntries();
+
+  const leave = useMutation({
+    mutationFn: async (unitId: string) =>
+      api.delete(`/waiting-list/my?unit_id=${unitId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["my-waitlist-entries"] });
+      toast.success("تم إلغاء الاشتراك من قائمة الانتظار");
+    },
+    onError: () => toast.error("فشل تنفيذ العملية"),
+  });
+
+  return (
+    <>
+      <Helmet><title>قائمة الانتظار</title></Helmet>
+      <div className="mx-auto max-w-4xl px-4 py-8 space-y-4">
+        <h1 className="text-2xl font-bold">قائمة الانتظار ({entries.length})</h1>
+        {isLoading ? (
+          <div className="py-16 text-center text-muted-foreground">جاري التحميل...</div>
+        ) : entries.length === 0 ? (
+          <div className="rounded-xl border bg-card p-10 text-center text-muted-foreground">
+            لا يوجد اشتراك فعال في قائمة الانتظار حاليا
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {entries.map((entry) => (
+              <div key={entry.id} className="rounded-xl border bg-card p-5 flex items-center gap-4">
+                <div className="h-12 w-12 rounded-full bg-primary/10 grid place-items-center font-bold text-primary shrink-0">
+                  #{entry.position}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold">
+                    {entry.units?.unit_number ?? "—"}
+                    {entry.units?.projects?.name ? ` — ${entry.units.projects.name}` : ""}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge variant="outline">{STATUS_LABEL[entry.status] ?? entry.status}</Badge>
+                    {entry.expires_at && entry.status === "notified" && (
+                      <span className="text-xs text-orange-600 font-medium">
+                        ينتهي: {new Date(entry.expires_at).toLocaleString("ar-EG")}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {entry.status === "waiting" && (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => leave.mutate(entry.unit_id)}
+                    disabled={leave.isPending}
+                  >
+                    إلغاء
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+```
+
+### ✅ Definition of Done
+- [ ] Customer with 3 waitlist entries sees all 3 cards
+- [ ] Each card shows unit name, project, position, status
+- [ ] Notified entries show countdown to expiry
+- [ ] Leave button removes only the specific waitlist entry
+
+---
+
+## PLAN 07 — Replace Reports JSON Dump with Recharts
+**Severity:** 🟠 High | **Owner:** Frontend | **Est:** 4h
+
+### Problem
+`manager-reports-page.tsx` renders raw JSON in `<pre>` tags. `recharts` is installed. Backend `report.service.ts` returns structured data.
+
+### File to replace
+`client/src/features/manager-dashboard/pages/manager-reports-page.tsx`
+
+```typescript
+import { Helmet } from "react-helmet-async";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import {
+  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+} from "recharts";
+import { Button } from "@/components/ui/button";
+
+type SalesReport = {
+  confirmed: number; cancelled: number; total_revenue: number;
+  monthly: { month: string; count: number; revenue: number }[];
+};
+type FinancialReport = {
+  total_collected: number; total_pending: number; total_overdue: number;
+  by_type: { reservation_fee: number; down_payment: number; installment: number };
+};
+type InventoryReport = {
+  by_status: { available: number; reserved: number; sold: number };
+  by_type: { type: string; count: number }[];
+};
+type AgentReport = { agent_id: string; agent_name: string; count: number; revenue: number }[];
+
+const COLORS = ["#22c55e", "#f59e0b", "#3b82f6", "#ef4444", "#8b5cf6"];
+const PERIODS = [
+  { label: "آخر 30 يوم", days: 30 },
+  { label: "آخر 90 يوم", days: 90 },
+  { label: "هذا العام", days: 365 },
+];
+
+function formatEGP(v: number) {
+  return `${(v / 1000).toFixed(0)}k`;
+}
+
+export default function ManagerReportsPage() {
+  const [period, setPeriod] = useState(30);
+  const from = new Date(Date.now() - period * 86400000).toISOString().split("T")[0];
+
+  const sales = useQuery<SalesReport>({
+    queryKey: ["reports-sales", period],
+    queryFn: async () => (await api.get(`/reports/sales?from=${from}`)).data.data,
+  });
+  const financial = useQuery<FinancialReport>({
+    queryKey: ["reports-financial", period],
+    queryFn: async () => (await api.get(`/reports/financial?from=${from}`)).data.data,
+  });
+  const inventory = useQuery<InventoryReport>({
+    queryKey: ["reports-inventory"],
+    queryFn: async () => (await api.get("/reports/inventory")).data.data,
+  });
+  const agents = useQuery<AgentReport>({
+    queryKey: ["reports-agents", period],
+    queryFn: async () => (await api.get(`/reports/agents?from=${from}`)).data.data,
+  });
+
+  const isLoading = sales.isLoading || financial.isLoading || inventory.isLoading || agents.isLoading;
+
+  const pieData = inventory.data ? [
+    { name: "متاح", value: inventory.data.by_status.available },
+    { name: "محجوز", value: inventory.data.by_status.reserved },
+    { name: "مباع", value: inventory.data.by_status.sold },
+  ] : [];
+
+  const financialBar = financial.data ? [
+    { name: "محصل", value: financial.data.total_collected },
+    { name: "معلق", value: financial.data.total_pending },
+    { name: "متأخر", value: financial.data.total_overdue },
+  ] : [];
+
+  return (
+    <>
+      <Helmet><title>التقارير</title></Helmet>
+      <div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <h1 className="text-2xl font-bold">التقارير</h1>
+          <div className="flex gap-2">
+            {PERIODS.map((p) => (
+              <Button
+                key={p.days} size="sm"
+                variant={period === p.days ? "default" : "outline"}
+                onClick={() => setPeriod(p.days)}
+              >
+                {p.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="py-20 text-center text-muted-foreground">جاري تحميل التقارير...</div>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2">
+
+            {/* Sales trend */}
+            <div className="rounded-xl border bg-card p-5 col-span-2 space-y-3">
+              <h2 className="font-semibold">مبيعات شهرية</h2>
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={sales.data?.monthly ?? []}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis yAxisId="count" orientation="left" tick={{ fontSize: 11 }} />
+                  <YAxis yAxisId="revenue" orientation="right" tickFormatter={formatEGP} tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(v, name) => name === "revenue" ? `${Number(v).toLocaleString("ar-EG")} ج.م` : v} />
+                  <Legend />
+                  <Line yAxisId="count" type="monotone" dataKey="count" name="حجوزات" stroke="#141414" strokeWidth={2} dot={false} />
+                  <Line yAxisId="revenue" type="monotone" dataKey="revenue" name="إيرادات" stroke="#22c55e" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Inventory pie */}
+            <div className="rounded-xl border bg-card p-5 space-y-3">
+              <h2 className="font-semibold">حالة الوحدات</h2>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                    {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Financial bar */}
+            <div className="rounded-xl border bg-card p-5 space-y-3">
+              <h2 className="font-semibold">المالية (ج.م)</h2>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={financialBar}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                  <YAxis tickFormatter={formatEGP} tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(v) => `${Number(v).toLocaleString("ar-EG")} ج.م`} />
+                  <Bar dataKey="value" name="المبلغ" fill="#141414" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Agent performance */}
+            {Array.isArray(agents.data) && agents.data.length > 0 && (
+              <div className="rounded-xl border bg-card p-5 space-y-3 col-span-2">
+                <h2 className="font-semibold">أداء الموظفين</h2>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={agents.data}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="agent_name" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip />
+                    <Bar dataKey="count" name="حجوزات" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+```
+
+### Step 2 — Fix agent performance report to return `agent_name`
+**File:** `server/src/services/report.service.ts`
+
+Ensure `getAgentPerformanceReport` joins user names:
+```typescript
+export async function getAgentPerformanceReport(tenantId: string, from?: string, to?: string) {
+  let query = supabaseAdmin.from("reservations")
+    .select("agent_id, total_price, status, users!agent_id(full_name)")
+    .eq("tenant_id", tenantId).eq("status", "confirmed");
+  if (from) query = query.gte("created_at", from);
+  if (to) query = query.lte("created_at", to);
+  const { data } = await query;
+
+  const byAgent: Record<string, { agent_name: string; count: number; revenue: number }> = {};
+  (data ?? []).forEach((r) => {
+    const id = r.agent_id ?? "unassigned";
+    const name = (r.users as { full_name?: string } | null)?.full_name ?? "غير معين";
+    if (!byAgent[id]) byAgent[id] = { agent_name: name, count: 0, revenue: 0 };
+    byAgent[id].count++;
+    byAgent[id].revenue += r.total_price ?? 0;
+  });
+  return Object.entries(byAgent).map(([agent_id, v]) => ({ agent_id, ...v }));
+}
+```
+
+### ✅ Definition of Done
+- [ ] Four charts render: sales trend line, inventory pie, financial bar, agent bar
+- [ ] Period selector (30/90/365 days) re-fetches data on click
+- [ ] No `<pre>` JSON visible anywhere on the page
+- [ ] Charts are responsive on mobile
+
+---
+
+## PLAN 08 — Create Documents Storage Bucket Migration
+**Severity:** 🟠 High | **Owner:** DB / DevOps | **Est:** 30min
+
+### Problem
+`pdf.service.ts` uploads to `documents` bucket; no migration creates this bucket. Receipts and document uploads silently fail with storage errors.
+
+### New file
+`supabase/supabase/migrations/00029_create_documents_bucket.sql`:
+```sql
+-- Create the documents storage bucket for receipts and customer uploads.
+-- Safe to run multiple times (insert on conflict do nothing).
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'documents',
+  'documents',
+  false,  -- private bucket; use signed URLs
+  10485760, -- 10 MB
+  ARRAY['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- Tenants can read documents within their tenant folder.
+-- Service role bypasses RLS so server-side uploads always work.
+CREATE POLICY IF NOT EXISTS "documents_tenant_read" ON storage.objects
+  FOR SELECT TO authenticated
+  USING (
+    bucket_id = 'documents'
+    AND (storage.foldername(name))[1] = (
+      SELECT tenant_id::text FROM public.users WHERE id = auth.uid() LIMIT 1
+    )
+  );
+
+-- Authenticated users can upload to their own tenant/reservation paths.
+CREATE POLICY IF NOT EXISTS "documents_tenant_upload" ON storage.objects
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    bucket_id = 'documents'
+    AND (storage.foldername(name))[1] = (
+      SELECT tenant_id::text FROM public.users WHERE id = auth.uid() LIMIT 1
+    )
+  );
+```
+
+### ✅ Definition of Done
+- [ ] `supabase db push` runs migration without error
+- [ ] `documents` bucket visible in Supabase dashboard
+- [ ] Confirmed reservation triggers PDF generation that successfully uploads to bucket
+- [ ] Customer document upload succeeds
+
+---
+
+## PLAN 09 — Create follow_ups.routes.ts
+**Severity:** 🟠 High | **Owner:** Backend | **Est:** 2h
+
+### Problem
+`agent-follow-ups-page.tsx` exists and makes API calls, but no `follow_ups.routes.ts` exists in the server. The page calls endpoints that don't exist.
+
+### New file
+`server/src/routes/followUps.routes.ts`:
+```typescript
+import { Router } from "express";
+import { z } from "zod";
+import { resolveTenant, type TenantRequest } from "../middleware/tenant";
+import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
+import { requireRole } from "../middleware/rbac";
+import { supabaseAdmin } from "../config/supabase";
+import { sendSuccess, sendError, ERROR_CODES } from "../utils/response";
+
+export const followUpRoutes = Router();
+followUpRoutes.use(resolveTenant, authenticate, requireRole("agent", "manager", "admin"));
+
+const createSchema = z.object({
+  potential_customer_id: z.string().uuid(),
+  type: z.enum(["call", "whatsapp", "email", "visit", "other"]),
+  scheduled_at: z.string().datetime(),
+  notes: z.string().optional(),
+});
+
+// GET /api/v1/follow-ups — agent's follow-ups (optionally filtered by date)
+followUpRoutes.get("/", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
+  try {
+    const { date, status } = req.query as Record<string, string>;
+    let query = supabaseAdmin.from("follow_ups")
+      .select("*, potential_customers(full_name, phone)")
+      .eq("tenant_id", req.tenantId!)
+      .order("scheduled_at", { ascending: true });
+
+    if (req.userRole === "agent") query = query.eq("agent_id", req.userId!);
+    if (date) {
+      query = query
+        .gte("scheduled_at", `${date}T00:00:00Z`)
+        .lte("scheduled_at", `${date}T23:59:59Z`);
+    }
+    if (status) query = query.eq("status", status);
+
+    const { data } = await query;
+    return sendSuccess(res, data ?? []);
+  } catch (err) { return next(err); }
+});
+
+// POST /api/v1/follow-ups — create
+followUpRoutes.post("/", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
+  try {
+    const parsed = createSchema.safeParse(req.body);
+    if (!parsed.success) return sendError(res, ERROR_CODES.VALIDATION_ERROR, "Invalid input", 400, parsed.error.flatten());
+
+    const { data, error } = await supabaseAdmin.from("follow_ups").insert({
+      tenant_id: req.tenantId!,
+      agent_id: req.userId!,
+      ...parsed.data,
+      status: "scheduled",
+    }).select("*, potential_customers(full_name, phone)").single();
+
+    if (error) throw error;
+    return sendSuccess(res, data, undefined, 201);
+  } catch (err) { return next(err); }
+});
+
+// PATCH /api/v1/follow-ups/:id/complete — mark as done
+followUpRoutes.patch("/:id/complete", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
+  try {
+    const { outcome, notes } = req.body as { outcome?: string; notes?: string };
+    const { data, error } = await supabaseAdmin.from("follow_ups")
+      .update({
+        status: "completed",
+        completed_at: new Date().toISOString(),
+        outcome: outcome ?? null,
+        notes: notes ?? undefined,
+      })
+      .eq("id", req.params.id)
+      .eq("tenant_id", req.tenantId!)
+      .select().single();
+
+    if (error || !data) return sendError(res, "NOT_FOUND", "Follow-up not found", 404);
+    return sendSuccess(res, data);
+  } catch (err) { return next(err); }
+});
+
+// DELETE /api/v1/follow-ups/:id
+followUpRoutes.delete("/:id", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
+  try {
+    await supabaseAdmin.from("follow_ups")
+      .delete().eq("id", req.params.id).eq("tenant_id", req.tenantId!);
+    return sendSuccess(res, { deleted: true });
+  } catch (err) { return next(err); }
+});
+```
+
+### Register in index.ts
+**File:** `server/src/index.ts` — add import and mount:
+```typescript
+import { followUpRoutes } from "./routes/followUps.routes";
+// ...
+app.use("/api/v1/follow-ups", subscriptionGuard, followUpRoutes);
+```
+
+### ✅ Definition of Done
+- [ ] Agent can create a follow-up from `agent-follow-ups-page.tsx` without 404
+- [ ] `GET /api/v1/follow-ups?date=today` returns today's scheduled follow-ups for the agent
+- [ ] `PATCH /:id/complete` marks follow-up as completed with outcome
+- [ ] Route registered in `index.ts`
+
+---
+
+## PLAN 10 — Fix Manager Reservations Endpoint
+**Severity:** 🟡 Medium | **Owner:** Frontend | **Est:** 30min
+
+### Problem
+`manager-reservations-page.tsx` calls `api.get("/agent/reservations")`. The agent route filters by `agent_id` for agents but passes all for managers. However, semantically managers should use the manager route.
+
+**File:** `client/src/features/manager-dashboard/pages/manager-reservations-page.tsx`
+
+```typescript
+// Change:
+queryFn: async () => (await api.get("/agent/reservations")).data.data,
+
+// To:
+queryFn: async () => (await api.get("/manager/reservations")).data.data,
+```
+
+Also fix the cancel/confirm mutation:
+```typescript
+// Change:
+api.patch(`/agent/reservations/${id}/status`, { status }),
+
+// To:
+api.patch(`/manager/reservations/${id}/status`, { status }),
+```
+
+### Add manager reservations route
+**File:** `server/src/routes/manager.routes.ts` — add if not present:
+```typescript
+// GET /api/v1/manager/reservations — all tenant reservations (manager scope)
+managerRoutes.get("/reservations", async (req, res, next) => {
+  try {
+    const page = Number(req.query.page ?? 1);
+    const limit = Number(req.query.limit ?? 20);
+    const status = req.query.status as string | undefined;
+    let query = supabaseAdmin.from("reservations")
+      .select("*, units(unit_number, type, projects(name)), users!customer_id(full_name, email, phone)", { count: "exact" })
+      .eq("tenant_id", req.tenantId!)
+      .order("created_at", { ascending: false })
+      .range((page - 1) * limit, page * limit - 1);
+    if (status) query = query.eq("status", status);
+    const { data, count } = await query;
+    return sendSuccess(res, { items: data ?? [], total: count ?? 0, page, limit });
+  } catch (err) { return next(err); }
+});
+
+// PATCH /api/v1/manager/reservations/:id/status
+managerRoutes.patch("/reservations/:id/status", async (req, res, next) => {
+  try {
+    const { status, reason } = req.body as { status: string; reason?: string };
+    const { data, error } = await supabaseAdmin.from("reservations")
+      .update({ status, notes: reason })
+      .eq("id", req.params.id).eq("tenant_id", req.tenantId!)
+      .select().single();
+    if (error || !data) return sendError(res, "NOT_FOUND", "Not found", 404);
+    return sendSuccess(res, data);
+  } catch (err) { return next(err); }
+});
+```
+
+### ✅ Definition of Done
+- [ ] Manager sees ALL tenant reservations (not just agent-assigned ones)
+- [ ] Approve/Cancel actions use the correct manager endpoint
+
+---
+
+## PLAN 11 — Harden ENCRYPTION_KEY Validation
+**Severity:** 🟠 High | **Owner:** Backend | **Est:** 30min
+
+### Problem
+If `ENCRYPTION_KEY` is missing or less than 32 chars, the AES-256-CBC cipher silently uses padding. Tenant Paymob keys are encrypted insecurely.
+
+**File:** `server/src/index.ts`
+
+Add startup validation before `app.listen()`:
+```typescript
+// Add at the very top of the startup logic (after imports, before app setup):
+function validateEnv() {
+  const required = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "ENCRYPTION_KEY"];
+  const missing = required.filter((k) => !process.env[k]);
+  if (missing.length > 0) {
+    logger.error(`Missing required env vars: ${missing.join(", ")}`);
+    process.exit(1);
+  }
+  const key = process.env.ENCRYPTION_KEY!;
+  if (key.length !== 32) {
+    logger.error(
+      `ENCRYPTION_KEY must be exactly 32 characters. Got: ${key.length}`
+    );
+    process.exit(1);
+  }
+  logger.info("Environment validation passed");
+}
+validateEnv();
+```
+
+**File:** `server/.env.example` — update the comment:
+```
+# Encryption key for tenant Paymob API keys.
+# MUST be exactly 32 characters. Shorter keys will cause server startup failure.
+# Generate: openssl rand -hex 16
+ENCRYPTION_KEY=your-exactly-32-char-key-here!!
+```
+
+### ✅ Definition of Done
+- [ ] Server refuses to start if `ENCRYPTION_KEY` is not exactly 32 chars
+- [ ] Server refuses to start if `SUPABASE_URL` or `SUPABASE_SERVICE_ROLE_KEY` are missing
+- [ ] `.env.example` documents the 32-char requirement
+
+---
+
+## PLAN 12 — Rate-Limit Webhook + Fix HMAC Response
+**Severity:** 🟠 High | **Owner:** Backend | **Est:** 1h
+
+### Problem
+`/webhooks/paymob/callback` is open to flooding and returns 401 on HMAC failure (confirms endpoint). Both issues are security risks.
+
+**File:** `server/src/index.ts`
+
+```typescript
+// Add dedicated webhook limiter (before routes):
+const webhookLimiter = rateLimit({ windowMs: 60_000, max: 100 });
+app.use("/webhooks", webhookLimiter);
+```
+
+**File:** `server/src/routes/webhooks.routes.ts`
+
+Change HMAC failure response from 401 to 200:
+```typescript
+// Change:
+if (!verifyPaymobHmac(payload, hmac, secret)) {
+  logger.warn("Paymob HMAC mismatch");
+  return res.status(401).json({ error: "invalid hmac" });
+}
+
+// To:
+if (!verifyPaymobHmac(payload, hmac, secret)) {
+  logger.warn("Paymob HMAC mismatch — ignoring request");
+  return res.status(200).json({ received: true }); // Don't confirm endpoint with 401
+}
+```
+
+Apply the same fix to the `/webhooks/paymob/platform` handler.
+
+Also add idempotency check to prevent double-processing if Paymob retries:
+```typescript
+// In the reservation webhook, after finding the reservation:
+if (reservation.status !== "pending") {
+  logger.info(`Webhook skipped: reservation ${reservation.id} already in status ${reservation.status}`);
+  return res.json({ received: true });
+}
+```
+
+### ✅ Definition of Done
+- [ ] HMAC mismatch returns HTTP 200 (not 401)
+- [ ] `/webhooks` paths are rate-limited at 100 req/min
+- [ ] Double-delivery of the same Paymob callback does not double-confirm
+
+---
+
+## PLAN 13 — Add Supabase Realtime Notification Bell
+**Severity:** 🟡 Medium | **Owner:** Frontend | **Est:** 3h
+
+### Problem
+Notifications are inserted to DB by cron/service, but users only see them if they visit the notifications page. The topbar bell already polls every 60s — upgrade it to Realtime.
+
+### Files to change
+1. `client/src/lib/supabase.ts` — ensure Realtime channel config
+2. `client/src/components/shared/topbar.tsx` — add Realtime subscription
+
+### Step 1 — Create useNotificationBell hook
+**New file:** `client/src/features/notifications/hooks/use-notification-bell.ts`
+
+```typescript
+import { useEffect, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
+import { useAuthStore } from "@/stores/auth.store";
+
+export function useNotificationBell() {
+  const qc = useQueryClient();
+  const userId = useAuthStore((s) => s.user?.id);
+
+  const { data } = useQuery({
+    queryKey: ["unread-notifications"],
+    queryFn: async () => {
+      const r = await api.get("/notifications/unread-count");
+      return r.data.data as { count: number };
+    },
+    refetchInterval: 60_000,
+    enabled: !!userId,
+  });
+
+  const invalidate = useCallback(() => {
+    qc.invalidateQueries({ queryKey: ["unread-notifications"] });
+    qc.invalidateQueries({ queryKey: ["notifications"] });
+  }, [qc]);
+
+  // Realtime subscription: re-query whenever a new notification is inserted
+  useEffect(() => {
+    if (!userId) return;
+
+    const channel = supabase
+      .channel(`notifications:user:${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        () => { invalidate(); }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [userId, invalidate]);
+
+  return { count: data?.count ?? 0 };
+}
+```
+
+### Step 2 — Update Topbar to use hook
+**File:** `client/src/components/shared/topbar.tsx`
+
+```typescript
+// Remove the existing useQuery for unread-notifications
+// Replace with:
+import { useNotificationBell } from "@/features/notifications/hooks/use-notification-bell";
+// ...
+const { count } = useNotificationBell();
+// Use `count` instead of `data?.count ?? 0`
+```
+
+### ✅ Definition of Done
+- [ ] New notification badge appears within ~1s of server inserting a notification for that user
+- [ ] No polling fallback needed for bell (Realtime handles it); 60s poll remains as backup
+- [ ] Channel properly unsubscribed on component unmount
+
+---
+
+## PLAN 14 — Add Route-Level Error Boundaries
+**Severity:** 🟡 Medium | **Owner:** Frontend | **Est:** 2h
+
+### Problem
+No `errorElement` on routes. An uncaught error in any dashboard page white-screens the app.
+
+### New file
+`client/src/components/shared/route-error-boundary.tsx`:
+```typescript
+import { useRouteError, isRouteErrorResponse, Link } from "react-router-dom";
+import { AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+export function RouteErrorBoundary() {
+  const error = useRouteError();
+
+  const message = isRouteErrorResponse(error)
+    ? `${error.status} — ${error.statusText}`
+    : error instanceof Error
+    ? error.message
+    : "Unknown error";
+
+  const errorId = Math.random().toString(36).slice(2, 8).toUpperCase();
+
+  return (
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-8 text-center">
+      <AlertTriangle className="h-12 w-12 text-destructive" />
+      <h1 className="text-2xl font-bold">حدث خطأ غير متوقع</h1>
+      <p className="max-w-md text-sm text-muted-foreground">{message}</p>
+      <p className="text-xs text-muted-foreground">
+        رمز الخطأ: <span className="font-mono">{errorId}</span>
+      </p>
+      <div className="flex gap-3">
+        <Button onClick={() => window.location.reload()}>إعادة تحميل</Button>
+        <Button variant="outline" asChild>
+          <Link to="/">الرئيسية</Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
+```
+
+### Update router.tsx
+**File:** `client/src/app/router.tsx`
+
+Add `errorElement` to the root route and all major layout routes:
+```typescript
+import { RouteErrorBoundary } from "@/components/shared/route-error-boundary";
+
+// In createBrowserRouter config, add errorElement to root and each layout:
+{
+  element: <DashboardLayout />,
+  errorElement: <RouteErrorBoundary />,
+  children: [
+    // ... all dashboard routes
+  ]
+},
+{
+  element: <PublicLayout />,
+  errorElement: <RouteErrorBoundary />,
+  children: [
+    // ... public routes
+  ]
+},
+```
+
+### ✅ Definition of Done
+- [ ] Throwing in any dashboard page shows the error boundary with a reload button
+- [ ] Error boundary is on each layout segment (not just root)
+- [ ] Error ID is shown for support reference
+
+---
+
+## PLAN 15 — Manager Overview Page Stub Fix
+**Severity:** 🟡 Medium | **Owner:** Frontend | **Est:** 2h
+
+### Problem
+`manager-dashboard/pages/overview-page.tsx` returns "Phase 8 — coming soon". The manager KPI data already exists at `GET /manager/dashboard`.
+
+**File:** `client/src/features/manager-dashboard/pages/overview-page.tsx`
+
+```typescript
+import { Helmet } from "react-helmet-async";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Building2, TrendingUp, Users, Clock } from "lucide-react";
+
+type DashData = {
+  units: { total: number; available?: number; reserved?: number; sold?: number };
+  reservations: { total: number; confirmed?: number; pending?: number; cancelled?: number };
+  revenue: { total: number };
+  leads: { total: number; new?: number };
+};
+
+export default function ManagerOverviewPage() {
+  const { data, isLoading } = useQuery<DashData>({
+    queryKey: ["manager-dashboard"],
+    queryFn: async () => (await api.get("/manager/dashboard")).data.data,
+  });
+
+  const kpis = data
+    ? [
+        { label: "إجمالي الوحدات", value: data.units.total, sub: `${data.units.available ?? 0} متاح`, icon: Building2 },
+        { label: "الحجوزات المؤكدة", value: data.reservations.confirmed ?? 0, sub: `${data.reservations.pending ?? 0} معلق`, icon: Clock },
+        { label: "الإيرادات المحصلة", value: `${(data.revenue.total / 1000).toFixed(0)}k`, sub: "ج.م", icon: TrendingUp },
+        { label: "العملاء المحتملين", value: data.leads.total, sub: `${data.leads.new ?? 0} جديد`, icon: Users },
+      ]
+    : [];
+
+  return (
+    <>
+      <Helmet><title>نظرة عامة المدير</title></Helmet>
+      <div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
+        <h1 className="text-2xl font-bold tracking-tight">نظرة عامة</h1>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {isLoading
+            ? Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-28 rounded-xl" />
+              ))
+            : kpis.map(({ label, value, sub, icon: Icon }) => (
+                <div key={label} className="rounded-xl border bg-card p-5 space-y-2">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Icon className="h-4 w-4" /> {label}
+                  </div>
+                  <p className="text-3xl font-bold">{value}</p>
+                  <p className="text-xs text-muted-foreground">{sub}</p>
+                </div>
+              ))}
+        </div>
+      </div>
+    </>
+  );
+}
+```
+
+### ✅ Definition of Done
+- [ ] Manager overview shows 4 KPI cards: units, confirmed reservations, revenue, leads
+- [ ] Cards show real data from `GET /manager/dashboard`
+- [ ] Loading skeleton shows while data is fetching
+- [ ] No "coming soon" text
+
+---
+
+## PLAN 16 — Dead Code Cleanup + Missing Env Vars
+**Severity:** 🔵 Low | **Owner:** Frontend | **Est:** 30min
+
+### Files to change
+1. `client/src/App.tsx` — delete (not imported by anything; `main.tsx` uses router directly)
+2. `client/src/App.css` — delete
+3. `client/.env.example` — add missing `VITE_PAYMOB_IFRAME_ID` removal note
+
+### .gitignore update
+**File:** `aqarify/.gitignore` — add:
+```
+supabase/supabase/.temp/linked-project.json
+supabase/supabase/.temp/
+```
+
+### Remove duplicate toast libraries
+**File:** `client/package.json`
+
+Keep `sonner` (already used via `app-toast.tsx`). Remove `react-hot-toast`:
+```json
+// Remove from dependencies:
+"react-hot-toast": "^2.5.2"
+```
+
+Run `npm uninstall react-hot-toast` in `/client`.
+
+### ✅ Definition of Done
+- [ ] `App.tsx` and `App.css` deleted
+- [ ] `supabase/.temp/linked-project.json` in `.gitignore` and untracked
+- [ ] Only one toast library remains in `package.json`
+
+---
+
+## PLAN 17 — Fix Enum Mismatches (waitlist + reservation status)
+**Severity:** 🟡 Medium | **Owner:** DB | **Est:** 1h
+
+### Problem
+`waitingList.routes.ts` uses `status: "waiting"` and `status: "cancelled"` but `00001_create_enums.sql` defines `waitlist_status AS ENUM ('active', 'notified', 'converted', 'expired', 'removed')`. No "waiting" or "cancelled" values exist.
+
+Also: `reservations.routes.ts` uses `status: "rejected"` but `reservation_status` enum only has `'pending', 'confirmed', 'cancelled', 'expired'`.
+
+### New migration
+`supabase/supabase/migrations/00030_fix_enum_values.sql`:
+```sql
+-- Add missing waitlist status values
+ALTER TYPE waitlist_status ADD VALUE IF NOT EXISTS 'waiting';
+ALTER TYPE waitlist_status ADD VALUE IF NOT EXISTS 'cancelled';
+
+-- Add missing reservation status value
+ALTER TYPE reservation_status ADD VALUE IF NOT EXISTS 'rejected';
+```
+
+### Code fixes
+**File:** `server/src/routes/agent.routes.ts`
+```typescript
+// Change status enum in statusSchema:
+const statusSchema = z.object({
+  status: z.enum(["confirmed", "cancelled", "rejected"]),
+  reason: z.string().optional(),
+});
+```
+
+**File:** `server/src/routes/waitingList.routes.ts`
+```typescript
+// Change insert to use 'waiting' (now valid after migration):
+status: "waiting",
+// And cancel to use 'cancelled':
+.update({ status: "cancelled" })
+```
+
+### ✅ Definition of Done
+- [ ] Migration runs without `invalid input value for enum` error
+- [ ] Joining a waitlist inserts with `status = 'waiting'`
+- [ ] Cancelling a reservation with `status = 'rejected'` works via agent route
+
+---
+
+## PLAN 18 — Add Receipt Download Button to Success Page
+**Severity:** 🟡 Medium | **Owner:** Frontend | **Est:** 1h
+
+### Problem
+`reservation-success-page.tsx` shows a confirmation but no receipt download link, even though `pdf.service.ts` generates a receipt and stores it in Supabase Storage.
+
+### Files to change
+1. `server/src/routes/reservations.routes.ts` — add `GET /:id/receipt`
+2. `client/src/features/reservation/pages/reservation-success-page.tsx` — add download button
+
+### Server route addition
+**File:** `server/src/routes/reservations.routes.ts`:
+```typescript
+// GET /api/v1/reservations/:id/receipt
+reservationRoutes.get("/:id/receipt", async (req, res, next) => {
+  try {
+    const { data } = await supabaseAdmin.from("reservations")
+      .select("receipt_url, customer_id, tenant_id")
+      .eq("id", req.params.id)
+      .eq("tenant_id", req.tenantId!)
+      .single();
+
+    // Ensure only the owner or staff can access
+    const isOwner = data?.customer_id === req.userId;
+    const isStaff = ["agent", "manager", "admin", "super_admin"].includes(req.userRole ?? "");
+    if (!isOwner && !isStaff) {
+      return sendError(res, ERROR_CODES.AUTH_FORBIDDEN, "Access denied", 403);
+    }
+
+    if (!data?.receipt_url) {
+      return sendError(res, "NOT_FOUND", "Receipt not yet generated", 404);
+    }
+
+    return sendSuccess(res, { receipt_url: data.receipt_url });
+  } catch (err) { return next(err); }
+});
+```
+
+Ensure `receipt_url` column exists on `reservations` table. If not, add to migration 00030:
+```sql
+ALTER TABLE reservations ADD COLUMN IF NOT EXISTS receipt_url TEXT;
+```
+
+### Client button
+**File:** `client/src/features/reservation/pages/reservation-success-page.tsx`:
+```typescript
+// Add after reservation?.id display:
+{reservation?.status === "confirmed" && (
+  <Button
+    variant="outline"
+    className="flex-1 rounded-full"
+    onClick={async () => {
+      try {
+        const res = await api.get(`/reservations/${reservation.id}/receipt`);
+        window.open(res.data.data.receipt_url, "_blank");
+      } catch {
+        toast.error("الإيصال غير متاح بعد");
+      }
+    }}
+  >
+    تحميل الإيصال
+  </Button>
+)}
+```
+
+### ✅ Definition of Done
+- [ ] "تحميل الإيصال" button appears on success page after confirmation
+- [ ] Clicking opens the PDF in a new tab
+- [ ] Returns 404 gracefully if receipt not yet generated
+
+---
+
+## PLAN 19 — Fix Waitlist Position Calculation (Race Condition)
+**Severity:** 🟡 Medium | **Owner:** DB | **Est:** 1h
+
+### Problem
+`waitingList.routes.ts` uses `(count ?? 0) + 1` for position — a non-atomic operation. Two simultaneous join requests get the same position.
+
+### Migration fix
+**File:** `supabase/supabase/migrations/00016_create_functions.sql` — the `auto_position_waitlist()` function should be a trigger, not manual code. If not already a trigger:
+```sql
+CREATE OR REPLACE FUNCTION auto_position_waitlist()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.position := COALESCE(
+    (SELECT MAX(position) FROM waiting_list
+     WHERE unit_id = NEW.unit_id
+       AND tenant_id = NEW.tenant_id
+       AND status NOT IN ('cancelled', 'expired', 'removed')),
+    0
+  ) + 1;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS set_waitlist_position ON waiting_list;
+CREATE TRIGGER set_waitlist_position
+  BEFORE INSERT ON waiting_list
+  FOR EACH ROW EXECUTE FUNCTION auto_position_waitlist();
+```
+
+### Code fix
+**File:** `server/src/routes/waitingList.routes.ts`
+
+Remove manual position calculation — the trigger handles it:
+```typescript
+// Change insert: remove the `position: (count ?? 0) + 1` line
+const { data, error } = await supabaseAdmin.from("waiting_list").insert({
+  tenant_id: req.tenantId!,
+  customer_id: req.userId!,
+  ...parsed.data,
+  status: "waiting",
+  // position is now set by DB trigger
+}).select().single();
+```
+
+### ✅ Definition of Done
+- [ ] Two simultaneous waitlist joins for the same unit get consecutive positions (not both = 1)
+- [ ] Application code does not set `position` manually
+
+---
+
+## PLAN 20 — Cleanup: Remove `discovery` Feature from Dead Routes
+**Severity:** 🔵 Low | **Owner:** Frontend | **Est:** 20min
+
+### Problem
+`client/src/features/discovery/` has 4 components and an `index.ts` but zero routes in `router.tsx`. Dead code clutters the tree.
+
+**Options:**
+1. Add it to the router (if intentional future feature) as a lazy-loaded stub
+2. Delete it
+
+**Recommended: Add as a placeholder route** so it's accessible:
+
+**File:** `client/src/app/router.tsx` — under the `PublicLayout` routes:
+```typescript
+const DiscoveryPage = lazy(() => import("@/features/discovery/index"));
+
+// Add inside PublicLayout children:
+{ path: "discover", element: <DiscoveryPage /> },
+```
+
+Or if truly unused — delete the entire `features/discovery/` directory.
+
+### ✅ Definition of Done
+- [ ] Either a working `/discover` route exists, OR the `discovery/` directory is deleted
+- [ ] No orphaned components importing from discovery
+
+---
+
+## Summary: Execution Order
+
+| # | Plan | Owner | Est | Week |
+|---|------|-------|-----|------|
+| 01 | Paymob iframe per-tenant | BE+FE | 2h | 1 |
+| 02 | Real map coordinates | Full-stack | 1h | 1 |
+| 03 | Tenant guard in routes | BE | 1h | 1 |
+| 08 | Documents bucket migration | DB | 30m | 1 |
+| 11 | Encryption key validation | BE | 30m | 1 |
+| 17 | Fix enum mismatches | DB | 1h | 1 |
+| 04 | Customer overview page | FE | 3h | 1 |
+| 05 | Installment pay button | BE+FE | 4h | 1 |
+| 06 | Waitlist array fix | BE+FE | 2h | 1 |
+| 12 | Webhook hardening | BE | 1h | 1 |
+| 09 | follow_ups route | BE | 2h | 2 |
+| 10 | Manager reservations endpoint | FE | 30m | 2 |
+| 07 | Reports charts | FE | 4h | 2 |
+| 13 | Realtime notification bell | FE | 3h | 2 |
+| 14 | Route error boundaries | FE | 2h | 2 |
+| 15 | Manager overview page | FE | 2h | 2 |
+| 18 | Receipt download button | BE+FE | 1h | 2 |
+| 19 | Waitlist position trigger | DB | 1h | 2 |
+| 16 | Dead code cleanup | FE | 30m | 2 |
+| 20 | Discovery route | FE | 20m | 2 |
+
+**Total estimated: ~33 hours across 2 weeks**

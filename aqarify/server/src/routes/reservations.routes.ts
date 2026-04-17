@@ -49,7 +49,9 @@ reservationRoutes.post("/", async (req: TenantRequest & AuthenticatedRequest, re
     // If card payment — generate Paymob key
     if (payment_method === "card" || payment_method === "fawry" || payment_method === "vodafone_cash") {
       const { data: tenant } = await supabaseAdmin.from("tenants")
-        .select("paymob_integration_id, paymob_api_key_enc").eq("id", req.tenantId!).single();
+        .select("paymob_integration_id, paymob_api_key_enc, paymob_iframe_id")
+        .eq("id", req.tenantId!)
+        .single();
 
       if (!tenant?.paymob_integration_id || !tenant.paymob_api_key_enc) {
         return sendError(res, "PAYMOB_NOT_CONFIGURED", "Payment gateway not configured", 503);
@@ -64,10 +66,25 @@ reservationRoutes.post("/", async (req: TenantRequest & AuthenticatedRequest, re
         billingData: { first_name: nameParts[0] ?? full_name, last_name: nameParts[1] ?? ".", email, phone_number: phone },
       });
 
-      return sendSuccess(res, { reservation, payment_key: paymentKey, method: payment_method }, undefined, 201);
+      return sendSuccess(
+        res,
+        {
+          reservation,
+          payment_key: paymentKey,
+          iframe_id: tenant.paymob_iframe_id ?? null,
+          method: payment_method,
+        },
+        undefined,
+        201,
+      );
     }
 
-    return sendSuccess(res, { reservation, payment_key: null, method: "bank_transfer" }, undefined, 201);
+    return sendSuccess(
+      res,
+      { reservation, payment_key: null, iframe_id: null, method: "bank_transfer" },
+      undefined,
+      201,
+    );
   } catch (err: unknown) {
     if (err instanceof Error && err.message === "UNIT_NOT_AVAILABLE") {
       return sendError(res, ERROR_CODES.UNIT_NOT_AVAILABLE, "Unit is not available", 409);
@@ -80,10 +97,37 @@ reservationRoutes.post("/", async (req: TenantRequest & AuthenticatedRequest, re
 reservationRoutes.get("/", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
   try {
     const { data } = await supabaseAdmin.from("reservations")
-      .select("*, units(unit_number, type, floor, size_sqm, gallery)")
+      .select(
+        "*, units(unit_number, type, floor, size_sqm, gallery, projects(name)), assigned_agent:users!agent_id(full_name, phone)",
+      )
       .eq("customer_id", req.userId!).eq("tenant_id", req.tenantId!)
       .order("created_at", { ascending: false });
     return sendSuccess(res, data ?? []);
+  } catch (err) { return next(err); }
+});
+
+// GET /api/v1/reservations/:id/receipt — signed/public URL from storage path
+reservationRoutes.get("/:id/receipt", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
+  try {
+    const { data } = await supabaseAdmin.from("reservations")
+      .select("receipt_url, customer_id, tenant_id")
+      .eq("id", String(req.params.id))
+      .eq("tenant_id", req.tenantId!)
+      .single();
+
+    if (!data) return sendError(res, ERROR_CODES.RESERVATION_NOT_FOUND, "Not found", 404);
+
+    const isOwner = data.customer_id === req.userId;
+    const isStaff = ["agent", "manager", "admin", "super_admin"].includes(req.userRole ?? "");
+    if (!isOwner && !isStaff) {
+      return sendError(res, ERROR_CODES.AUTH_FORBIDDEN, "Access denied", 403);
+    }
+
+    if (!data.receipt_url) {
+      return sendError(res, ERROR_CODES.NOT_FOUND, "Receipt not yet generated", 404);
+    }
+
+    return sendSuccess(res, { receipt_url: data.receipt_url });
   } catch (err) { return next(err); }
 });
 

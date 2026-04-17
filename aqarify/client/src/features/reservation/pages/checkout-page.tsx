@@ -41,10 +41,12 @@ export default function CheckoutPage() {
       { unit_id: unitId!, ...formData },
       {
         onSuccess: (data) => {
-          if (data.payment_key) {
-            window.location.href = `https://accept.paymob.com/api/acceptance/iframes/${
-              import.meta.env.VITE_PAYMOB_IFRAME_ID
-            }?payment_token=${data.payment_key}`;
+          if (data.payment_key && data.iframe_id) {
+            window.location.href = `https://accept.paymob.com/api/acceptance/iframes/${data.iframe_id}?payment_token=${data.payment_key}`;
+          } else if (data.payment_key && !data.iframe_id) {
+            toast.error(
+              "Payment gateway not fully configured for this tenant. Contact support.",
+            );
           } else {
             navigate(`/reservations/${data.reservation.id}/success`);
           }

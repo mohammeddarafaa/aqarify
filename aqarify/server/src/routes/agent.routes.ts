@@ -7,7 +7,7 @@ import { supabaseAdmin } from "../config/supabase";
 import { sendSuccess, sendError, ERROR_CODES } from "../utils/response";
 
 export const agentRoutes = Router();
-agentRoutes.use(resolveTenant, authenticate, requireRole("agent", "manager", "admin"));
+agentRoutes.use(resolveTenant, authenticate, requireRole("agent", "manager", "admin", "super_admin"));
 
 // GET /api/v1/agent/reservations — reservations assigned to this agent
 agentRoutes.get("/reservations", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
@@ -21,6 +21,7 @@ agentRoutes.get("/reservations", async (req: TenantRequest & AuthenticatedReques
       .eq("tenant_id", req.tenantId!).order("created_at", { ascending: false })
       .range((page - 1) * limit, page * limit - 1);
 
+    if (req.userRole === "agent") query = query.eq("agent_id", req.userId!);
     if (status) query = query.eq("status", status);
 
     const { data, count } = await query;
@@ -103,10 +104,19 @@ agentRoutes.patch("/potential-customers/:id/stage", async (req: TenantRequest & 
 // GET/POST /api/v1/agent/follow-ups
 agentRoutes.get("/follow-ups", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
   try {
-    const { data } = await supabaseAdmin.from("follow_ups")
+    const { date, status } = req.query as Record<string, string>;
+    let q = supabaseAdmin.from("follow_ups")
       .select("*, potential_customers(full_name, phone)")
-      .eq("tenant_id", req.tenantId!).eq("agent_id", req.userId!)
+      .eq("tenant_id", req.tenantId!)
       .order("scheduled_at", { ascending: true });
+
+    if (req.userRole === "agent") q = q.eq("agent_id", req.userId!);
+    if (date) {
+      q = q.gte("scheduled_at", `${date}T00:00:00Z`).lte("scheduled_at", `${date}T23:59:59Z`);
+    }
+    if (status) q = q.eq("status", status);
+
+    const { data } = await q;
     return sendSuccess(res, data ?? []);
   } catch (err) { return next(err); }
 });
@@ -114,7 +124,7 @@ agentRoutes.get("/follow-ups", async (req: TenantRequest & AuthenticatedRequest,
 const followUpSchema = z.object({
   potential_customer_id: z.string().uuid(),
   type: z.enum(["call", "whatsapp", "email", "visit", "other"]),
-  scheduled_at: z.string().datetime(),
+  scheduled_at: z.string().min(1),
   notes: z.string().optional(),
 });
 
@@ -124,20 +134,44 @@ agentRoutes.post("/follow-ups", async (req: TenantRequest & AuthenticatedRequest
     if (!parsed.success) return sendError(res, ERROR_CODES.VALIDATION_ERROR, "Invalid input", 400);
 
     const { data, error } = await supabaseAdmin.from("follow_ups").insert({
-      tenant_id: req.tenantId!, agent_id: req.userId!, ...parsed.data, status: "scheduled",
-    }).select().single();
+      tenant_id: req.tenantId!,
+      agent_id: req.userId!,
+      potential_customer_id: parsed.data.potential_customer_id,
+      type: parsed.data.type,
+      scheduled_at: parsed.data.scheduled_at,
+      notes: parsed.data.notes ?? null,
+      status: "scheduled",
+    }).select("*").single();
 
     if (error) throw error;
     return sendSuccess(res, data, undefined, 201);
   } catch (err) { return next(err); }
 });
 
-// PATCH /api/v1/agent/follow-ups/:id/complete
 agentRoutes.patch("/follow-ups/:id/complete", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
   try {
-    const { data } = await supabaseAdmin.from("follow_ups")
-      .update({ status: "completed", completed_at: new Date().toISOString(), outcome: req.body.outcome })
-      .eq("id", req.params.id).eq("tenant_id", req.tenantId!).select().single();
+    const { outcome, notes } = req.body as { outcome?: string; notes?: string };
+    let q = supabaseAdmin.from("follow_ups")
+      .update({
+        status: "completed",
+        completed_at: new Date().toISOString(),
+        outcome: outcome ?? null,
+        ...(notes !== undefined ? { notes } : {}),
+      })
+      .eq("id", req.params.id)
+      .eq("tenant_id", req.tenantId!);
+    if (req.userRole === "agent") q = q.eq("agent_id", req.userId!);
+    const { data, error } = await q.select().single();
+    if (error || !data) return sendError(res, ERROR_CODES.NOT_FOUND, "Not found", 404);
     return sendSuccess(res, data);
+  } catch (err) { return next(err); }
+});
+
+agentRoutes.delete("/follow-ups/:id", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
+  try {
+    let q = supabaseAdmin.from("follow_ups").delete().eq("id", req.params.id).eq("tenant_id", req.tenantId!);
+    if (req.userRole === "agent") q = q.eq("agent_id", req.userId!);
+    await q;
+    return sendSuccess(res, { deleted: true });
   } catch (err) { return next(err); }
 });

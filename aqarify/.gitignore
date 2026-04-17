@@ -8,6 +8,8 @@ dist/
 # Supabase
 supabase/.env
 supabase/.env.local
+supabase/supabase/.temp/
+supabase/supabase/.temp/linked-project.json
 
 # OS
 .DS_Store

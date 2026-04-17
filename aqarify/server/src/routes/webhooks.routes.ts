@@ -14,8 +14,8 @@ webhookRoutes.post("/paymob/callback", async (req: Request, res: Response) => {
     const payload = req.body?.obj ?? req.body;
 
     if (!verifyPaymobHmac(payload, hmac, secret)) {
-      logger.warn("Paymob HMAC mismatch");
-      return res.status(401).json({ error: "invalid hmac" });
+      logger.warn("Paymob HMAC mismatch — ignoring request");
+      return res.status(200).json({ received: true });
     }
 
     if (!payload.success) return res.json({ received: true });
@@ -24,16 +24,49 @@ webhookRoutes.post("/paymob/callback", async (req: Request, res: Response) => {
     const txId = String(payload.id);
     const amountCents = Number(payload.amount_cents ?? 0);
 
-    // Find reservation by ID
-    const { data: reservation } = await supabaseAdmin.from("reservations")
-      .select("id, status").eq("id", orderId).single();
+    const { data: reservation } = await supabaseAdmin
+      .from("reservations")
+      .select("id, status")
+      .eq("id", orderId)
+      .maybeSingle();
 
-    if (!reservation || reservation.status !== "pending") {
+    if (reservation) {
+      if (reservation.status !== "pending") {
+        logger.info(`Webhook skipped: reservation ${reservation.id} already ${reservation.status}`);
+        return res.json({ received: true });
+      }
+      await confirmReservation(reservation.id, txId, amountCents / 100);
+      logger.info(`Webhook confirmed reservation ${reservation.id}`);
       return res.json({ received: true });
     }
 
-    await confirmReservation(reservation.id, txId, amountCents / 100);
-    logger.info(`Webhook confirmed reservation ${reservation.id}`);
+    const { data: installment } = await supabaseAdmin
+      .from("payments")
+      .select("id, status, tenant_id")
+      .eq("id", orderId)
+      .maybeSingle();
+
+    if (installment && ["pending", "overdue"].includes(installment.status)) {
+      const { data: updated } = await supabaseAdmin
+        .from("payments")
+        .update({
+          status: "paid",
+          paid_at: new Date().toISOString(),
+          paymob_transaction_id: txId,
+        })
+        .eq("id", installment.id)
+        .eq("status", installment.status)
+        .select("id")
+        .maybeSingle();
+
+      if (updated) {
+        logger.info(`Webhook confirmed installment payment ${installment.id}`);
+      } else {
+        logger.info(`Webhook skipped: installment ${installment.id} already updated`);
+      }
+      return res.json({ received: true });
+    }
+
     return res.json({ received: true });
   } catch (err) {
     logger.error("Webhook error", err);
@@ -41,7 +74,6 @@ webhookRoutes.post("/paymob/callback", async (req: Request, res: Response) => {
   }
 });
 
-// Aqarify SaaS subscription webhook (separate Paymob account)
 webhookRoutes.post("/paymob/platform", async (req: Request, res: Response) => {
   try {
     const hmac = req.query.hmac as string;
@@ -49,8 +81,8 @@ webhookRoutes.post("/paymob/platform", async (req: Request, res: Response) => {
     const payload = req.body?.obj ?? req.body;
 
     if (!verifyPaymobHmac(payload, hmac, secret)) {
-      logger.warn("Platform Paymob HMAC mismatch");
-      return res.status(401).json({ error: "invalid hmac" });
+      logger.warn("Platform Paymob HMAC mismatch — ignoring request");
+      return res.status(200).json({ received: true });
     }
 
     if (!payload.success) {
@@ -59,13 +91,24 @@ webhookRoutes.post("/paymob/platform", async (req: Request, res: Response) => {
     }
 
     const subscriptionId: string = String(
-      payload.merchant_order_id ?? payload.order?.id ?? ""
+      payload.merchant_order_id ?? payload.order?.id ?? "",
     );
     const txId = String(payload.id);
     const amountEgp = Number(payload.amount_cents ?? 0) / 100;
 
     if (!subscriptionId) {
       logger.warn("Platform webhook missing merchant_order_id");
+      return res.json({ received: true });
+    }
+
+    const { data: sub } = await supabaseAdmin
+      .from("tenant_subscriptions")
+      .select("id, status")
+      .eq("id", subscriptionId)
+      .maybeSingle();
+
+    if (sub && sub.status !== "pending_payment") {
+      logger.info(`Platform webhook skipped: subscription ${subscriptionId} already ${sub.status}`);
       return res.json({ received: true });
     }
 

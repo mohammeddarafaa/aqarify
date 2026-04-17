@@ -34,7 +34,24 @@ export async function authenticate(
 
   req.userId = data.user.id;
   req.userRole = profile?.role;
-  req.tenantId = profile?.tenant_id ?? req.tenantId;
+
+  const resolvedByHeader = req.tenantId;
+  const userTenantId = profile?.tenant_id ?? undefined;
+
+  if (
+    resolvedByHeader &&
+    userTenantId &&
+    resolvedByHeader !== userTenantId &&
+    profile?.role !== "super_admin"
+  ) {
+    return sendError(res, ERROR_CODES.AUTH_FORBIDDEN, "Cross-tenant access denied", 403);
+  }
+
+  if (profile?.role === "super_admin") {
+    req.tenantId = resolvedByHeader ?? userTenantId;
+  } else {
+    req.tenantId = userTenantId ?? resolvedByHeader;
+  }
 
   return next();
 }

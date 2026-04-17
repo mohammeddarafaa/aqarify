@@ -9,28 +9,29 @@ interface MapViewProps {
   units: Unit[];
 }
 
-function pseudoCoord(seed: string, min: number, max: number) {
-  let h = 0;
-  for (let i = 0; i < seed.length; i += 1) h = (h << 5) - h + seed.charCodeAt(i);
-  const normalized = Math.abs(h % 1000) / 1000;
-  return min + (max - min) * normalized;
-}
-
-function getUnitCoord(unit: Unit) {
-  const lat = pseudoCoord(`${unit.id}-lat`, 29.9, 30.25);
-  const lng = pseudoCoord(`${unit.id}-lng`, 31.1, 31.7);
-  return { lat, lng };
-}
-
 export function MapView({ units }: MapViewProps) {
   const { pathname, search } = useLocation();
   const [selected, setSelected] = useState<Unit | null>(null);
   const token = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
 
   const markers = useMemo(
-    () => units.map((u) => ({ unit: u, ...getUnitCoord(u) })),
-    [units]
+    () =>
+      units
+        .filter((u) => u.location_lat != null && u.location_lng != null)
+        .map((u) => ({
+          unit: u,
+          lat: u.location_lat as number,
+          lng: u.location_lng as number,
+        })),
+    [units],
   );
+
+  const unlocatedCount = units.length - markers.length;
+
+  const selectedMarker = useMemo(() => {
+    if (!selected) return null;
+    return markers.find((m) => m.unit.id === selected.id) ?? null;
+  }, [selected, markers]);
 
   if (!token) {
     return (
@@ -43,11 +44,15 @@ export function MapView({ units }: MapViewProps) {
   }
 
   return (
-    <div className="h-[68vh] min-h-[540px] border overflow-hidden" style={{ borderColor: "var(--color-border)" }}>
+    <div
+      className="h-[68vh] min-h-[540px] border overflow-hidden flex flex-col"
+      style={{ borderColor: "var(--color-border)" }}
+    >
       <Map
         mapboxAccessToken={token}
         initialViewState={{ latitude: 30.05, longitude: 31.35, zoom: 8 }}
         mapStyle="mapbox://styles/mapbox/streets-v12"
+        className="flex-1 min-h-0"
       >
         <NavigationControl position="top-right" />
         {markers.map(({ unit, lat, lng }) => (
@@ -66,10 +71,10 @@ export function MapView({ units }: MapViewProps) {
           </Marker>
         ))}
 
-        {selected && (
+        {selected && selectedMarker && (
           <Popup
-            latitude={getUnitCoord(selected).lat}
-            longitude={getUnitCoord(selected).lng}
+            latitude={selectedMarker.lat}
+            longitude={selectedMarker.lng}
             closeOnClick={false}
             onClose={() => setSelected(null)}
             anchor="bottom"
@@ -92,6 +97,11 @@ export function MapView({ units }: MapViewProps) {
           </Popup>
         )}
       </Map>
+      {unlocatedCount > 0 && (
+        <p className="px-3 py-1 text-xs text-muted-foreground bg-muted/60 border-t shrink-0">
+          {unlocatedCount} وحدة لا تحتوي على إحداثيات دقيقة — لن تظهر على الخريطة
+        </p>
+      )}
     </div>
   );
 }

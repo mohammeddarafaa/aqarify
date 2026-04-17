@@ -3,8 +3,7 @@ import { useAuthStore } from "@/stores/auth.store";
 import { useTenantStore } from "@/stores/tenant.store";
 import { supabase } from "@/lib/supabase";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { useNotificationBell } from "@/features/notifications/hooks/use-notification-bell";
 import { cn } from "@/lib/utils";
 import { isStaffRole, roleLabel } from "@/lib/rbac";
 
@@ -16,11 +15,7 @@ export function Topbar({ onMenuClick }: Props) {
   const tenant = useTenantStore((s) => s.tenant);
   const navigate = useNavigate();
 
-  const { data } = useQuery({
-    queryKey: ["unread-notifications"],
-    queryFn: async () => { const r = await api.get("/notifications/unread-count"); return r.data.data; },
-    refetchInterval: 60_000,
-  });
+  const { count } = useNotificationBell();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -66,12 +61,12 @@ export function Topbar({ onMenuClick }: Props) {
           onClick={() => navigate("/notifications")}
           className="relative text-[#888888] hover:text-[#141414] transition-colors">
           <Bell className="h-4 w-4" />
-          {(data?.count ?? 0) > 0 && (
+          {count > 0 && (
             <span className={cn(
               "absolute -top-1.5 -right-1.5 h-3.5 w-3.5 rounded-full bg-[#141414] text-[8px] text-white",
               "flex items-center justify-center font-bold"
             )}>
-              {data.count > 9 ? "9+" : data.count}
+              {count > 9 ? "9+" : count}
             </span>
           )}
         </button>
