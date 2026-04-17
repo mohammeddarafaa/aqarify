@@ -1,0 +1,18 @@
+---
+description: General coding rules for the Aqarify platform
+globs: ["**/*.ts", "**/*.tsx"]
+---
+
+# Aqarify — General Rules
+
+- TypeScript strict mode everywhere. No `any` types — use `unknown` + type narrowing.
+- Every file must be **under 150 lines**. Split into smaller files if exceeding.
+- No default exports — use **named exports only** for better refactoring.
+- Use `type` keyword for type-only imports: `import type { Foo } from './foo'`.
+- Absolute imports via `@/` alias: `@/components/ui/button` — never relative `../../`.
+- No inline styles — use Tailwind classes or CSS variables.
+- No `console.log` — use the winston logger on backend, omit on frontend.
+- All user-facing strings must go through i18n `t()` function.
+- CSS logical properties for RTL: use `ps-4` not `pl-4`, `ms-2` not `ml-2`, `start-0` not `left-0`.
+- Files are named in **kebab-case**: `unit-card.tsx`, `payment.service.ts`.
+- No comments that narrate what code does. Only explain non-obvious intent or trade-offs.

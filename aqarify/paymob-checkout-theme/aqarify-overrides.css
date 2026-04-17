@@ -1,0 +1,232 @@
+/**
+ * Aqarify — Paymob card checkout visual refresh * ------------------------------------------------------------
+ * Paymob serves the HTML; you cannot style it from the Aqarify app.
+ * If your Paymob / Accept dashboard offers “Custom CSS” or “Theme”
+ * for the iframe, paste this file’s contents there.
+ *
+ * Keeps the same class/ids Paymob’s template uses so Card.js / forms
+ * keep working. Does not remove their scripts.
+ */
+
+:root {
+  --pm-bg: #f4f6fa;
+  --pm-surface: #ffffff;
+  --pm-text: #0f172a;
+  --pm-muted: #64748b;
+  --pm-border: #e2e8f0;
+  --pm-accent: #0ea5e9;
+  --pm-accent-hover: #0284c7;
+  --pm-radius: 16px;
+  --pm-radius-sm: 12px;
+  --pm-shadow: 0 25px 50px -12px rgb(15 23 42 / 0.12);
+  --pm-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans Arabic", sans-serif;
+}
+
+html {
+  background: var(--pm-bg) !important;
+}
+
+body {
+  font-family: var(--pm-font) !important;
+  color: var(--pm-text);
+  margin: 0;
+  padding: 0 1rem 2rem;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Decorative arrows — hide for a cleaner look */
+.arrow1,
+.arrow2 {
+  display: none !important;
+}
+
+header h1 {
+  font-family: var(--pm-font) !important;
+  font-weight: 600 !important;
+  font-size: clamp(1.35rem, 3vw, 1.75rem) !important;
+  color: var(--pm-text) !important;
+  margin-top: 2rem !important;
+  letter-spacing: -0.02em;
+}
+
+.containers {
+  background: var(--pm-surface) !important;
+  box-shadow: var(--pm-shadow) !important;
+  border-radius: var(--pm-radius) !important;
+  border: 1px solid var(--pm-border) !important;
+  margin-top: 2rem !important;
+  max-width: 960px !important;
+  padding: 1.5rem 1.25rem 2rem !important;
+}
+
+@media (min-width: 992px) {
+  .containers {
+    width: min(880px, 100%) !important;
+    padding: 2rem 2.5rem 2.5rem !important;
+  }
+}
+
+.formRowContainer {
+  min-height: auto !important;
+}
+
+/* Card preview (jp-card) — calmer, no dependency on Gotham */
+.jp-card-container {
+  margin: 0 auto 1rem !important;
+}
+
+.jp-card {
+  font-family: var(--pm-font) !important;
+  border-radius: var(--pm-radius-sm) !important;
+}
+
+.jp-card .jp-card-front,
+.jp-card .jp-card-back {
+  border-radius: var(--pm-radius-sm) !important;
+}
+
+.jp-card.jp-card-identified .jp-card-front,
+.jp-card.jp-card-identified .jp-card-back {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0c4a6e 100%) !important;
+}
+
+.jp-card .jp-card-front .jp-card-lower .jp-card-number,
+.jp-card .jp-card-front .jp-card-lower .jp-card-name,
+.jp-card .jp-card-front .jp-card-lower .jp-card-expiry {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace !important;
+  color: #f8fafc !important;
+  opacity: 0.95 !important;
+}
+
+/* Form column */
+.card-inputs {
+  padding-top: 0.5rem !important;
+}
+
+#paymob_checkout {
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.card-num-input input,
+.input-containers input {
+  font-family: var(--pm-font) !important;
+  font-size: 1rem !important;
+  font-weight: 400 !important;
+  color: var(--pm-text) !important;
+  background: #f8fafc !important;
+  border: 1px solid var(--pm-border) !important;
+  border-radius: var(--pm-radius-sm) !important;
+  box-shadow: none !important;
+  height: 48px !important;
+  padding: 0 14px !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.card-num-input input:focus,
+.input-containers input:focus {
+  outline: none !important;
+  border-color: var(--pm-accent) !important;
+  box-shadow: 0 0 0 3px rgb(14 165 233 / 0.2) !important;
+}
+
+.card-num-input input::placeholder,
+.input-containers input::placeholder {
+  font-family: var(--pm-font) !important;
+  color: var(--pm-muted) !important;
+  font-size: 0.95rem !important;
+}
+
+.card-num {
+  background-image: none !important;
+}
+
+/* Primary / secondary actions */
+.card-footer .submit,
+.installmentsSubmitDiv > input {
+  font-family: var(--pm-font) !important;
+  font-weight: 600 !important;
+  font-size: 1rem !important;
+  letter-spacing: 0 !important;
+  background: linear-gradient(180deg, var(--pm-accent), var(--pm-accent-hover)) !important;
+  border-radius: var(--pm-radius-sm) !important;
+  height: 48px !important;
+  line-height: 48px !important;
+  border: none !important;
+  width: 100% !important;
+  box-shadow: 0 4px 14px rgb(14 165 233 / 0.35);
+}
+
+.card-footer .submit:hover,
+.installmentsSubmitDiv > input:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgb(14 165 233 / 0.4) !important;
+}
+
+.whiteBtn,
+#checkInstallmentBtn {
+  font-family: var(--pm-font) !important;
+  font-weight: 500 !important;
+  border-radius: var(--pm-radius-sm) !important;
+  border: 1px solid var(--pm-accent) !important;
+  color: var(--pm-accent) !important;
+  background: transparent !important;
+  height: 48px !important;
+  line-height: 48px !important;
+}
+
+.whiteBtn:hover,
+#checkInstallmentBtn:hover {
+  background: rgb(14 165 233 / 0.08) !important;
+  color: var(--pm-accent-hover) !important;
+}
+
+.card-footer span,
+.saveCardText {
+  font-family: var(--pm-font) !important;
+  color: var(--pm-muted) !important;
+  font-size: 0.8125rem !important;
+}
+
+#submitButton:disabled {
+  background: #e2e8f0 !important;
+  color: #94a3b8 !important;
+  box-shadow: none !important;
+}
+
+/* Installments */
+.installmentsHead p {
+  font-family: var(--pm-font) !important;
+  color: var(--pm-text) !important;
+  font-weight: 600 !important;
+}
+
+#installmentsBody .installmentsEle {
+  border-color: var(--pm-border) !important;
+  border-radius: var(--pm-radius-sm) !important;
+}
+
+#installmentsBody .installmentsEle.selected,
+#installmentsBody .installmentsEle:hover {
+  border-color: var(--pm-accent) !important;
+}
+
+/* Footer */
+.copyWrite .logos > img {
+  height: 28px !important;
+  opacity: 0.85;
+  filter: grayscale(0.15);
+}
+
+.copyWrite span {
+  font-family: var(--pm-font) !important;
+  color: var(--pm-muted) !important;
+}
+
+/* Kill legacy Gotham @font-face if present — use system stack above */
+@font-face {
+  font-family: "Gotham";
+  src: local("system-ui");
+  font-weight: 100 900;
+}

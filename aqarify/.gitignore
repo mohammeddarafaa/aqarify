@@ -1,0 +1,18 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.production
+*.tsbuildinfo
+
+# Supabase
+supabase/.env
+supabase/.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/

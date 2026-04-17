@@ -1,0 +1,17 @@
+---
+description: Styling rules for Aqarify
+globs: ["client/src/**/*.tsx", "client/src/**/*.css"]
+---
+
+# Styling Rules
+
+- **Tailwind CSS only** — no custom CSS except `globals.css` for CSS variable definitions.
+- Tenant theme via CSS variables: `var(--color-primary)`, `var(--color-secondary)`, `var(--color-accent)`.
+- Use `cn()` utility (clsx + tailwind-merge) for all conditional class merging.
+- Dark mode: class-based `dark:` prefix, toggled via `useUIStore`.
+- RTL: use Tailwind logical properties: `ps-`, `pe-`, `ms-`, `me-`, `start-`, `end-`.
+- Font sizes: Tailwind scale only (`text-sm`, `text-base`, `text-lg`) — no arbitrary values.
+- Spacing: Tailwind scale only (`p-4`, `gap-6`) — no arbitrary values.
+- Border radius: use CSS variable `--radius` from shadcn/ui config.
+- No hardcoded color hex values in className — always use CSS variable or Tailwind semantic class.
+- Animations: use `motion/react` (`motion.div`, `AnimatePresence`) — no CSS keyframes except loading spinners.

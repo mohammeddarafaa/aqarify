@@ -1,0 +1,16 @@
+---
+description: Express API route rules for Aqarify
+globs: ["server/src/**/*.ts"]
+---
+
+# API Route Rules
+
+- Every route handler **validates input with zod** before processing.
+- Every route passes through `resolveTenant` + `authenticate` middleware (public routes use `optionalAuth`).
+- Response format: `{ ok: true, data, meta? }` for success, `{ ok: false, error: { code, message } }` for failure.
+- Use `sendSuccess()` and `sendError()` helpers from `utils/response.ts` — never write raw `res.json()`.
+- Route handlers are **thin**: parse request → call service → send response. All logic lives in the service layer.
+- All database queries go through `supabaseAdmin` with `tenant_id` filter.
+- Every mutation must log to `activity_logs` table via service.
+- Rate limit: 100 req/min for public endpoints, 300 req/min for authenticated.
+- No `any` types in request/response handlers — use typed interfaces.

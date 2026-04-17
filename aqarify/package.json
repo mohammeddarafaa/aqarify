@@ -1,0 +1,18 @@
+{
+  "name": "aqarify",
+  "version": "0.1.0",
+  "description": "Aqarify — Multi-Tenant Real Estate SaaS Platform",
+  "private": true,
+  "scripts": {
+    "dev:client": "npm run dev --prefix client",
+    "dev:server": "npm run dev --prefix server",
+    "dev": "npm run dev:client & npm run dev:server",
+    "build:client": "npm run build --prefix client",
+    "build:server": "npm run build --prefix server",
+    "type-check": "npm run type-check --prefix server && npx tsc -b --prefix client"
+  },
+  "workspaces": [
+    "client",
+    "server"
+  ]
+}

@@ -1,0 +1,18 @@
+---
+description: React component rules for Aqarify
+globs: ["client/src/**/*.tsx"]
+---
+
+# React Component Rules
+
+- Functional components only. No class components.
+- Props interface defined in same file (or `.types.ts` if shared across files).
+- Use `motion.div` from `motion/react` for any animated element.
+- Every list/grid/table component must have a `.skeleton.tsx` sibling file.
+- Every empty state must have an icon/illustration + descriptive message + CTA button.
+- Forms use `react-hook-form` + `zod` schema validation — never uncontrolled inputs.
+- Use shadcn/ui primitives as base, compose into app-specific components.
+- All `<img>` tags use `loading="lazy"` and WebP format where possible.
+- Mobile-first responsive: `block md:flex lg:grid-cols-3`.
+- RTL-aware: logical padding/margin (`ps-`, `pe-`, `ms-`, `me-`).
+- Named exports: `export function UnitCard()` — never `export default`.

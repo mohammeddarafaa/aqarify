@@ -1,0 +1,16 @@
+---
+description: Supabase/database rules for Aqarify
+globs: ["supabase/**/*.sql", "server/src/**/*.ts"]
+---
+
+# Supabase Rules
+
+- All schema changes must be **numbered migration files** in `supabase/migrations/`.
+- Every table must have: `id` (uuid, default `gen_random_uuid()`), `tenant_id`, `created_at` (timestamptz).
+- Every table must have RLS **enabled** — no table without `ALTER TABLE x ENABLE ROW LEVEL SECURITY`.
+- Run `supabase gen types typescript` after every migration — never manually edit `database.types.ts`.
+- Foreign keys always define `ON DELETE` behavior (CASCADE, SET NULL, or RESTRICT).
+- Index every: `tenant_id`, foreign key column, any column used in WHERE/ORDER BY.
+- JSONB columns must have a SQL comment describing expected structure.
+- Never use `SELECT *` — always select only needed columns.
+- Use cursor-based pagination for large datasets, not OFFSET.
