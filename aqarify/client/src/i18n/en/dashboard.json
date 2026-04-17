@@ -1,0 +1,28 @@
+{
+  "overview": "Overview",
+  "my_reservation": "My Reservation",
+  "payments": "Payments",
+  "waitlist": "Waitlist",
+  "documents": "Documents",
+  "notifications": "Notifications",
+  "profile": "Profile",
+  "customers": "Customers",
+  "follow_ups": "Follow-ups",
+  "leads": "Leads",
+  "performance": "Performance",
+  "units": "Units",
+  "agents": "Agents",
+  "reservations": "Reservations",
+  "reports": "Reports",
+  "settings": "Settings",
+  "tenant_management": "Tenant Management",
+  "activity_logs": "Activity Logs",
+  "kpi": {
+    "total_units": "Total Units",
+    "available": "Available",
+    "reserved": "Reserved",
+    "sold": "Sold",
+    "revenue": "Revenue",
+    "pending_payments": "Pending Payments"
+  }
+}

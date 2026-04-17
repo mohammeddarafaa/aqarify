@@ -1,0 +1,56 @@
+{
+  "app_name": "عقاري",
+  "tagline": "منصة العقارات الذكية",
+  "nav": {
+    "home": "الرئيسية",
+    "browse": "تصفح الوحدات",
+    "contact": "تواصل معنا",
+    "login": "تسجيل الدخول",
+    "register": "إنشاء حساب",
+    "dashboard": "لوحة التحكم",
+    "logout": "تسجيل الخروج"
+  },
+  "actions": {
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "view": "عرض",
+    "submit": "إرسال",
+    "confirm": "تأكيد",
+    "back": "رجوع",
+    "next": "التالي",
+    "search": "بحث",
+    "clear": "مسح",
+    "export": "تصدير",
+    "upload": "رفع",
+    "download": "تحميل",
+    "share": "مشاركة",
+    "retry": "إعادة المحاولة"
+  },
+  "status": {
+    "available": "متاح",
+    "reserved": "محجوز",
+    "sold": "مباع",
+    "pending": "قيد الانتظار",
+    "confirmed": "مؤكد",
+    "cancelled": "ملغي",
+    "active": "نشط",
+    "inactive": "غير نشط"
+  },
+  "errors": {
+    "network": "خطأ في الشبكة، يرجى المحاولة مرة أخرى",
+    "not_found": "الصفحة غير موجودة",
+    "server_error": "حدث خطأ في الخادم",
+    "unauthorized": "يرجى تسجيل الدخول أولاً",
+    "forbidden": "ليس لديك صلاحية للوصول"
+  },
+  "currency": "ج.م",
+  "per_month": "/ شهر",
+  "sqm": "م²",
+  "bedrooms": "غرف نوم",
+  "bathrooms": "حمامات",
+  "floor": "الدور",
+  "loading": "جاري التحميل...",
+  "no_results": "لا توجد نتائج"
+}

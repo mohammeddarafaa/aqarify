@@ -1,0 +1,35 @@
+{
+  "title": "Browse Units",
+  "filters": {
+    "title": "Filters",
+    "all": "All",
+    "type": "Unit Type",
+    "bedrooms": "Bedrooms",
+    "price_range": "Price Range",
+    "area": "Area",
+    "floor": "Floor",
+    "finishing": "Finishing",
+    "view": "View",
+    "clear_all": "Clear All",
+    "apply": "Apply"
+  },
+  "view": {
+    "grid": "Grid View",
+    "map": "Map View"
+  },
+  "sort": {
+    "label": "Sort by",
+    "price_asc": "Price: Low to High",
+    "price_desc": "Price: High to Low",
+    "newest": "Newest",
+    "size_asc": "Size: Smallest"
+  },
+  "unit_card": {
+    "view_details": "View Details",
+    "reserve": "Reserve Now",
+    "join_waitlist": "Join Waitlist"
+  },
+  "results_count": "{{count}} units",
+  "no_units": "No units match your search",
+  "no_units_hint": "Try changing the filters or searching with different keywords"
+}

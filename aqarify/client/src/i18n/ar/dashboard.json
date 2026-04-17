@@ -1,0 +1,28 @@
+{
+  "overview": "نظرة عامة",
+  "my_reservation": "حجزي",
+  "payments": "المدفوعات",
+  "waitlist": "قائمة الانتظار",
+  "documents": "المستندات",
+  "notifications": "الإشعارات",
+  "profile": "الملف الشخصي",
+  "customers": "العملاء",
+  "follow_ups": "المتابعات",
+  "leads": "العملاء المحتملون",
+  "performance": "الأداء",
+  "units": "الوحدات",
+  "agents": "الوكلاء",
+  "reservations": "الحجوزات",
+  "reports": "التقارير",
+  "settings": "الإعدادات",
+  "tenant_management": "إدارة المستأجرين",
+  "activity_logs": "سجل النشاط",
+  "kpi": {
+    "total_units": "إجمالي الوحدات",
+    "available": "متاح",
+    "reserved": "محجوز",
+    "sold": "مباع",
+    "revenue": "الإيرادات",
+    "pending_payments": "مدفوعات معلقة"
+  }
+}

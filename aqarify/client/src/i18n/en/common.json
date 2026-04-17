@@ -1,0 +1,56 @@
+{
+  "app_name": "Aqarify",
+  "tagline": "The Smart Property Platform",
+  "nav": {
+    "home": "Home",
+    "browse": "Browse Units",
+    "contact": "Contact Us",
+    "login": "Login",
+    "register": "Sign Up",
+    "dashboard": "Dashboard",
+    "logout": "Logout"
+  },
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "view": "View",
+    "submit": "Submit",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "search": "Search",
+    "clear": "Clear",
+    "export": "Export",
+    "upload": "Upload",
+    "download": "Download",
+    "share": "Share",
+    "retry": "Retry"
+  },
+  "status": {
+    "available": "Available",
+    "reserved": "Reserved",
+    "sold": "Sold",
+    "pending": "Pending",
+    "confirmed": "Confirmed",
+    "cancelled": "Cancelled",
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "errors": {
+    "network": "Network error, please try again",
+    "not_found": "Page not found",
+    "server_error": "Server error occurred",
+    "unauthorized": "Please login first",
+    "forbidden": "You don't have permission to access this"
+  },
+  "currency": "EGP",
+  "per_month": "/ month",
+  "sqm": "sqm",
+  "bedrooms": "bedrooms",
+  "bathrooms": "bathrooms",
+  "floor": "Floor",
+  "loading": "Loading...",
+  "no_results": "No results found"
+}
