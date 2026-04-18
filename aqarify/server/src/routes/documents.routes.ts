@@ -68,14 +68,36 @@ documentRoutes.post("/upload", upload.single("file"), async (req: TenantRequest 
       return sendError(res, "UPLOAD_FAILED", "File upload failed", 500);
     }
 
-    const { data: urlData } = supabaseAdmin.storage.from("documents").getPublicUrl(filePath);
+    const { data: urlData, error: signErr } = await supabaseAdmin.storage
+      .from("documents")
+      .createSignedUrl(filePath, 60 * 60 * 24 * 30); // 30 days
+
+    if (signErr || !urlData?.signedUrl) {
+      logger.error("Storage sign URL error", signErr);
+      return sendError(res, "UPLOAD_FAILED", "Could not generate file URL", 500);
+    }
+
+    const reservationIdRaw = typeof req.body.reservation_id === "string" ? req.body.reservation_id.trim() : "";
+    if (req.userRole === "customer") {
+      const ridOk = z.string().uuid().safeParse(reservationIdRaw);
+      if (!ridOk.success) {
+        return sendError(res, ERROR_CODES.VALIDATION_ERROR, "reservation_id is required for uploads", 400);
+      }
+      const { data: own } = await supabaseAdmin.from("reservations")
+        .select("id")
+        .eq("id", reservationIdRaw)
+        .eq("customer_id", req.userId!)
+        .eq("tenant_id", req.tenantId!)
+        .maybeSingle();
+      if (!own) return sendError(res, ERROR_CODES.AUTH_FORBIDDEN, "Reservation not found", 404);
+    }
 
     const { data, error } = await supabaseAdmin.from("documents").insert({
       tenant_id: req.tenantId!,
       user_id: req.userId!,
-      reservation_id: req.body.reservation_id ?? null,
+      reservation_id: reservationIdRaw || null,
       type: docType.data,
-      file_url: urlData.publicUrl,
+      file_url: urlData.signedUrl,
       status: "pending",
     }).select().single();
 

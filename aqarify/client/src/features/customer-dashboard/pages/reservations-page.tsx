@@ -16,7 +16,9 @@ const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondar
   pending: { label: "في الانتظار", variant: "secondary" },
   confirmed: { label: "مؤكد", variant: "default" },
   cancelled: { label: "ملغي", variant: "destructive" },
-  rejected: { label: "مرفوض", variant: "destructive" },
+  expired: { label: "منتهي", variant: "destructive" },
+  /** @deprecated DB may still contain legacy value */
+  rejected: { label: "منتهي", variant: "destructive" },
 };
 
 export default function ReservationsPage() {

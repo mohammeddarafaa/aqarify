@@ -13,6 +13,7 @@ describe("resolveTenantSlugLive", () => {
     setHostname("localhost");
     vi.stubEnv("VITE_FORCE_TENANT", "");
     vi.stubEnv("VITE_DEFAULT_TENANT", "");
+    vi.stubEnv("VITE_SITE_MODE", "");
   });
 
   it("returns null on the marketing apex", () => {
@@ -37,6 +38,11 @@ describe("resolveTenantSlugLive", () => {
     expect(resolveTenantSlugLive("/t/palencia/browse", "")).toBe("palencia");
   });
 
+  it("extracts slug from /t/:slug/browse/projects/:id", () => {
+    setHostname("localhost");
+    expect(resolveTenantSlugLive("/t/palencia/browse/projects/abc-uuid", "")).toBe("palencia");
+  });
+
   it("reads first DNS subdomain as slug on non-marketing host", () => {
     setHostname("acme.aqarify.com");
     expect(resolveTenantSlugLive("/", "")).toBe("acme");
@@ -59,5 +65,18 @@ describe("resolveTenantSlugLive", () => {
     expect(resolveTenantSlugLive("/", "?tenant=other-tenant")).toBe(
       "other-tenant"
     );
+  });
+
+  it("forces marketing when VITE_SITE_MODE=marketing", () => {
+    vi.stubEnv("VITE_SITE_MODE", "marketing");
+    setHostname("palencia.aqarify.com");
+    expect(resolveTenantSlugLive("/", "")).toBeNull();
+  });
+
+  it("forces tenant mode to default tenant on apex when VITE_SITE_MODE=tenant", () => {
+    vi.stubEnv("VITE_SITE_MODE", "tenant");
+    vi.stubEnv("VITE_DEFAULT_TENANT", "kdevelopments");
+    setHostname("localhost");
+    expect(resolveTenantSlugLive("/", "")).toBe("kdevelopments");
   });
 });

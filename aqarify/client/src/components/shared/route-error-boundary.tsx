@@ -1,9 +1,11 @@
-import { useRouteError, isRouteErrorResponse, Link } from "react-router-dom";
+import { useRouteError, isRouteErrorResponse, Link, useLocation } from "react-router-dom";
+import { appendTenantSearch } from "@/lib/tenant-path";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function RouteErrorBoundary() {
   const error = useRouteError();
+  const { pathname, search } = useLocation();
 
   const message = isRouteErrorResponse(error)
     ? `${error.status} — ${error.statusText}`
@@ -12,19 +14,22 @@ export function RouteErrorBoundary() {
       : "Unknown error";
 
   const errorId = Math.random().toString(36).slice(2, 8).toUpperCase();
+  console.error("Route Error:", error, "Error ID:", errorId);
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-8 text-center">
       <AlertTriangle className="h-12 w-12 text-destructive" />
       <h1 className="text-2xl font-bold">حدث خطأ غير متوقع</h1>
-      <p className="max-w-md text-sm text-muted-foreground">{message}</p>
+      <p className="max-w-md text-sm text-muted-foreground">
+        نعتذر، واجهنا مشكلة غير متوقعة. فريقنا أُبلغ بالخطأ وسيقوم بمعالجته.
+      </p>
       <p className="text-xs text-muted-foreground">
         رمز الخطأ: <span className="font-mono">{errorId}</span>
       </p>
       <div className="flex gap-3">
         <Button onClick={() => window.location.reload()}>إعادة تحميل</Button>
         <Button variant="outline" asChild>
-          <Link to="/">الرئيسية</Link>
+          <Link to={appendTenantSearch(pathname, search, "/")}>الرئيسية</Link>
         </Button>
       </div>
     </div>

@@ -19,7 +19,8 @@ negotiationRoutes.get("/leads", async (req: TenantRequest & AuthenticatedRequest
 
     // Agents see only their own leads
     if (req.userRole === "agent") query = query.eq("assigned_agent_id", req.userId!);
-    if (req.query.stage) query = query.eq("stage", String(req.query.stage));
+    const statusFilter = req.query.negotiation_status ?? req.query.stage;
+    if (statusFilter) query = query.eq("negotiation_status", String(statusFilter));
 
     const { data } = await query;
     return sendSuccess(res, data ?? []);
@@ -30,7 +31,7 @@ const leadSchema = z.object({
   full_name: z.string().min(2),
   phone: z.string().optional(),
   email: z.string().email().optional(),
-  source: z.enum(["inquiry", "referral", "walk_in", "reservation_cancelled", "waitlist_expired"]).default("inquiry"),
+  source: z.enum(["inquiry", "referral", "reservation_cancelled", "waitlist_expired"]).default("inquiry"),
   interested_unit_types: z.array(z.string()).optional(),
   budget_min: z.number().optional(),
   budget_max: z.number().optional(),
@@ -43,11 +44,20 @@ negotiationRoutes.post("/leads", async (req: TenantRequest & AuthenticatedReques
   try {
     const parsed = leadSchema.safeParse(req.body);
     if (!parsed.success) return sendError(res, ERROR_CODES.VALIDATION_ERROR, "Invalid input", 400, parsed.error.flatten());
+    const { full_name, ...rest } = parsed.data;
     const { data, error } = await supabaseAdmin.from("potential_customers").insert({
       tenant_id: req.tenantId!,
       assigned_agent_id: req.userId!,
-      stage: "new",
-      ...parsed.data,
+      name: full_name,
+      negotiation_status: "new",
+      phone: rest.phone ?? null,
+      email: rest.email ?? null,
+      source: rest.source,
+      interested_unit_types: rest.interested_unit_types ?? [],
+      budget_min: rest.budget_min ?? null,
+      budget_max: rest.budget_max ?? null,
+      preferred_locations: rest.preferred_locations ?? [],
+      notes: rest.notes ?? null,
     }).select().single();
     if (error) throw error;
     return sendSuccess(res, data, undefined, 201);
@@ -57,11 +67,29 @@ negotiationRoutes.post("/leads", async (req: TenantRequest & AuthenticatedReques
 // PATCH /api/v1/negotiations/leads/:id/stage
 negotiationRoutes.patch("/leads/:id/stage", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
   try {
-    const stageSchema = z.object({ stage: z.string() });
+    const negotiationStatuses = [
+      "new",
+      "contacted",
+      "negotiating",
+      "offer_made",
+      "accepted",
+      "rejected",
+      "lost",
+    ] as const;
+    const stageSchema = z.object({
+      negotiation_status: z.enum(negotiationStatuses).optional(),
+      stage: z.enum(negotiationStatuses).optional(),
+    });
     const parsed = stageSchema.safeParse(req.body);
-    if (!parsed.success) return sendError(res, ERROR_CODES.VALIDATION_ERROR, "Invalid stage", 400);
+    if (!parsed.success) {
+      return sendError(res, ERROR_CODES.VALIDATION_ERROR, "Invalid stage", 400);
+    }
+    const nextStatus = parsed.data.negotiation_status ?? parsed.data.stage;
+    if (!nextStatus) {
+      return sendError(res, ERROR_CODES.VALIDATION_ERROR, "negotiation_status or stage required", 400);
+    }
     const { data } = await supabaseAdmin.from("potential_customers")
-      .update({ stage: parsed.data.stage, last_contact_at: new Date().toISOString() })
+      .update({ negotiation_status: nextStatus, last_contact_at: new Date().toISOString() })
       .eq("id", req.params.id).eq("tenant_id", req.tenantId!).select().single();
     return sendSuccess(res, data);
   } catch (err) { return next(err); }

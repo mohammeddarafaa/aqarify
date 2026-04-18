@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { type CheckoutFormData, type Reservation } from "../types";
+import { type CheckoutFormData, type Reservation, type ReservationWithDetails } from "../types";
 
 export function useMyReservations() {
   return useQuery<Reservation[]>({
@@ -23,6 +23,20 @@ export function useReservation(id: string) {
   });
 }
 
+export function useReservationByConfirmation(ref: string | null) {
+  return useQuery<
+    ReservationWithDetails & { units: Record<string, unknown>; payments?: unknown[] }
+  >({
+    queryKey: ["reservation-by-ref", ref],
+    queryFn: async () => {
+      const enc = encodeURIComponent(ref!);
+      const res = await api.get(`/reservations/by-confirmation/${enc}`);
+      return res.data.data;
+    },
+    enabled: !!ref?.trim(),
+  });
+}
+
 export function useCreateReservation() {
   return useMutation({
     mutationFn: async (payload: { unit_id: string } & CheckoutFormData) => {
@@ -32,6 +46,12 @@ export function useCreateReservation() {
         payment_key: string | null;
         iframe_id: string | null;
         method: string;
+        bank_details?: {
+          bank_name?: string | null;
+          account_number?: string | null;
+          account_holder?: string | null;
+          reference?: string | null;
+        };
       };
     },
   });

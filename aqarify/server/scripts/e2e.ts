@@ -390,7 +390,7 @@ test("manager flow: dashboard, units, waiting list, reports", async (t) => {
   const dashboard = await manager.get("/manager/dashboard");
   const units = await manager.get("/manager/units");
   const waitlist = await manager.get("/manager/waiting-list");
-  const reports = await manager.get("/manager/reports/sales");
+  const reports = await manager.get("/reports/sales");
   assert.equal(dashboard.status, 200);
   assert.equal(units.status, 200);
   assert.equal(waitlist.status, 200);

@@ -40,7 +40,7 @@ export function FilterPanelMobile({ isOpen, onClose, filters, onFilterChange, on
                 <rect y="12" width="18" height="1.5" fill="white" />
               </svg>
               <span className="text-[11px] font-medium tracking-[0.18em] uppercase text-white">
-                فلاتر المشاريع
+                فلاتر الوحدات
               </span>
             </div>
             <button

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -7,7 +8,9 @@ import { z } from "zod";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/app-toast";
-import { Plus, Phone, User2, ChevronDown, Search } from "lucide-react";
+import { Plus, Phone, User2, ChevronDown, Search, FileText } from "lucide-react";
+import { appendTenantSearch } from "@/lib/tenant-path";
+import { OfferDrawer } from "../components/offer-drawer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,13 +38,25 @@ import { useIsReadOnly } from "@/hooks/use-is-read-only";
 
 type Lead = {
   id: string;
-  full_name: string;
+  name: string;
+  /** @deprecated API now returns `name` */
+  full_name?: string;
   phone: string;
   source?: string;
-  stage: string;
+  negotiation_status?: string;
+  /** @deprecated use negotiation_status */
+  stage?: string;
   notes?: string;
   created_at?: string;
 };
+
+function leadName(lead: Lead) {
+  return lead.name ?? lead.full_name ?? "—";
+}
+
+function leadStatus(lead: Lead) {
+  return lead.negotiation_status ?? lead.stage ?? "new";
+}
 
 const STAGES: {
   value: string;
@@ -51,10 +66,10 @@ const STAGES: {
 }[] = [
   { value: "new", label: "جديد", color: "bg-blue-50 border-blue-200", dot: "bg-blue-500" },
   { value: "contacted", label: "تم التواصل", color: "bg-purple-50 border-purple-200", dot: "bg-purple-500" },
-  { value: "interested", label: "مهتم", color: "bg-amber-50 border-amber-200", dot: "bg-amber-500" },
-  { value: "viewing", label: "معاينة", color: "bg-orange-50 border-orange-200", dot: "bg-orange-500" },
   { value: "negotiating", label: "تفاوض", color: "bg-pink-50 border-pink-200", dot: "bg-pink-500" },
-  { value: "converted", label: "تحول", color: "bg-green-50 border-green-200", dot: "bg-green-500" },
+  { value: "offer_made", label: "عرض مقدّم", color: "bg-orange-50 border-orange-200", dot: "bg-orange-500" },
+  { value: "accepted", label: "مقبول", color: "bg-emerald-50 border-emerald-200", dot: "bg-emerald-500" },
+  { value: "rejected", label: "مرفوض", color: "bg-rose-50 border-rose-200", dot: "bg-rose-500" },
   { value: "lost", label: "خسارة", color: "bg-red-50 border-red-200", dot: "bg-red-500" },
 ];
 
@@ -67,6 +82,34 @@ const schema = z.object({
 });
 
 type FormData = z.infer<typeof schema>;
+
+function ProceedToCheckoutButton({ leadId }: { leadId: string }) {
+  const navigate = useNavigate();
+  const { pathname, search } = useLocation();
+  const { data: offers } = useQuery({
+    queryKey: ["negotiation-offers", leadId],
+    queryFn: async () =>
+      (await api.get(`/negotiations/${leadId}/offers`)).data.data as {
+        status: string;
+        unit_id: string;
+      }[],
+  });
+  const accepted = offers?.find((o) => o.status === "accepted");
+  if (!accepted) return null;
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="secondary"
+      className="h-7 w-full text-[10px]"
+      onClick={() =>
+        navigate(appendTenantSearch(pathname, search, `/checkout/${accepted.unit_id}`))
+      }
+    >
+      متابعة الحجز
+    </Button>
+  );
+}
 
 function initials(name: string) {
   return name
@@ -81,6 +124,7 @@ function initials(name: string) {
 export default function AgentLeadsPage() {
   const [search, setSearch] = useState("");
   const [openNew, setOpenNew] = useState(false);
+  const [offerLeadId, setOfferLeadId] = useState<string | null>(null);
   const qc = useQueryClient();
   const readOnly = useIsReadOnly();
 
@@ -135,12 +179,12 @@ export default function AgentLeadsPage() {
     const filtered = search.trim()
       ? items.filter(
           (l) =>
-            l.full_name.toLowerCase().includes(search.toLowerCase()) ||
+            leadName(l).toLowerCase().includes(search.toLowerCase()) ||
             l.phone.includes(search),
         )
       : items;
     return STAGES.reduce<Record<string, Lead[]>>((acc, s) => {
-      acc[s.value] = filtered.filter((l) => l.stage === s.value);
+      acc[s.value] = filtered.filter((l) => leadStatus(l) === s.value);
       return acc;
     }, {});
   }, [data, search]);
@@ -150,6 +194,13 @@ export default function AgentLeadsPage() {
       <Helmet>
         <title>العملاء المحتملون</title>
       </Helmet>
+      <OfferDrawer
+        leadId={offerLeadId}
+        open={!!offerLeadId}
+        onOpenChange={(v) => {
+          if (!v) setOfferLeadId(null);
+        }}
+      />
       <div className="mx-auto max-w-[1400px] px-4 py-8 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -289,12 +340,12 @@ export default function AgentLeadsPage() {
                             <div className="flex items-start gap-2">
                               <Avatar size="sm">
                                 <AvatarFallback className="bg-primary/10 text-primary text-[10px]">
-                                  {initials(lead.full_name)}
+                                  {initials(leadName(lead))}
                                 </AvatarFallback>
                               </Avatar>
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium truncate">
-                                  {lead.full_name}
+                                  {leadName(lead)}
                                 </p>
                                 <a
                                   href={`tel:${lead.phone}`}
@@ -315,7 +366,20 @@ export default function AgentLeadsPage() {
                                 {lead.notes}
                               </p>
                             )}
-                            <div className="flex justify-end pt-1">
+                            {leadStatus(lead) === "accepted" ? (
+                              <ProceedToCheckoutButton leadId={lead.id} />
+                            ) : null}
+                            <div className="flex flex-wrap gap-1 justify-end pt-1">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-6 gap-1 text-[10px]"
+                                disabled={readOnly}
+                                onClick={() => setOfferLeadId(lead.id)}
+                              >
+                                <FileText className="h-3 w-3" /> عروض
+                              </Button>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button
@@ -333,7 +397,7 @@ export default function AgentLeadsPage() {
                                   </DropdownMenuLabel>
                                   <DropdownMenuSeparator />
                                   {STAGES.filter(
-                                    (x) => x.value !== lead.stage,
+                                    (x) => x.value !== leadStatus(lead),
                                   ).map((x) => (
                                     <DropdownMenuItem
                                       key={x.value}

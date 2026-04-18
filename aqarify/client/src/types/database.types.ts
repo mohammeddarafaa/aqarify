@@ -880,6 +880,9 @@ export type Database = {
       tenants: {
         Row: {
           address: string | null
+          bank_account_holder: string | null
+          bank_account_number: string | null
+          bank_name: string | null
           contact_email: string | null
           contact_phone: string | null
           created_at: string
@@ -890,13 +893,18 @@ export type Database = {
           logo_url: string | null
           name: string
           paymob_api_key_enc: string | null
+          paymob_hmac_secret_enc: string | null
           paymob_integration_id: string | null
+          paymob_iframe_id: string | null
           slug: string
           status: Database["public"]["Enums"]["tenant_status"]
           theme_config: Json
         }
         Insert: {
           address?: string | null
+          bank_account_holder?: string | null
+          bank_account_number?: string | null
+          bank_name?: string | null
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string
@@ -907,13 +915,18 @@ export type Database = {
           logo_url?: string | null
           name: string
           paymob_api_key_enc?: string | null
+          paymob_hmac_secret_enc?: string | null
           paymob_integration_id?: string | null
+          paymob_iframe_id?: string | null
           slug: string
           status?: Database["public"]["Enums"]["tenant_status"]
           theme_config?: Json
         }
         Update: {
           address?: string | null
+          bank_account_holder?: string | null
+          bank_account_number?: string | null
+          bank_name?: string | null
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string
@@ -924,7 +937,9 @@ export type Database = {
           logo_url?: string | null
           name?: string
           paymob_api_key_enc?: string | null
+          paymob_hmac_secret_enc?: string | null
           paymob_integration_id?: string | null
+          paymob_iframe_id?: string | null
           slug?: string
           status?: Database["public"]["Enums"]["tenant_status"]
           theme_config?: Json

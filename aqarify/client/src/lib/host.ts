@@ -55,10 +55,24 @@ export function resolveTenantSlugLive(
   search: string
 ): string | null {
   if (typeof window === "undefined") return null;
+
+  const siteMode = (import.meta.env.VITE_SITE_MODE as string | undefined)?.trim() || "auto";
+  if (siteMode === "marketing") return null;
+
   const explicit = readExplicitOverride(pathname, search);
   if (explicit) return explicit;
 
   const hostname = window.location.hostname;
+
+  if (siteMode === "tenant") {
+    if (!MARKETING_HOSTS.has(hostname)) {
+      const parts = hostname.split(".");
+      if (parts.length >= 3 && parts[0] !== "www") return parts[0];
+    }
+    const def = import.meta.env.VITE_DEFAULT_TENANT as string | undefined;
+    return def?.trim() || null;
+  }
+
   if (MARKETING_HOSTS.has(hostname)) return null;
 
   const parts = hostname.split(".");

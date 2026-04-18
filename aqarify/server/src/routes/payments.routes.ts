@@ -3,7 +3,7 @@ import { resolveTenant, type TenantRequest } from "../middleware/tenant";
 import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { supabaseAdmin } from "../config/supabase";
 import { sendSuccess, sendError, ERROR_CODES } from "../utils/response";
-import { createPaymobIntention } from "../services/paymob.service";
+import { createPaymobPaymentKey } from "../services/paymob.service";
 import { decrypt } from "../utils/hmac";
 
 export const paymentRoutes = Router();
@@ -28,23 +28,27 @@ paymentRoutes.post("/:id/pay-intent", async (req: TenantRequest & AuthenticatedR
 
     const { data: tenant } = await supabaseAdmin
       .from("tenants")
-      .select("paymob_integration_id, paymob_api_key_enc, paymob_iframe_id")
+      .select("paymob_integration_id, paymob_api_key_enc, paymob_iframe_id, currency")
       .eq("id", req.tenantId!)
       .single();
 
     if (!tenant?.paymob_integration_id || !tenant.paymob_api_key_enc) {
       return sendError(res, "PAYMOB_NOT_CONFIGURED", "Payment gateway not configured", 503);
     }
+    if (!tenant.paymob_iframe_id?.trim()) {
+      return sendError(res, "PAYMOB_NOT_CONFIGURED", "Payment gateway not fully configured (missing iFrame ID)", 503);
+    }
 
-    const apiKey = decrypt(tenant.paymob_api_key_enc, process.env.ENCRYPTION_KEY!);
+    const apiKey = decrypt(tenant.paymob_api_key_enc);
     const customer = payment.users as { full_name: string; email: string; phone: string | null };
     const nameParts = customer.full_name.split(" ");
 
-    const { paymentKey } = await createPaymobIntention({
+    const currency = (tenant as { currency?: string }).currency?.trim() || "EGP";
+    const { paymentKey } = await createPaymobPaymentKey({
       apiKey,
       integrationId: tenant.paymob_integration_id,
       amountCents: Math.round(Number(payment.amount) * 100),
-      currency: "EGP",
+      currency,
       orderId: payment.id,
       billingData: {
         first_name: nameParts[0] ?? customer.full_name,

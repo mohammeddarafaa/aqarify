@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Heart, ChevronLeft, ChevronRight, MapPin } from "lucide-react";
+import { Building2, ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 import {
   Badge,
   Button,
@@ -10,14 +10,9 @@ import {
   cn,
 } from "@/components/ui-kit";
 import { Button as HeroButton } from "@heroui/react";
-import { useUnitsQuery } from "@/features/browse/hooks/use-units-query";
+import { usePublicProjects } from "@/features/browse/hooks/use-public-projects";
 import { useTenantStore } from "@/stores/tenant.store";
 import { appendTenantSearch } from "@/lib/tenant-path";
-
-function formatPrice(egp: number) {
-  if (egp >= 1_000_000) return `${(egp / 1_000_000).toFixed(2)}M ج.م`;
-  return `${Math.round(egp).toLocaleString("ar-EG")} ج.م`;
-}
 
 export function DiscoveryFeaturedCarousel() {
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -25,8 +20,8 @@ export function DiscoveryFeaturedCarousel() {
   const { pathname, search } = useLocation();
   const withTenant = (path: string) => appendTenantSearch(pathname, search, path);
   const tenant = useTenantStore((s) => s.tenant);
-  const { data, isLoading } = useUnitsQuery({});
-  const units = data?.pages?.[0]?.units?.slice(0, 12) ?? [];
+  const { data: projects, isLoading } = usePublicProjects();
+  const list = (projects ?? []).slice(0, 12);
 
   const scrollBy = (delta: number) => {
     scrollerRef.current?.scrollBy({ left: delta, behavior: "smooth" });
@@ -41,10 +36,10 @@ export function DiscoveryFeaturedCarousel() {
               مميز
             </p>
             <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-              وحدات مختارة من {tenant?.name ?? "المطور"}
+              مشاريع من {tenant?.name ?? "المطور"}
             </h2>
             <p className="mt-2 max-w-lg text-sm text-white/55">
-              عروض محدّثة باستمرار — اضغط على البطاقة للتفاصيل الكاملة والحجز.
+              اختر مشروعًا لعرض الوحدات المتاحة والحجز.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -73,7 +68,7 @@ export function DiscoveryFeaturedCarousel() {
               variant="outline"
               className="rounded-full border-white/25 bg-transparent text-white hover:bg-white/10"
             >
-              <Link to={withTenant("/browse")}>عرض الكل</Link>
+              <Link to={withTenant("/browse")}>كل المشاريع</Link>
             </Button>
           </div>
         </div>
@@ -84,6 +79,8 @@ export function DiscoveryFeaturedCarousel() {
               <Skeleton key={i} className="h-[22rem] w-72 shrink-0 rounded-2xl bg-white/10" />
             ))}
           </div>
+        ) : list.length === 0 ? (
+          <p className="pb-4 text-sm text-white/50">لا توجد مشاريع منشورة بعد.</p>
         ) : (
           <div
             ref={scrollerRef}
@@ -92,15 +89,16 @@ export function DiscoveryFeaturedCarousel() {
               "[&::-webkit-scrollbar]:hidden",
             )}
           >
-            {units.map((u) => {
+            {list.map((p) => {
               const img =
-                u.gallery?.[0] ??
-                `https://placehold.co/640x800/1a1a1a/888888?text=${encodeURIComponent(u.unit_number)}`;
+                p.cover_image_url ??
+                p.gallery?.[0] ??
+                `https://placehold.co/640x800/1a1a1a/888888?text=${encodeURIComponent(p.name)}`;
               return (
                 <button
-                  key={u.id}
+                  key={p.id}
                   type="button"
-                  onClick={() => navigate(withTenant(`/units/${u.id}`))}
+                  onClick={() => navigate(withTenant(`/browse/projects/${p.id}`))}
                   className="group w-[min(100%,280px)] shrink-0 text-start"
                 >
                   <Card className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-none transition-transform duration-300 hover:-translate-y-1">
@@ -115,24 +113,23 @@ export function DiscoveryFeaturedCarousel() {
                         className="absolute end-3 top-3 inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-black/30 text-white backdrop-blur-sm"
                         aria-hidden
                       >
-                        <Heart className="size-4" />
+                        <Building2 className="size-4" />
                       </span>
                       <Badge className="absolute bottom-3 start-3 rounded-md border-0 bg-white text-[11px] font-semibold text-[#141414]">
-                        {formatPrice(u.price)}
+                        مشروع
                       </Badge>
                     </div>
                     <CardContent className="space-y-1 p-4">
                       <p className="text-[10px] font-medium uppercase tracking-wider text-white/45">
-                        {u.type}
+                        {p.address ? "موقع مميز" : "مشروع سكني"}
                       </p>
-                      <p className="line-clamp-1 text-sm font-semibold text-white">
-                        وحدة {u.unit_number}
-                        {u.view_type ? ` · ${u.view_type}` : ""}
-                      </p>
-                      <p className="flex items-center gap-1 text-xs text-white/50">
-                        <MapPin className="size-3 shrink-0" />
-                        <span className="truncate">{u.bedrooms} غرف</span>
-                      </p>
+                      <p className="line-clamp-2 text-sm font-semibold text-white">{p.name}</p>
+                      {p.address ? (
+                        <p className="flex items-center gap-1 text-xs text-white/50">
+                          <MapPin className="size-3 shrink-0" />
+                          <span className="truncate">{p.address}</span>
+                        </p>
+                      ) : null}
                     </CardContent>
                   </Card>
                 </button>

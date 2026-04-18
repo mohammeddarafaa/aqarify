@@ -46,10 +46,8 @@ export async function generateReceiptPDF(
           return;
         }
 
-        const { data: urlData } = supabaseAdmin.storage
-          .from("documents").getPublicUrl(filePath);
-
-        resolve(urlData.publicUrl);
+        // Private bucket: store path in DB; mint time-limited URLs via GET /reservations/:id/receipt
+        resolve(filePath);
       });
 
       // Header

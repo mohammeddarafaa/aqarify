@@ -24,12 +24,19 @@ const tenantSchema = z.object({
   name: z.string().min(2), contact_email: z.string().email(),
   contact_phone: z.string().optional(), primary_color: z.string().optional(),
   secondary_color: z.string().optional(), address: z.string().optional(),
+  bank_name: z.string().optional(),
+  bank_account_number: z.string().optional(),
+  bank_account_holder: z.string().optional(),
 });
 
 const paymobSchema = z.object({
   api_key: z.string().min(10, "مطلوب"),
   integration_id: z.string().min(1, "مطلوب"),
-  iframe_id: z.string().optional(),
+  iframe_id: z.string().min(1, "مطلوب لدفع البطاقة / فوري / فودافون كاش"),
+  hmac_secret: z
+    .string()
+    .optional()
+    .refine((s) => !s || s.length >= 8, { message: "HMAC يجب أن يكون 8 أحرف على الأقل أو اتركه فارغاً" }),
 });
 
 type TenantData = z.infer<typeof tenantSchema>;
@@ -86,7 +93,26 @@ export default function AdminSettingsPage() {
     enabled: tab === "subscription",
   });
 
-  const tenantForm = useForm<TenantData>({ resolver: zodResolver(tenantSchema), values: tenant });
+  const tenantForm = useForm<TenantData>({
+    resolver: zodResolver(tenantSchema),
+    values: tenant
+      ? {
+          name: tenant.name ?? "",
+          contact_email: tenant.contact_email ?? "",
+          contact_phone: tenant.contact_phone ?? "",
+          primary_color:
+            (tenant.theme_config as { primary_color?: string } | undefined)?.primary_color ??
+            "#2563eb",
+          secondary_color:
+            (tenant.theme_config as { secondary_color?: string } | undefined)?.secondary_color ??
+            "#64748b",
+          address: tenant.address ?? "",
+          bank_name: tenant.bank_name ?? "",
+          bank_account_number: tenant.bank_account_number ?? "",
+          bank_account_holder: tenant.bank_account_holder ?? "",
+        }
+      : undefined,
+  });
   const paymobForm = useForm<PaymobData>({ resolver: zodResolver(paymobSchema) });
 
   const saveTenant = useMutation({
@@ -96,7 +122,15 @@ export default function AdminSettingsPage() {
   });
 
   const savePaymob = useMutation({
-    mutationFn: async (d: PaymobData) => { await api.patch("/admin/tenant/paymob", d); },
+    mutationFn: async (d: PaymobData) => {
+      const payload: PaymobData = {
+        api_key: d.api_key,
+        integration_id: d.integration_id,
+        iframe_id: d.iframe_id,
+        ...(d.hmac_secret?.trim() ? { hmac_secret: d.hmac_secret.trim() } : {}),
+      };
+      await api.patch("/admin/tenant/paymob", payload);
+    },
     onSuccess: () => toast.success("تم حفظ بيانات بوابة الدفع"),
     onError: () => toast.error("فشل الحفظ"),
   });
@@ -182,6 +216,18 @@ export default function AdminSettingsPage() {
               </div>
               <div className="space-y-1 col-span-2"><Label>العنوان</Label>
                 <Input {...tenantForm.register("address")} /></div>
+              <div className="space-y-1 col-span-2 rounded-lg border bg-muted/30 p-4">
+                <p className="text-sm font-medium">تحويل بنكي (للعملاء)</p>
+                <p className="text-xs text-muted-foreground mb-3">يظهر للعميل عند اختيار الدفع بالتحويل.</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1 col-span-2 sm:col-span-1"><Label>اسم البنك</Label>
+                    <Input {...tenantForm.register("bank_name")} placeholder="البنك الأهلي..." /></div>
+                  <div className="space-y-1 col-span-2 sm:col-span-1"><Label>رقم الحساب / IBAN</Label>
+                    <Input {...tenantForm.register("bank_account_number")} dir="ltr" /></div>
+                  <div className="space-y-1 col-span-2"><Label>اسم صاحب الحساب</Label>
+                    <Input {...tenantForm.register("bank_account_holder")} /></div>
+                </div>
+              </div>
             </div>
             <Button type="submit" disabled={saveTenant.isPending}>حفظ الإعدادات</Button>
           </form>
@@ -202,6 +248,11 @@ export default function AdminSettingsPage() {
               <div className="space-y-1"><Label>iFrame ID</Label>
                 <Input {...paymobForm.register("iframe_id")} placeholder="12345" />
               </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Paymob HMAC (للـ webhook)</Label>
+              <Input type="password" {...paymobForm.register("hmac_secret")} placeholder="اتركه فارغاً إن لم تغيّره" />
+              <p className="text-xs text-muted-foreground">يُخزَّن مشفّراً. مطلوب للتحقق من إشعارات الدفع لحسابك.</p>
             </div>
             <Button type="submit" disabled={savePaymob.isPending}>حفظ بيانات الدفع</Button>
           </form>

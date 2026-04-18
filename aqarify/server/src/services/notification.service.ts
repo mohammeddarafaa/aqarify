@@ -6,6 +6,8 @@ import { logger } from "../utils/logger";
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const RELEANS_KEY = process.env.RELEANS_API_KEY;
 const RELEANS_SENDER = process.env.RELEANS_SENDER ?? "Aqarify";
+const UNIFONIC_KEY = process.env.UNIFONIC_API_KEY;
+const INFOBIP_KEY = process.env.INFOBIP_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL ?? "noreply@aqarify.io";
 let warnedMissingResend = false;
 
@@ -40,17 +42,58 @@ interface NotifPayload {
   data?: Record<string, unknown>;
 }
 
-async function sendSMS(phone: string, message: string): Promise<boolean> {
-  if (!RELEANS_KEY || !phone) return false;
+function selectSmsProvider(countryCode: string): "releans" | "unifonic" | "infobip" {
+  const cc = countryCode.toUpperCase();
+  if (cc === "EG") return "releans";
+  if (["SA", "AE", "KW", "QA", "BH", "OM"].includes(cc)) return "unifonic";
+  return "infobip";
+}
+
+async function sendViaReleans(phone: string, message: string): Promise<boolean> {
+  if (!RELEANS_KEY) return false;
+  await axios.post(
+    "https://api.releans.com/v2/message",
+    { sender: RELEANS_SENDER, mobile: phone, content: message },
+    { headers: { Authorization: `Bearer ${RELEANS_KEY}` } },
+  );
+  return true;
+}
+
+async function sendViaUnifonic(phone: string, message: string): Promise<boolean> {
+  if (!UNIFONIC_KEY) {
+    logger.warn("UNIFONIC_API_KEY missing: SMS skipped for non-EG route");
+    return false;
+  }
+  await axios.post(
+    "https://el.cloud.unifonic.com/rest/SMS/messages",
+    { AppSid: UNIFONIC_KEY, Recipient: phone, Body: message, SenderID: RELEANS_SENDER },
+    { headers: { Accept: "application/json", "Content-Type": "application/json" } },
+  );
+  return true;
+}
+
+async function sendViaInfobip(phone: string, message: string): Promise<boolean> {
+  if (!INFOBIP_KEY) {
+    logger.warn("INFOBIP_API_KEY missing: SMS skipped for fallback route");
+    return false;
+  }
+  await axios.post(
+    "https://api.infobip.com/sms/2/text/advanced",
+    { messages: [{ from: RELEANS_SENDER, destinations: [{ to: phone }], text: message }] },
+    { headers: { Authorization: `App ${INFOBIP_KEY}`, "Content-Type": "application/json" } },
+  );
+  return true;
+}
+
+async function sendSMS(phone: string, message: string, countryCode = "EG"): Promise<boolean> {
+  if (!phone) return false;
+  const provider = selectSmsProvider(countryCode);
   try {
-    await axios.post(
-      "https://api.releans.com/v2/message",
-      { sender: RELEANS_SENDER, mobile: phone, content: message },
-      { headers: { Authorization: `Bearer ${RELEANS_KEY}` } }
-    );
-    return true;
+    if (provider === "releans") return await sendViaReleans(phone, message);
+    if (provider === "unifonic") return await sendViaUnifonic(phone, message);
+    return await sendViaInfobip(phone, message);
   } catch (err) {
-    logger.error("Releans SMS error", err);
+    logger.error(`SMS error (${provider})`, err);
     return false;
   }
 }
@@ -102,7 +145,13 @@ export async function sendNotification(payload: NotifPayload): Promise<void> {
   }
 
   if (channels.includes("sms") && payload.phone) {
-    promises.push(sendSMS(payload.phone, `${payload.title}: ${payload.body}`));
+    const { data: tenantRow } = await supabaseAdmin
+      .from("tenants")
+      .select("country_code")
+      .eq("id", payload.tenantId)
+      .maybeSingle();
+    const cc = (tenantRow?.country_code as string | undefined)?.trim() || "EG";
+    promises.push(sendSMS(payload.phone, `${payload.title}: ${payload.body}`, cc));
   }
 
   if (channels.includes("email") && payload.email) {

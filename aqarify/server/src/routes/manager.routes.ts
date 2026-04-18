@@ -37,11 +37,16 @@ managerRoutes.get("/reservations", async (req: TenantRequest & AuthenticatedRequ
   } catch (err) { return next(err); }
 });
 
+const managerReservationStatuses = z.enum(["confirmed", "cancelled", "expired"]);
+
 managerRoutes.patch("/reservations/:id/status", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
   try {
-    const body = req.body as { status: string; reason?: string };
-    const { status, reason } = body;
-    if (!status) return sendError(res, ERROR_CODES.VALIDATION_ERROR, "status required", 400);
+    const parsed = z
+      .object({ status: managerReservationStatuses, reason: z.string().optional() })
+      .safeParse(req.body);
+    if (!parsed.success) return sendError(res, ERROR_CODES.VALIDATION_ERROR, "Invalid status", 400);
+
+    const { status, reason } = parsed.data;
     const { data, error } = await supabaseAdmin.from("reservations")
       .update({ status, ...(reason ? { notes: reason } : {}) })
       .eq("id", req.params.id)

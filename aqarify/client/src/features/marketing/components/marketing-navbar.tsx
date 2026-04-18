@@ -76,10 +76,7 @@ export function MarketingNavbar() {
           ))}
         </nav>
 
-        <div className="hidden items-center gap-2 md:flex">
-          <Button asChild variant="ghost" size="sm">
-            <Link to="/login">Sign in</Link>
-          </Button>
+        <div className="hidden md:flex">
           <Button asChild size="sm" className="rounded-full">
             <Link to="/signup">Get started</Link>
           </Button>
@@ -133,16 +130,6 @@ export function MarketingNavbar() {
             <Button asChild size="lg" className="w-full rounded-full">
               <Link to="/signup" onClick={() => setOpen(false)}>
                 Get started
-              </Link>
-            </Button>
-            <Button
-              asChild
-              size="lg"
-              variant="outline"
-              className="w-full rounded-full"
-            >
-              <Link to="/login" onClick={() => setOpen(false)}>
-                Sign in
               </Link>
             </Button>
           </div>

@@ -8,7 +8,8 @@ export interface PaymobIntentionResult {
   payment_keys: { token: string }[];
 }
 
-export async function createPaymobIntention(params: {
+/** Legacy Accept API: auth token → order → payment key (not Paymob Intentions API). */
+export async function createPaymobPaymentKey(params: {
   apiKey: string;
   integrationId: string;
   amountCents: number;

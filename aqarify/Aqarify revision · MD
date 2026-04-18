@@ -1,0 +1,928 @@
+# Aqarify — End-to-End Platform Revision
+**Full-stack audit: DB → Backend → Frontend → Arab World readiness**
+*Audited: April 2026 | Covers every module, every layer*
+
+---
+
+## Executive Summary
+
+The architecture is solid and Phases 0–3 are largely implemented. However there are **7 critical runtime bugs**, **12 FE↔BE contract mismatches**, **5 DB schema inconsistencies**, and the platform is **not yet production-ready for the Arab World** — Egypt-only assumptions are deeply baked in. This document covers every finding in order of severity with exact file references and code fixes.
+
+---
+
+## 🔴 CRITICAL — Runtime Failures (Will Break in Production)
+
+---
+
+### C1 — Wrong column names in `leadGeneration.service.ts`
+
+**Files:** `server/src/services/leadGeneration.service.ts`
+
+The service inserts `full_name` and `stage` but the `potential_customers` table (migration `00009`) has columns `name` and `negotiation_status`.
+
+```ts
+// ❌ CURRENT
+await supabaseAdmin.from("potential_customers").insert({
+  full_name: customer.full_name,   // column doesn't exist
+  stage: "new",                    // column doesn't exist
+});
+
+// ✅ FIX
+await supabaseAdmin.from("potential_customers").insert({
+  name: customer.full_name,
+  negotiation_status: "new",
+});
+```
+
+**Impact:** Every auto-lead created from a cancelled reservation or expired waitlist silently fails or throws a DB error.
+
+---
+
+### C2 — Webhook uses global HMAC secret, not per-tenant
+
+**Files:** `server/src/routes/webhooks.routes.ts`, `server/src/utils/hmac.ts`
+
+Migration `00034` correctly adds `paymob_hmac_secret_enc` per tenant, but the webhook handler uses a global `process.env.PAYMOB_HMAC_SECRET`. With multiple tenants each having their own Paymob merchant account, this will reject valid webhooks or accept forged ones.
+
+```ts
+// ❌ CURRENT
+const secret = process.env.PAYMOB_HMAC_SECRET ?? "";
+if (!verifyPaymobHmac(payload, hmac, secret)) { ... }
+
+// ✅ FIX — look up tenant from reservation/payment first, then verify with their secret
+const orderId = String(payload.merchant_order_id ?? "");
+
+const { data: reservation } = await supabaseAdmin
+  .from("reservations").select("id, status, tenant_id").eq("id", orderId).maybeSingle();
+const { data: payment } = !reservation
+  ? await supabaseAdmin.from("payments").select("id, status, tenant_id").eq("id", orderId).maybeSingle()
+  : { data: null };
+
+const tenantId = reservation?.tenant_id ?? payment?.tenant_id;
+if (!tenantId) return res.json({ received: true });
+
+const { data: tenant } = await supabaseAdmin
+  .from("tenants").select("paymob_hmac_secret_enc").eq("id", tenantId).single();
+
+const secret = tenant?.paymob_hmac_secret_enc
+  ? decrypt(tenant.paymob_hmac_secret_enc, process.env.ENCRYPTION_KEY!)
+  : (process.env.PAYMOB_HMAC_SECRET ?? "");
+
+if (!verifyPaymobHmac(payload, hmac, secret)) { ... }
+```
+
+**Impact:** Webhooks either never verify (all pass) or always fail (all payments stuck at `pending`).
+
+---
+
+### C3 — `waitlist_status` enum missing `'waiting'` value
+
+**Files:** `supabase/migrations/00001_create_enums.sql`, `00033_waitlist_migrate_active_to_waiting.sql`
+
+Migration `00001` defines `waitlist_status` with value `'active'`. Migration `00033` migrates rows from `active → waiting`, but never adds `'waiting'` to the enum type. The backend inserts `status: "waiting"` which will throw `invalid input value for enum waitlist_status`.
+
+```sql
+-- ✅ New migration: 00037_add_waitlist_status_waiting_enum.sql
+ALTER TYPE waitlist_status ADD VALUE IF NOT EXISTS 'waiting' BEFORE 'notified';
+```
+
+**Impact:** Any attempt to join a waiting list throws a Postgres enum violation.
+
+---
+
+### C4 — `tenant_status` enum missing `read_only` and `pending_signup`
+
+**Files:** `supabase/migrations/00001_create_enums.sql`, `00023_add_tenant_read_only_status.sql`
+
+Migration `00001` defines `tenant_status AS ENUM ('active', 'suspended', 'trial')`. The codebase extensively uses `'read_only'` and `'pending_signup'` in middleware, frontend stores, and guards. Verify migration `00023` includes:
+
+```sql
+-- ✅ Verify 00023 contains:
+ALTER TYPE tenant_status ADD VALUE IF NOT EXISTS 'read_only';
+ALTER TYPE tenant_status ADD VALUE IF NOT EXISTS 'pending_signup';
+```
+
+**Impact:** `subscriptionGuard`, `tenantStore`, and the read-only banner all break at runtime.
+
+---
+
+### C5 — Paymob service function name misleads future maintainers
+
+**Files:** `server/src/services/paymob.service.ts`, `client/src/features/reservation/pages/checkout-page.tsx`
+
+The function `createPaymobIntention` implements the **legacy Accept 3-step flow** (auth token → order → payment key), not the newer Intentions API. The name causes confusion and mismatch when Paymob migrates tenants.
+
+```ts
+// ✅ Rename for clarity — no behavioral change needed yet
+export async function createPaymobPaymentKey(params: { ... })
+
+// Update all callers in:
+// server/src/routes/reservations.routes.ts
+// server/src/routes/payments.routes.ts
+```
+
+Also, the iframe redirect URL is hardcoded in `checkout-page.tsx`:
+
+```ts
+// ❌ Hardcoded Paymob Accept domain
+window.location.href = `https://accept.paymob.com/api/acceptance/iframes/${data.iframe_id}?payment_token=${data.payment_key}`;
+
+// ✅ Use env var
+window.location.href = `${import.meta.env.VITE_PAYMOB_IFRAME_BASE_URL}/${data.iframe_id}?payment_token=${data.payment_key}`;
+```
+
+---
+
+### C6 — `"rejected"` status doesn't exist in DB `reservation_status` enum
+
+**Files:** `client/src/features/reservation/types.ts`, `server/src/routes/agent.routes.ts`
+
+The FE type has `status: "pending" | "confirmed" | "cancelled" | "rejected"` and the agent route schema allows patching to `"rejected"` — but the DB enum only has `('pending', 'confirmed', 'cancelled', 'expired')`.
+
+```ts
+// ❌ client/src/features/reservation/types.ts
+status: "pending" | "confirmed" | "cancelled" | "rejected";
+
+// ✅ Fix
+status: "pending" | "confirmed" | "cancelled" | "expired";
+```
+
+```ts
+// ❌ server/src/routes/agent.routes.ts
+const statusSchema = z.object({ status: z.enum(["confirmed", "cancelled", "rejected"]) });
+
+// ✅ Fix — also add role-based constraint
+const statusSchema = z.object({ status: z.enum(["confirmed", "cancelled", "expired"]) });
+
+// Role-based constraint:
+const allowedByRole: Record<string, string[]> = {
+  agent:       ["cancelled"],
+  manager:     ["confirmed", "cancelled", "expired"],
+  admin:       ["confirmed", "cancelled", "expired"],
+  super_admin: ["confirmed", "cancelled", "expired"],
+};
+if (!allowedByRole[req.userRole!]?.includes(parsed.data.status)) {
+  return sendError(res, ERROR_CODES.AUTH_FORBIDDEN, "Role cannot set this status", 403);
+}
+```
+
+---
+
+### C7 — CORS single-origin breaks multi-tenant custom domains
+
+**Files:** `server/src/index.ts`
+
+```ts
+// ❌ CURRENT
+app.use(cors({ origin: process.env.CLIENT_URL ?? "http://localhost:3000" }));
+
+// ✅ FIX — dynamic CORS
+const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "http://localhost:3000").split(",");
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true); // non-browser clients
+    const allowed =
+      allowedOrigins.some(o => origin === o.trim()) ||
+      origin.endsWith(`.${process.env.ROOT_DOMAIN ?? "yourdomain.com"}`);
+    callback(allowed ? null : new Error("Not allowed by CORS"), allowed);
+  },
+  credentials: true,
+}));
+```
+
+**Impact:** All tenants with custom domains get CORS errors on every API call.
+
+---
+
+## 🟠 HIGH — FE ↔ BE Contract Mismatches
+
+---
+
+### H1 — Checkout navigates to wrong success URL
+
+**File:** `client/src/features/reservation/pages/checkout-page.tsx`
+
+On bank transfer, navigates to `/reservations/${data.reservation.id}/success` but the router has `ReservationSuccessPage` without an `:id` path param.
+
+```ts
+// ❌ CURRENT
+navigate(`/reservations/${data.reservation.id}/success`);
+
+// ✅ FIX — use confirmation_number as the reference
+navigate(`/reservations/success?ref=${data.reservation.confirmation_number}`);
+// Then in reservation-success-page.tsx read: useSearchParams().get("ref")
+```
+
+---
+
+### H2 — Backend `units.routes.ts` ignores `min_size`, `max_size`, `floor`, `finishing`, `view_type`, `building_id`
+
+**Files:** `client/src/types/api.types.ts`, `server/src/routes/units.routes.ts`
+
+All six filter keys are declared in `UnitFilters` (FE type) and sent by the filter bar, but the backend silently ignores them.
+
+```ts
+// ✅ Add to units.routes.ts query builder:
+if (min_size)     query = query.gte("size_sqm", parseFloat(min_size));
+if (max_size)     query = query.lte("size_sqm", parseFloat(max_size));
+if (floor && floor !== "all")      query = query.eq("floor", parseInt(floor));
+if (finishing && finishing !== "all") query = query.eq("finishing", finishing);
+if (view_type && view_type !== "all") query = query.eq("view_type", view_type);
+if (building_id)  query = query.eq("building_id", building_id);
+```
+
+---
+
+### H3 — Waitlist hook sends `tenantId` in body (security risk + redundant)
+
+**File:** `client/src/features/waiting-list/hooks/use-waiting-list.ts`
+
+`useJoinWaitlist` sends `tenantId` in the POST body. The server derives `tenantId` from the `x-tenant-slug` header via middleware — passing it in the body is both redundant and a potential tenant-spoofing vector.
+
+```ts
+// ❌ Remove tenantId from body payload in useJoinWaitlist mutationFn
+mutationFn: async (payload: { unitId: string; sms: boolean; email: boolean }) => {
+  return api.post("/waiting-list", {
+    unit_id: payload.unitId,
+    notification_prefs: { sms: payload.sms, email: payload.email },
+  });
+}
+```
+
+---
+
+### H4 — `waiting_list` table missing `preferred_type`, `preferred_floor`, `max_budget`, `notes` columns
+
+**Files:** `supabase/migrations/00007_create_waiting_list.sql`, `server/src/routes/waitingList.routes.ts`
+
+The join schema on the backend accepts and tries to insert these four fields but migration `00007` never defines them.
+
+```sql
+-- ✅ New migration: 00036_waitlist_add_preference_columns.sql
+ALTER TABLE waiting_list
+  ADD COLUMN IF NOT EXISTS preferred_type  TEXT,
+  ADD COLUMN IF NOT EXISTS preferred_floor INTEGER,
+  ADD COLUMN IF NOT EXISTS max_budget      NUMERIC(12,2),
+  ADD COLUMN IF NOT EXISTS notes           TEXT;
+```
+
+---
+
+### H5 — No RLS policy for authenticated customers to read their own reserved/sold units
+
+**Files:** `supabase/migrations/00025_harden_public_rls.sql`
+
+Anon policy only exposes `status = 'available'` units. Authenticated customers with a confirmed reservation can't read their reserved unit via any RLS-aware query.
+
+```sql
+-- ✅ New policy
+CREATE POLICY "units_customer_own_reserved" ON units
+  FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM reservations r
+      WHERE r.unit_id = units.id
+        AND r.customer_id = auth.uid()
+        AND r.status IN ('pending', 'confirmed')
+    )
+  );
+```
+
+---
+
+### H6 — Supabase session token not refreshed in Zustand on auto-rotation
+
+**Files:** `client/src/features/auth/hooks/use-auth.ts`, `client/src/features/auth/hooks/use-session-restore.ts`
+
+When Supabase silently refreshes the JWT (token rotation), the `accessToken` in `useAuthStore` stays stale until the user logs out and back in. All API calls then get `401`.
+
+```ts
+// ✅ In use-session-restore.ts or providers.tsx:
+supabase.auth.onAuthStateChange((event, session) => {
+  if (session?.access_token) {
+    useAuthStore.getState().updateToken(session.access_token);
+  }
+  if (event === "SIGNED_OUT") {
+    useAuthStore.getState().clearSession();
+  }
+});
+
+// ✅ Add to auth.store.ts:
+updateToken: (token: string) => set((s) => ({ ...s, accessToken: token })),
+```
+
+---
+
+### H7 — Dynamic `filter_schema` keys from tenants are not handled by the backend
+
+**Files:** `server/src/routes/units.routes.ts`, tenant `filter_schema` JSONB
+
+The `filter_schema` allows arbitrary filter keys (e.g. `sector`, `service_type`, custom fields). The FE dynamically renders them. The backend only handles a hardcoded set. Custom tenant filter keys are silently dropped.
+
+```ts
+// ✅ Add whitelist map in units.routes.ts
+const FILTER_MAP: Record<string, string> = {
+  type: "type", bedrooms: "bedrooms", status: "status",
+  finishing: "finishing", view_type: "view_type",
+  floor: "floor", building_id: "building_id",
+};
+for (const [key, col] of Object.entries(FILTER_MAP)) {
+  const val = req.query[key] as string | undefined;
+  if (val && val !== "all") {
+    query = query.eq(col, ["bedrooms","floor"].includes(key) ? parseInt(val) : val);
+  }
+}
+// For truly custom fields stored in units.custom_attributes JSONB:
+// if (req.query.custom_key) query = query.contains("custom_attributes", { custom_key: req.query.custom_val });
+```
+
+---
+
+### H8 — Bank transfer has no backend branching (tries to generate Paymob key)
+
+**Files:** `server/src/routes/reservations.routes.ts`, `client/src/features/reservation/pages/checkout-page.tsx`
+
+When `payment_method === "bank_transfer"`, the backend still attempts to generate a Paymob key and fails silently. The FE then receives `payment_key: null` with no bank details to show.
+
+```ts
+// ✅ BE — branch before Paymob logic:
+if (payment_method === "bank_transfer") {
+  const { data: tenant } = await supabaseAdmin.from("tenants")
+    .select("bank_name, bank_account_number, iban").eq("id", req.tenantId!).single();
+  return sendSuccess(res, {
+    reservation,
+    payment_key: null,
+    iframe_id: null,
+    method: "bank_transfer",
+    bank_details: {
+      bank_name: tenant?.bank_name,
+      account_number: tenant?.bank_account_number,
+      iban: tenant?.iban,
+      reference: reservation.confirmation_number,
+    },
+  });
+}
+
+// ✅ FE checkout-page.tsx — handle bank_transfer response:
+if (data.method === "bank_transfer") {
+  navigate(`/reservations/success?ref=${data.reservation.confirmation_number}&method=bank_transfer`);
+}
+```
+
+---
+
+### H9 — `use-tenant.ts` must never expose sensitive tenant columns
+
+**Files:** `client/src/hooks/use-tenant.ts`, `server/src/routes/tenants.routes.ts`
+
+The `/tenants/by-slug/:slug` route used unauthenticated by the FE must be verified to select only public-safe columns.
+
+```ts
+// ✅ BE tenants.routes.ts — explicit safe column selection:
+.select("id, name, slug, logo_url, favicon_url, theme_config, filter_schema, contact_phone, contact_email, address, status, currency, currency_symbol")
+// NEVER include: paymob_api_key_enc, paymob_hmac_secret_enc, paymob_integration_id, paymob_iframe_id
+```
+
+---
+
+### H10 — Notification bell has no Supabase Realtime subscription
+
+**File:** `client/src/features/notifications/hooks/use-notification-bell.ts`
+
+Phase 10 specifies real-time in-app notifications via Supabase Realtime. Currently it polls.
+
+```ts
+// ✅ Add Realtime subscription alongside TanStack Query:
+const qc = useQueryClient();
+useEffect(() => {
+  const channel = supabase
+    .channel(`notifications-${userId}`)
+    .on("postgres_changes", {
+      event: "INSERT", schema: "public",
+      table: "notifications",
+      filter: `user_id=eq.${userId}`,
+    }, () => {
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+    })
+    .subscribe();
+  return () => { supabase.removeChannel(channel); };
+}, [userId, qc]);
+```
+
+---
+
+### H11 — `discovery-page` and `landing-page` duplicate each other without clear separation
+
+**Files:** `client/src/features/discovery/`, `client/src/features/landing/`
+
+`discovery-page` is the platform SaaS marketing page (sells to new tenants). `landing-page` is the tenant's branded page (sells to end customers). The router must cleanly separate these. Currently the path `/` is ambiguous — resolved by `useIsMarketingSite` hook, which is fragile.
+
+```ts
+// ✅ Add explicit fallback + clear comments in router.tsx:
+// Marketing site branch (apex domain, no tenant slug detected):
+//   / → MarketingLandingPage
+//   /signup → SignupPage
+//   /post-checkout → PostCheckoutPage
+
+// Tenant site branch (subdomain or ?tenant= or /t/:slug):
+//   / → LandingPage (tenant branded)
+//   /browse → BrowsePage
+//   /units/:id → UnitDetailPage
+//   /auth/* → auth pages
+//   /dashboard/* → role-based dashboards
+```
+
+Consolidate or remove `discovery-page` — it appears to be a redundant third entry point.
+
+---
+
+### H12 — `useMyWaitingEntry()` returns only the first entry, masking multiple waitlists
+
+**File:** `client/src/features/waiting-list/hooks/use-waiting-list.ts`
+
+```ts
+// ❌ CURRENT — silently drops all other waitlist entries
+export function useMyWaitingEntry() {
+  const q = useMyWaitingEntries();
+  return { ...q, data: q.data?.[0] ?? null };
+}
+```
+
+A customer can be on multiple waitlists (one per unit). The `waitlist-page.tsx` in the customer dashboard correctly uses `useMyWaitingEntries()` — but if any component consumes `useMyWaitingEntry()` (singular), they only see the first one. Audit all usages and either remove the singular hook or make clear it's only for the join-modal context (one unit at a time).
+
+---
+
+## 🟡 MEDIUM — DB Schema Issues
+
+---
+
+### M1 — `tenants` table likely missing bank transfer columns
+
+**Files:** `supabase/migrations/00035_tenant_bank_transfer.sql`
+
+Both the bank transfer flow (H8) and the checkout page need `bank_name`, `bank_account_number`, `iban` on the tenant. Verify `00035` includes:
+
+```sql
+ALTER TABLE tenants
+  ADD COLUMN IF NOT EXISTS bank_name                   TEXT,
+  ADD COLUMN IF NOT EXISTS bank_account_number         TEXT,
+  ADD COLUMN IF NOT EXISTS iban                        TEXT,
+  ADD COLUMN IF NOT EXISTS bank_transfer_instructions  TEXT;
+```
+
+---
+
+### M2 — `paymob_iframe_id` column may be missing from `tenants`
+
+**Files:** `server/src/routes/reservations.routes.ts`, `server/src/routes/payments.routes.ts`
+
+Both routes select `paymob_iframe_id` from tenants but migration `00002` doesn't define it. Verify migration `00019_add_paymob_and_agent_columns.sql` includes:
+
+```sql
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS paymob_iframe_id TEXT;
+```
+
+---
+
+### M3 — `potential_customers` has no `source_waitlist_id` column
+
+**Files:** `supabase/migrations/00009_create_potential_customers.sql`
+
+Leads from expired waitlist entries (`createLeadFromExpiredWaitlist`) cannot be traced back to the original waitlist entry — only `source_reservation_id` exists.
+
+```sql
+-- ✅ New migration: 00042_add_potential_customers_source_waitlist_id.sql
+ALTER TABLE potential_customers
+  ADD COLUMN IF NOT EXISTS source_waitlist_id UUID REFERENCES waiting_list(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_pot_cust_waitlist ON potential_customers(source_waitlist_id);
+```
+
+Update `leadGeneration.service.ts` to set `source_waitlist_id: waitlistId`.
+
+---
+
+### M4 — `confirmation_number DEFAULT ''` is a latent unique-constraint trap
+
+**Files:** `supabase/migrations/00006_create_reservations.sql`
+
+`UNIQUE NOT NULL DEFAULT ''` means any concurrent insert that runs faster than the `BEFORE INSERT` trigger could theoretically collide. Safest fix:
+
+```sql
+-- ✅ Remove the default, rely entirely on the trigger:
+ALTER TABLE reservations ALTER COLUMN confirmation_number DROP DEFAULT;
+-- The trigger generates it before every insert — no default needed.
+```
+
+---
+
+### M5 — `documents` table `reservation_id` FK doesn't accommodate waitlist uploads
+
+**Files:** `supabase/migrations/00013_create_documents.sql`
+
+If customers should be able to upload pre-qualification documents while on a waitlist (before any reservation exists), `reservation_id NOT NULL` will block them. Decision needed:
+
+**Option A (simpler):** Restrict document upload to confirmed reservations only — drop the upload button from the waitlist flow.
+
+**Option B (flexible):**
+```sql
+ALTER TABLE documents ALTER COLUMN reservation_id DROP NOT NULL;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS waitlist_id UUID REFERENCES waiting_list(id) ON DELETE SET NULL;
+```
+
+Align the FE `documents-page.tsx` to match whichever option is chosen.
+
+---
+
+## 🌍 ARAB WORLD — Production Readiness for the Region
+
+---
+
+### AW1 — Currency hardcoded to EGP everywhere
+
+**Files:** `client/src/lib/format.ts`, `client/src/components/shared/currency-display.tsx`, `server/src/services/paymob.service.ts`
+
+The Arab World uses: EGP, SAR, AED, KWD (3 decimal places), QAR, BHD (3 decimal places), JOD, MAD, LYD, TND, DZD.
+
+```sql
+-- ✅ New migration:
+ALTER TABLE tenants
+  ADD COLUMN IF NOT EXISTS currency        TEXT NOT NULL DEFAULT 'EGP',
+  ADD COLUMN IF NOT EXISTS currency_symbol TEXT NOT NULL DEFAULT 'ج.م';
+```
+
+```ts
+// ✅ client/src/lib/format.ts
+const LOCALE_MAP: Record<string, string> = {
+  EGP:"ar-EG", SAR:"ar-SA", AED:"ar-AE", KWD:"ar-KW",
+  QAR:"ar-QA", BHD:"ar-BH", JOD:"ar-JO", MAD:"ar-MA",
+};
+const THREE_DECIMAL = new Set(["KWD","BHD","OMR"]);
+
+export function formatCurrency(amount: number, currency = "EGP"): string {
+  return new Intl.NumberFormat(LOCALE_MAP[currency] ?? "ar-EG", {
+    style: "currency", currency,
+    maximumFractionDigits: THREE_DECIMAL.has(currency) ? 3 : 2,
+  }).format(amount);
+}
+
+// ✅ Paymob service — use tenant currency, not hardcoded "EGP":
+currency: params.currency,
+```
+
+---
+
+### AW2 — SMS provider is Releans (Egypt-only)
+
+**Files:** `server/src/services/notification.service.ts`
+
+| Country | Recommended Provider |
+|---------|---------------------|
+| Egypt | Releans (`$0.025/msg`) |
+| Saudi Arabia, Gulf | Unifonic or Taqnyat |
+| Jordan, Levant | Unifonic or ClickSend |
+| Morocco, Maghreb | Infobip or OVH SMS |
+| Universal fallback | Infobip |
+
+```sql
+-- ✅ Add country to tenants:
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS country_code CHAR(2) NOT NULL DEFAULT 'EG';
+```
+
+```ts
+// ✅ SMS routing in notification.service.ts:
+function selectSmsProvider(countryCode: string): "releans" | "unifonic" | "infobip" {
+  if (countryCode === "EG") return "releans";
+  if (["SA","AE","KW","QA","BH","OM"].includes(countryCode)) return "unifonic";
+  return "infobip";
+}
+```
+
+---
+
+### AW3 — i18n: Only Egyptian Arabic dialect
+
+**Files:** `client/src/i18n/ar/`
+
+The platform should default to Modern Standard Arabic (MSA/الفصحى) as the universal base, with country-specific overrides for terminology differences.
+
+```
+client/src/i18n/
+  ar/            ← MSA base (universally understood across all Arab countries)
+  ar-EG/         ← Egyptian overrides: "الرقم القومي", "جنيه"
+  ar-SA/         ← Saudi overrides: "الهوية الوطنية", "ريال"
+  ar-AE/         ← Emirati overrides: "الإمارة", "درهم"
+  en/            ← English
+```
+
+Key translation differences to handle:
+- **National ID field label**: `ar-EG` → "الرقم القومي" | `ar-SA/AE/KW` → "رقم الهوية" | `ar-MA` → "رقم بطاقة التعريف"
+- **Currency names**: dynamic from `tenant.currency`
+- **Date format**: add Hijri calendar option for Saudi tenants via `ar-SA-u-ca-islamic-umalqura`
+- **Unit types**: شقة، فيلا، دوبليكس، تاون هاوس (vary by region)
+
+---
+
+### AW4 — Phone input hardcodes Egypt `+20` prefix
+
+**Files:** `client/src/components/shared/phone-input.tsx`
+
+```ts
+// ✅ Derive default country from tenant.country_code
+import { parsePhoneNumber, isValidPhoneNumber, type CountryCode } from "libphonenumber-js";
+
+// In checkout form validation:
+phone: z.string().refine(
+  (v) => isValidPhoneNumber(v, tenantCountry as CountryCode),
+  { message: t("validation.phone_invalid") }
+)
+
+// Phone input component prop:
+defaultCountry={tenant?.country_code ?? "EG"}
+```
+
+---
+
+### AW5 — Map defaults to Cairo coordinates
+
+**Files:** `client/src/features/browse/components/map-view.tsx`
+
+```sql
+-- ✅ Add map center to tenants:
+ALTER TABLE tenants
+  ADD COLUMN IF NOT EXISTS map_center_lat DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS map_center_lng DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS map_zoom       INTEGER DEFAULT 12;
+```
+
+```ts
+// ✅ map-view.tsx
+const defaultCenter: [number, number] = tenant?.map_center_lng && tenant?.map_center_lat
+  ? [tenant.map_center_lng, tenant.map_center_lat]
+  : projects?.[0]?.location_lng && projects[0]?.location_lat
+    ? [projects[0].location_lng, projects[0].location_lat]
+    : [45.079, 23.885]; // geographic center of Arab World
+```
+
+---
+
+### AW6 — Payment gateway locked to Paymob only
+
+Paymob covers EG, SA, AE, KW, QA, BH, OM, PS. For North Africa and Levant:
+
+| Country | Gateway |
+|---------|---------|
+| Morocco | CMI or Payzone |
+| Tunisia | Konnect or Paymee |
+| Algeria | CIB or Satim |
+| Jordan | eFAWATEERcom |
+
+```sql
+-- ✅ Add gateway field to tenants:
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS payment_gateway TEXT NOT NULL DEFAULT 'paymob';
+-- Values: 'paymob' | 'cmi' | 'konnect' | 'efawateer' | 'manual'
+```
+
+```ts
+// ✅ Abstract payment service behind an interface:
+interface PaymentGateway {
+  createPaymentKey(params: PaymentParams): Promise<{ paymentKey: string; orderId: string }>;
+  verifyWebhook(payload: unknown, signature: string, secret: string): boolean;
+}
+
+// Factory:
+function getPaymentGateway(gateway: string): PaymentGateway {
+  if (gateway === "paymob") return new PaymobGateway();
+  if (gateway === "konnect") return new KonnectGateway();
+  return new ManualGateway(); // bank transfer fallback
+}
+```
+
+---
+
+### AW7 — SaaS pricing page shows EGP only
+
+**Files:** `client/src/features/marketing/components/pricing-section.tsx`, `client/src/features/marketing/hooks/use-plans.ts`
+
+Gulf tenants (SA, AE, KW) expect prices in SAR/AED/USD. Add a currency toggle on the pricing page and store billing currency per subscription.
+
+```sql
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS billing_currency TEXT DEFAULT 'EGP';
+```
+
+---
+
+## 🔵 ARCHITECTURE — Missing Modules & Gaps
+
+---
+
+### A1 — No `schedule-visit` backend route
+
+Phase 2 (task 2.24) specifies a schedule-visit modal that creates a follow-up. The FE `schedule-visit-modal.tsx` exists but there's no backend route.
+
+```ts
+// ✅ Add POST /api/v1/units/:id/schedule-visit to units.routes.ts (or a new visits.routes.ts):
+// Body: { date: string, time_slot: string, phone: string, notes?: string }
+// Action: INSERT INTO follow_ups (tenant_id, type='visit', scheduled_at, notes, customer_id or phone)
+// Response: { follow_up_id, scheduled_at, confirmation_message }
+```
+
+---
+
+### A2 — Tenant onboarding wizard missing (Phase 9.1)
+
+The 5-step wizard for new tenants signing up is absent. This is the critical acquisition path.
+
+```
+Required pages:
+/admin/onboarding/1  → Company info: name, slug, country_code, currency, address
+/admin/onboarding/2  → Branding: logo upload, primary/secondary/accent colors, font
+/admin/onboarding/3  → Payment: Paymob API key + integration ID + HMAC secret, test connection
+/admin/onboarding/4  → First project: name, location, total units
+/admin/onboarding/5  → First units: manual form or CSV import
+```
+
+---
+
+### A3 — Tenant settings UI entirely missing (Phase 11)
+
+`client/src/features/tenant-settings/` is listed in the plan but absent from the file tree. Needed:
+
+- Branding tab: logo, favicon, colors (with contrast ratio validation), font selector
+- Filters tab: add/remove/reorder filter fields, set options per field
+- Payments tab: Paymob credentials + bank transfer details + test button
+- Notifications tab: customize SMS/email template text
+- Domain tab: CNAME setup guide + DNS verification
+
+---
+
+### A4 — Agent customer list and profile pages missing
+
+`agent-dashboard/pages/` has overview, reservations, leads, follow-ups, documents — but no customer list or customer profile. The CRM core (flows F18–F22) is not accessible.
+
+```
+Required:
+client/src/features/agent-dashboard/pages/agent-customers-page.tsx
+client/src/features/agent-dashboard/pages/agent-customer-profile-page.tsx
+  → Tabs: Info | Reservation | Payments | Documents | Follow-ups | Notes
+```
+
+---
+
+### A5 — `potential_customers` routes likely not registered in `server/src/index.ts`
+
+The plan defines `potentialCustomers.routes.ts` but it's not visible in the `index.ts` excerpt. Verify:
+
+```ts
+// server/src/index.ts — ensure this line exists:
+import { potentialCustomerRoutes } from "./routes/potentialCustomers.routes";
+app.use("/api/v1/potential-customers", subscriptionGuard, potentialCustomerRoutes);
+```
+
+---
+
+### A6 — `subscriptionGuard` middleware order needs audit
+
+The guard must be positioned after `authenticate` and before the route handler for every mutating route group. Audit `index.ts` to confirm the middleware stack is:
+
+```
+resolveTenant → authenticate → subscriptionGuard → [route handler]
+```
+
+Public routes (units, projects, tenant by-slug) should have `subscriptionGuard` omitted.
+
+---
+
+## 🔐 SECURITY
+
+---
+
+### S1 — No encryption key rotation strategy for `paymob_api_key_enc`
+
+The `decrypt()` function uses a static `ENCRYPTION_KEY`. If the key is leaked, all stored API keys are unrecoverable. Add key versioning:
+
+```ts
+// ✅ Encode version in encrypted value:
+// v1:{iv_hex}:{ciphertext_hex}
+// When decrypting: parse version, use the key for that version
+// When rotating: re-encrypt all existing values with new key in a migration script
+```
+
+---
+
+### S2 — No rate limiting on reservation or waitlist creation
+
+Malicious actors can lock units or flood the waitlist:
+
+```ts
+const reservationLimiter = rateLimit({ windowMs: 60_000, max: 5 });
+const waitlistLimiter    = rateLimit({ windowMs: 60_000, max: 10 });
+app.use("/api/v1/reservations", reservationLimiter);
+app.use("/api/v1/waiting-list", waitlistLimiter);
+```
+
+---
+
+### S3 — No JSONB structure validation for `theme_config` and `filter_schema`
+
+Arbitrary JSONB accepted from clients could inject unexpected keys. Validate structure server-side on tenant update:
+
+```ts
+const themeConfigSchema = z.object({
+  primary_color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  secondary_color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  accent_color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  font_family: z.string().max(60),
+});
+```
+
+---
+
+## 📋 Module Status Summary
+
+| Module | DB | Backend | Frontend | Status |
+|--------|:--:|:-------:|:--------:|--------|
+| Auth + Session | ✅ | ✅ | ⚠️ | H6: token refresh |
+| Tenant resolution | ⚠️ | ✅ | ✅ | C4: enum, C7: CORS |
+| Browse + Filters | ✅ | ⚠️ | ✅ | H2, H7: ignored filters |
+| Unit Details | ✅ | ✅ | ✅ | AW5: map center |
+| Reservation + Checkout | ✅ | ⚠️ | ⚠️ | C6, H1, H8 |
+| Paymob Payment | ⚠️ | ⚠️ | ⚠️ | C2: HMAC, M2: iframe_id |
+| Bank Transfer | ⚠️ | ⚠️ | ⚠️ | M1, H8: missing flow |
+| Waiting List | ❌ | ⚠️ | ✅ | C3: enum, H4: columns |
+| Lead Generation | ✅ | ❌ | ✅ | C1: wrong column names |
+| Notifications (in-app) | ✅ | ✅ | ⚠️ | H10: no Realtime |
+| Customer Dashboard | ✅ | ✅ | ✅ | Complete |
+| Agent Dashboard | ✅ | ⚠️ | ❌ | A4: customer pages missing |
+| Potential Customers | ⚠️ | ⚠️ | ✅ | A5: route not registered |
+| Negotiations | ✅ | ✅ | ✅ | |
+| Manager Dashboard | ✅ | ✅ | ✅ | |
+| Admin Dashboard | ✅ | ✅ | ⚠️ | A2: onboarding wizard |
+| Tenant Settings | ✅ | ✅ | ❌ | A3: entire feature missing |
+| Subscription / Billing | ✅ | ✅ | ✅ | |
+| Reports | ✅ | ✅ | ✅ | |
+| Documents | ✅ | ✅ | ⚠️ | M5: waitlist ambiguity |
+| Schedule Visit | ✅ | ❌ | ✅ | A1: backend route missing |
+| Multi-currency | ❌ | ❌ | ❌ | AW1: EGP hardcoded |
+| Multi-country SMS | ❌ | ❌ | — | AW2: Releans only |
+| Arab World i18n | ⚠️ | — | ⚠️ | AW3: Egypt Arabic only |
+| Payment gateway abstraction | ❌ | ❌ | — | AW6: Paymob only |
+
+---
+
+## 🏁 Recommended Fix Order
+
+### Sprint 1 — Fix before any tenant onboards
+1. **C1** — Fix `leadGeneration.service.ts` column names (`full_name` → `name`, `stage` → `negotiation_status`)
+2. **C3** — Add `'waiting'` to `waitlist_status` enum (migration `00037`)
+3. **C4** — Verify `'read_only'` + `'pending_signup'` in `tenant_status` enum (migration `00023`)
+4. **C6** — Fix `"rejected"` in reservation FE types and agent routes → use `"expired"`
+5. **H4** — Add `preferred_type`, `preferred_floor`, `max_budget`, `notes` to `waiting_list` (migration `00036`)
+6. **M2** — Verify `paymob_iframe_id` column exists in tenants (migration `00019`)
+7. **A5** — Register `potentialCustomerRoutes` in `server/src/index.ts`
+
+### Sprint 2 — Before production launch
+8. **C2** — Per-tenant HMAC verification in webhook handler
+9. **C7** — Dynamic CORS for multi-tenant custom domains
+10. **H1** — Fix success page navigation (use `confirmation_number` not `id`)
+11. **H2/H7** — Add missing filter keys to units.routes.ts query builder
+12. **H6** — Supabase `onAuthStateChange` → update Zustand `accessToken`
+13. **H8** — Bank transfer branching in checkout (no Paymob key for `bank_transfer`)
+14. **H9** — Verify `paymob_api_key_enc` not leaked via `/tenants/by-slug/:slug`
+15. **A1** — Add `POST /api/v1/units/:id/schedule-visit` route
+
+### Sprint 3 — Arab World expansion
+16. **AW1** — Add `currency` + `currency_symbol` to tenants, update `formatCurrency`
+17. **AW2** — Add `country_code` to tenants, route SMS by country
+18. **AW3** — Restructure i18n: MSA base + regional overrides
+19. **AW4** — Dynamic phone prefix from `tenant.country_code`
+20. **AW5** — `map_center_lat/lng/zoom` columns, update `map-view.tsx` defaults
+21. **AW6** — Payment gateway abstraction interface + per-tenant `payment_gateway` field
+
+### Sprint 4 — Complete the platform
+22. **A2** — Tenant onboarding wizard (5 steps)
+23. **A3** — Tenant settings UI (branding, filters, payments, domain)
+24. **A4** — Agent customer list + customer profile pages
+25. **H10** — Supabase Realtime subscription in notification bell
+26. **H11** — Consolidate discovery vs landing page routing
+27. **S1–S3** — Key rotation strategy, rate limits on reservations/waitlist, JSONB validation
+
+---
+
+## Appendix — New DB Migrations Required
+
+```
+00036_waitlist_add_preference_columns.sql
+00037_add_waitlist_status_waiting_enum.sql
+00038_verify_tenant_status_enums.sql
+00039_add_tenant_currency_country.sql
+00040_add_tenant_map_center.sql
+00041_verify_tenant_bank_details.sql
+00042_add_potential_customers_source_waitlist_id.sql
+00043_add_tenant_payment_gateway.sql
+```
+
+---
+
+*Total findings: 7 critical bugs · 12 FE↔BE mismatches · 5 DB schema issues · 8 Arab World gaps · 6 architectural gaps · 3 security issues*

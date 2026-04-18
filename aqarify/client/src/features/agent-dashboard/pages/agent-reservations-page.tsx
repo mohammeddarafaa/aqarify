@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useIsReadOnly } from "@/hooks/use-is-read-only";
+import { useAuthStore } from "@/stores/auth.store";
 import { useState } from "react";
 
 type ReservationItem = {
@@ -46,6 +47,7 @@ const STATUSES = [
   { value: "pending", label: "معلق" },
   { value: "confirmed", label: "مؤكد" },
   { value: "cancelled", label: "ملغي" },
+  { value: "expired", label: "منتهي" },
 ];
 
 const STATUS_VARIANT: Record<
@@ -55,7 +57,7 @@ const STATUS_VARIANT: Record<
   pending: "secondary",
   confirmed: "default",
   cancelled: "destructive",
-  rejected: "destructive",
+  expired: "destructive",
 };
 
 function initials(name?: string | null) {
@@ -73,6 +75,8 @@ export default function AgentReservationsPage() {
   const [status, setStatus] = useState("all");
   const qc = useQueryClient();
   const readOnly = useIsReadOnly();
+  const userRole = useAuthStore((s) => s.user?.role);
+  const canConfirmOrExpire = userRole && ["manager", "admin", "super_admin"].includes(userRole);
 
   const { data, isLoading } = useQuery({
     queryKey: ["agent-reservations", status],
@@ -230,29 +234,46 @@ export default function AgentReservationsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() =>
-                              updateStatus.mutate({
-                                id: r.id,
-                                newStatus: "confirmed",
-                              })
-                            }
-                          >
-                            <CheckCircle2 className="h-4 w-4 text-green-600" />
-                            تأكيد الحجز
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
+                          {canConfirmOrExpire ? (
+                            <DropdownMenuItem
+                              onClick={() =>
+                                updateStatus.mutate({
+                                  id: r.id,
+                                  newStatus: "confirmed",
+                                })
+                              }
+                            >
+                              <CheckCircle2 className="h-4 w-4 text-green-600" />
+                              تأكيد الحجز
+                            </DropdownMenuItem>
+                          ) : null}
+                          {canConfirmOrExpire ? <DropdownMenuSeparator /> : null}
+                          {canConfirmOrExpire ? (
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onClick={() =>
+                                updateStatus.mutate({
+                                  id: r.id,
+                                  newStatus: "expired",
+                                })
+                              }
+                            >
+                              <XCircle className="h-4 w-4" />
+                              إنهاء الحجز
+                            </DropdownMenuItem>
+                          ) : null}
+                          {canConfirmOrExpire ? <DropdownMenuSeparator /> : null}
                           <DropdownMenuItem
                             variant="destructive"
                             onClick={() =>
                               updateStatus.mutate({
                                 id: r.id,
-                                newStatus: "rejected",
+                                newStatus: "cancelled",
                               })
                             }
                           >
                             <XCircle className="h-4 w-4" />
-                            رفض الحجز
+                            إلغاء الحجز
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

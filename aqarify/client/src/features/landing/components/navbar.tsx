@@ -30,7 +30,7 @@ export function Navbar() {
   }, [mobileOpen]);
 
   const links = [
-    { label: "الوحدات", to: "/browse" },
+    { label: "المشاريع", to: "/browse" },
     { label: "المزايا", to: "/#amenities" },
     { label: "تواصل", to: "/#contact" },
   ];

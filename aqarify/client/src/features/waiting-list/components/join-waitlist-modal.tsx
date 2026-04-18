@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { UsersIcon, ClockIcon, CheckCircleIcon } from "lucide-react";
 import {
   Button,
@@ -10,13 +11,14 @@ import {
   Label,
 } from "@/components/ui-kit";
 import { useJoinWaitlist } from "@/features/waiting-list/hooks/use-waiting-list";
+import { useAuthStore } from "@/stores/auth.store";
+import { appendTenantSearch } from "@/lib/tenant-path";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   unitId: string;
   unitNumber: string;
-  tenantId: string;
 }
 
 export function JoinWaitlistModal({
@@ -24,8 +26,14 @@ export function JoinWaitlistModal({
   onClose,
   unitId,
   unitNumber,
-  tenantId,
 }: Props) {
+  const { pathname, search } = useLocation();
+  const withTenant = (path: string) => appendTenantSearch(pathname, search, path);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated && Boolean(s.accessToken));
+  const returnState = {
+    from: { pathname, search },
+  } as const;
+
   const [smsNotif, setSmsNotif] = useState(true);
   const [emailNotif, setEmailNotif] = useState(true);
   const [done, setDone] = useState<{ position: number } | null>(null);
@@ -35,7 +43,6 @@ export function JoinWaitlistModal({
     try {
       const result = await mutateAsync({
         unitId,
-        tenantId,
         sms: smsNotif,
         email: emailNotif,
       });
@@ -85,6 +92,25 @@ export function JoinWaitlistModal({
             >
               Got it
             </Button>
+          </div>
+        ) : !isAuthenticated ? (
+          <div className="space-y-5 py-2">
+            <p className="text-sm text-muted-foreground">
+              The waitlist is tied to your account so we can notify you. Sign in or create a
+              customer account, then join from this page.
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button asChild className="h-11 flex-1 rounded-full text-sm font-semibold">
+                <Link to={withTenant("/login")} state={returnState}>
+                  Sign in
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="h-11 flex-1 rounded-full text-sm font-semibold">
+                <Link to={withTenant("/register")} state={returnState}>
+                  Create account
+                </Link>
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="space-y-5">

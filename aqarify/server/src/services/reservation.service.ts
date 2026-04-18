@@ -36,6 +36,15 @@ export async function createReservation(params: {
   }).select().single();
 
   if (error) throw error;
+
+  // Immediately lock the unit so no one else can reserve it concurrently
+  if (data) {
+    await supabaseAdmin.from("units")
+      .update({ status: "reserved" })
+      .eq("id", params.unitId)
+      .eq("tenant_id", params.tenantId);
+  }
+
   return data;
 }
 
@@ -120,10 +129,10 @@ export async function confirmReservation(reservationId: string, paymobTxId: stri
         paymentMethod: data.payment_method ?? "card",
         transactionId: paymobTxId,
         date: new Date().toLocaleDateString("ar-EG"),
-      }, data.tenant_id, reservationId).then(async (pdfUrl) => {
-        if (pdfUrl) {
+      }, data.tenant_id, reservationId).then(async (receiptStoragePath) => {
+        if (receiptStoragePath) {
           await supabaseAdmin.from("reservations")
-            .update({ receipt_url: pdfUrl } as object).eq("id", reservationId);
+            .update({ receipt_url: receiptStoragePath } as object).eq("id", reservationId);
         }
       });
     }

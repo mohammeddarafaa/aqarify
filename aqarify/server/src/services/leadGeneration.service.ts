@@ -19,7 +19,7 @@ export async function createLeadFromCancelledReservation(reservationId: string):
     await supabaseAdmin.from("potential_customers").insert({
       tenant_id: res.tenant_id,
       customer_id: res.customer_id,
-      full_name: customer.full_name,
+      name: customer.full_name,
       phone: customer.phone,
       email: customer.email,
       source: "reservation_cancelled",
@@ -27,7 +27,7 @@ export async function createLeadFromCancelledReservation(reservationId: string):
       interested_unit_types: [unit.type],
       budget_min: Math.round(unit.price * 0.85),
       budget_max: Math.round(unit.price * 1.15),
-      stage: "new",
+      negotiation_status: "new",
     });
 
     logger.info(`Lead created from cancelled reservation ${reservationId}`);
@@ -54,14 +54,15 @@ export async function createLeadFromExpiredWaitlist(waitlistId: string): Promise
     await supabaseAdmin.from("potential_customers").insert({
       tenant_id: entry.tenant_id,
       customer_id: entry.customer_id,
-      full_name: customer.full_name,
+      name: customer.full_name,
       phone: customer.phone,
       email: customer.email,
       source: "waitlist_expired",
+      source_waitlist_id: waitlistId,
       interested_unit_types: unit ? [unit.type] : [],
       budget_min: unit ? Math.round(unit.price * 0.8) : null,
       budget_max: unit ? Math.round(unit.price * 1.2) : null,
-      stage: "new",
+      negotiation_status: "new",
     });
 
     logger.info(`Lead created from expired waitlist ${waitlistId}`);

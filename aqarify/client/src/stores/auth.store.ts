@@ -14,6 +14,8 @@ export interface AuthUser {
   full_name: string;
   role: UserRole;
   tenant_id: string | null;
+  /** Present when the user belongs to a tenant; used for apex / marketing login redirects. */
+  tenant_slug?: string | null;
   avatar_url: string | null;
   phone: string | null;
 }
@@ -25,6 +27,7 @@ interface AuthState {
   setSession: (user: AuthUser, token: string) => void;
   clearSession: () => void;
   updateUser: (updates: Partial<AuthUser>) => void;
+  updateToken: (token: string) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -39,6 +42,11 @@ export const useAuthStore = create<AuthState>()(
         set({ user: null, accessToken: null, isAuthenticated: false }),
       updateUser: (updates) =>
         set((s) => ({ user: s.user ? { ...s.user, ...updates } : null })),
+      updateToken: (accessToken) =>
+        set((s) => ({
+          accessToken,
+          isAuthenticated: !!accessToken && !!s.user,
+        })),
     }),
     { name: "aqarify-auth" }
   )

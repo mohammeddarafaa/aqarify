@@ -1,6 +1,7 @@
 import { Router } from "express";
+import { z } from "zod";
 import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
-import { optionalAuth } from "../middleware/auth";
+import { optionalAuth, authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { supabaseAdmin } from "../config/supabase";
 import { sendSuccess, sendError, ERROR_CODES } from "../utils/response";
 
@@ -19,7 +20,14 @@ unitRoutes.get("/", async (req: TenantRequest, res, next) => {
       limit = "12",
       min_price,
       max_price,
+      min_size,
+      max_size,
+      floor,
+      finishing,
+      view_type,
+      building_id,
       location,
+      project_id,
     } = req.query as Record<string, string>;
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(50, parseInt(limit));
@@ -33,12 +41,50 @@ unitRoutes.get("/", async (req: TenantRequest, res, next) => {
       )
       .eq("tenant_id", req.tenantId!);
 
+    if (project_id && /^[0-9a-f-]{36}$/i.test(project_id)) {
+      query = query.eq("project_id", project_id);
+    }
+
     if (type && type !== "all") query = query.eq("type", type);
     if (bedrooms && bedrooms !== "all") query = query.eq("bedrooms", parseInt(bedrooms, 10));
     if (status && status !== "all") query = query.eq("status", status);
     if (min_price) query = query.gte("price", parseFloat(min_price));
     if (max_price) query = query.lte("price", parseFloat(max_price));
+    if (min_size) query = query.gte("size_sqm", parseFloat(min_size));
+    if (max_size) query = query.lte("size_sqm", parseFloat(max_size));
+    if (floor && floor !== "all") query = query.eq("floor", parseInt(floor, 10));
+    if (finishing && finishing !== "all") query = query.eq("finishing", finishing);
+    if (view_type && view_type !== "all") query = query.eq("view_type", view_type);
+    if (building_id && /^[0-9a-f-]{36}$/i.test(building_id)) query = query.eq("building_id", building_id);
     if (search) query = query.ilike("unit_number", `%${search}%`);
+
+    const RESERVED_QUERY_KEYS = new Set([
+      "type",
+      "bedrooms",
+      "status",
+      "search",
+      "page",
+      "limit",
+      "min_price",
+      "max_price",
+      "min_size",
+      "max_size",
+      "floor",
+      "finishing",
+      "view_type",
+      "building_id",
+      "location",
+      "project_id",
+      "attr_key",
+      "attr_val",
+    ]);
+
+    for (const [key, rawVal] of Object.entries(req.query)) {
+      if (RESERVED_QUERY_KEYS.has(key)) continue;
+      const val = Array.isArray(rawVal) ? rawVal[0] : rawVal;
+      if (val === undefined || val === "" || val === "all") continue;
+      query = query.contains("custom_attributes", { [key]: String(val) });
+    }
 
     if (location && location !== "all") {
       const { data: projects, error: projErr } = await supabaseAdmin
@@ -73,6 +119,78 @@ unitRoutes.get("/", async (req: TenantRequest, res, next) => {
       total_pages: Math.ceil(total / limitNum),
     });
   } catch (err) { return next(err); }
+});
+
+const scheduleVisitSchema = z.object({
+  scheduled_at: z.string().min(1),
+  phone: z.string().min(8),
+  full_name: z.string().min(2).optional(),
+  notes: z.string().optional(),
+});
+
+// POST /api/v1/units/:id/schedule-visit
+unitRoutes.post("/:id/schedule-visit", authenticate, async (req: TenantRequest & AuthenticatedRequest, res, next) => {
+  try {
+    const parsed = scheduleVisitSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return sendError(res, ERROR_CODES.VALIDATION_ERROR, "Invalid input", 400, parsed.error.flatten());
+    }
+
+    const { data: unit } = await supabaseAdmin
+      .from("units")
+      .select("id")
+      .eq("id", req.params.id)
+      .eq("tenant_id", req.tenantId!)
+      .maybeSingle();
+    if (!unit) return sendError(res, ERROR_CODES.UNIT_NOT_FOUND, "Unit not found", 404);
+
+    const { data: agents } = await supabaseAdmin
+      .from("users")
+      .select("id")
+      .eq("tenant_id", req.tenantId!)
+      .eq("role", "agent")
+      .eq("is_active", true)
+      .limit(1);
+    const agentId = agents?.[0]?.id;
+    if (!agentId) {
+      return sendError(res, "NO_AGENT_AVAILABLE", "No agent available to assign visit", 503);
+    }
+
+    const noteLines = [
+      parsed.data.full_name ? `Name: ${parsed.data.full_name}` : null,
+      `Phone: ${parsed.data.phone}`,
+      `Unit: ${req.params.id}`,
+      parsed.data.notes ?? null,
+    ].filter(Boolean) as string[];
+
+    const { data, error } = await supabaseAdmin
+      .from("follow_ups")
+      .insert({
+        tenant_id: req.tenantId!,
+        agent_id: agentId,
+        customer_id: req.userId!,
+        type: "visit",
+        scheduled_at: parsed.data.scheduled_at,
+        notes: noteLines.join("\n"),
+        status: "scheduled",
+      })
+      .select("id, scheduled_at")
+      .single();
+
+    if (error) throw error;
+    return sendSuccess(
+      res,
+      {
+        follow_up_id: data?.id,
+        scheduled_at: data?.scheduled_at,
+        confirmation_message: "Visit request recorded. An agent will confirm with you shortly.",
+      },
+      undefined,
+      201,
+    );
+  } catch (err) {
+    return next(err);
+  }
 });
 
 // GET /api/v1/units/:id

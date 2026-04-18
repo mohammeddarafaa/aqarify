@@ -1,10 +1,21 @@
-import { createBrowserRouter, Navigate, RouterProvider, Outlet } from "react-router-dom";
+import { createBrowserRouter, Navigate, RouterProvider, Outlet, useLocation, Link } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import { ProtectedRoute } from "@/features/auth/components/protected-route";
 import { useIsMarketingSite } from "@/hooks/use-tenant-slug";
 import { useAuthStore } from "@/stores/auth.store";
 import { roleHomePath } from "@/lib/rbac";
 import { RouteErrorBoundary } from "@/components/shared/route-error-boundary";
+import { appendTenantForSlug, appendTenantSearch, resolveTenantSlugForLinks } from "@/lib/tenant-path";
+
+function tenantPreserveTarget(pathname: string, search: string, target: string): string {
+  const slug = resolveTenantSlugForLinks(pathname, search);
+  return slug ? appendTenantForSlug(slug, pathname, search, target) : target;
+}
+
+function RedirectWithTenant({ to }: { to: string }) {
+  const { pathname, search } = useLocation();
+  return <Navigate to={tenantPreserveTarget(pathname, search, to)} replace />;
+}
 
 // ── Marketing site (apex) ──────────────────────────────────────
 const MarketingLayout = lazy(() => import("@/app/layouts/marketing-layout"));
@@ -18,7 +29,8 @@ const AuthLayout = lazy(() => import("@/app/layouts/auth-layout"));
 const DashboardLayout = lazy(() => import("@/app/layouts/dashboard-layout"));
 
 const LandingPage = lazy(() => import("@/features/landing/pages/landing-page"));
-const BrowsePage = lazy(() => import("@/features/browse/pages/browse-page"));
+const BrowseProjectsPage = lazy(() => import("@/features/browse/pages/browse-projects-page"));
+const BrowseUnitsPage = lazy(() => import("@/features/browse/pages/browse-units-page"));
 const UnitDetailPage = lazy(() => import("@/features/unit-details/pages/unit-detail-page"));
 
 const LoginPage = lazy(() => import("@/features/auth/pages/login-page"));
@@ -54,6 +66,7 @@ const AdminOverviewPage = lazy(() => import("@/features/admin-dashboard/pages/ov
 const ActivityLogsPage = lazy(() => import("@/features/admin-dashboard/pages/activity-logs-page"));
 const NotificationsPage = lazy(() => import("@/features/notifications/pages/notifications-page"));
 const DiscoveryPage = lazy(() => import("@/features/discovery/pages/discovery-page"));
+const ProfilePage = lazy(() => import("@/features/auth/pages/profile-page"));
 
 const Loader = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -117,7 +130,9 @@ const TenantRequiredRedirect = ({ targetPath }: { targetPath: string }) => {
           <code className="text-xs">?tenant=your-tenant</code> or{" "}
           <code className="text-xs">/t/your-tenant/login</code>
         </p>
-        <a href="/login?tenant=labore" className="text-sm underline">Open tenant login</a>
+        <a href="/discover" className="text-sm underline">
+          Browse tenants to sign in
+        </a>
       </div>
     </div>
   );
@@ -125,7 +140,13 @@ const TenantRequiredRedirect = ({ targetPath }: { targetPath: string }) => {
 
 const RoleHomeRedirect = () => {
   const role = useAuthStore((s) => s.user?.role);
-  return <Navigate to={roleHomePath(role)} replace />;
+  const { pathname, search } = useLocation();
+  return (
+    <Navigate
+      to={tenantPreserveTarget(pathname, search, roleHomePath(role))}
+      replace
+    />
+  );
 };
 
 function IndexLayout() {
@@ -167,9 +188,8 @@ function SignupBranch() {
   );
 }
 
-function authBranch(targetPath: string) {
+function authBranch() {
   return function AuthBranch() {
-    if (useIsMarketingSite()) return <TenantRequiredRedirect targetPath={targetPath} />;
     return (
       <S>
         <AuthLayout />
@@ -178,10 +198,10 @@ function authBranch(targetPath: string) {
   };
 }
 
-const LoginAuthBranch = authBranch("/login");
-const RegisterAuthBranch = authBranch("/register");
-const ForgotPasswordAuthBranch = authBranch("/forgot-password");
-const ResetPasswordAuthBranch = authBranch("/reset-password");
+const LoginAuthBranch = authBranch();
+const RegisterAuthBranch = authBranch();
+const ForgotPasswordAuthBranch = authBranch();
+const ResetPasswordAuthBranch = authBranch();
 
 function TenantPublicBranch() {
   if (useIsMarketingSite()) return <Navigate to="/" replace />;
@@ -206,7 +226,40 @@ function DashboardGate() {
 /** Marketing-only: deep links under /dashboard/* should explain tenant context. */
 function DashboardWildcardGate() {
   if (useIsMarketingSite()) return <TenantRequiredRedirect targetPath="/dashboard" />;
-  return <Navigate to="/dashboard" replace />;
+  const { pathname, search } = useLocation();
+  return <Navigate to={tenantPreserveTarget(pathname, search, "/dashboard")} replace />;
+}
+
+function UnauthorizedPage() {
+  const { pathname, search } = useLocation();
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center space-y-4">
+        <h1 className="text-4xl font-bold">403</h1>
+        <p className="text-muted-foreground">ليس لديك صلاحية للوصول إلى هذه الصفحة.</p>
+        <Link
+          to={appendTenantSearch(pathname, search, "/")}
+          className="text-primary hover:underline text-sm"
+        >
+          الرجوع للرئيسية
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function NotFoundPage() {
+  const { pathname, search } = useLocation();
+  return (
+    <div className="min-h-screen grid place-items-center">
+      <div className="text-center space-y-2">
+        <h1 className="text-3xl font-semibold">404</h1>
+        <Link to={appendTenantSearch(pathname, search, "/")} className="text-sm underline">
+          Back to home
+        </Link>
+      </div>
+    </div>
+  );
 }
 
 const routes = [
@@ -277,7 +330,10 @@ const routes = [
       {
         path: "browse",
         element: <S><PublicLayout /></S>,
-        children: [{ index: true, element: <S><BrowsePage /></S> }],
+        children: [
+          { index: true, element: <S><BrowseProjectsPage /></S> },
+          { path: "projects/:projectId", element: <S><BrowseUnitsPage /></S> },
+        ],
       },
       {
         path: "discover",
@@ -306,7 +362,10 @@ const routes = [
     path: "/browse",
     element: <TenantPublicBranch />,
     errorElement: <RouteErrorBoundary />,
-    children: [{ index: true, element: <S><BrowsePage /></S> }],
+    children: [
+      { index: true, element: <S><BrowseProjectsPage /></S> },
+      { path: "projects/:projectId", element: <S><BrowseUnitsPage /></S> },
+    ],
   },
   {
     path: "/discover",
@@ -325,28 +384,29 @@ const routes = [
     errorElement: <RouteErrorBoundary />,
     children: [
       { path: "/dashboard", element: <RoleHomeRedirect /> },
-      { path: "/dashboard/customer", element: <Navigate to="/dashboard" replace /> },
-      { path: "/dashboard/agent", element: <Navigate to="/agent/overview" replace /> },
-      { path: "/dashboard/manager", element: <Navigate to="/manager/overview" replace /> },
-      { path: "/dashboard/admin", element: <Navigate to="/admin/overview" replace /> },
-      { path: "/dashboard/home", element: <Navigate to="/dashboard" replace /> },
+      { path: "/dashboard/customer", element: <RedirectWithTenant to="/dashboard" /> },
+      { path: "/dashboard/agent", element: <RedirectWithTenant to="/agent/overview" /> },
+      { path: "/dashboard/manager", element: <RedirectWithTenant to="/manager/overview" /> },
+      { path: "/dashboard/admin", element: <RedirectWithTenant to="/admin/overview" /> },
+      { path: "/dashboard/home", element: <RedirectWithTenant to="/dashboard" /> },
       { path: "/customer/dashboard", element: D(CustomerDashboardPage, ["customer"]) },
       { path: "/reservations", element: D(ReservationsPage, ["customer"]) },
       { path: "/payments", element: D(PaymentsPage, ["customer"]) },
       { path: "/waitlist", element: D(WaitlistPage, ["customer"]) },
       { path: "/documents", element: D(DocumentsPage, ["customer", "agent", "manager", "admin", "super_admin"]) },
       { path: "/checkout/:unitId", element: D(CheckoutPage) },
-      { path: "/reservations/:id/success", element: D(ReservationSuccessPage) },
+      { path: "/reservations/success", element: D(ReservationSuccessPage) },
       { path: "/reservations/failure", element: D(PaymentFailurePage) },
-      { path: "/payments/failure", element: <Navigate to="/reservations/failure" replace /> },
+      { path: "/payments/failure", element: <RedirectWithTenant to="/reservations/failure" /> },
       { path: "/notifications", element: D(NotificationsPage) },
+      { path: "/profile", element: D(ProfilePage) },
       { path: "/agent/overview", element: D(AgentOverviewPage, ["agent", "manager", "admin", "super_admin"]) },
       { path: "/agent/reservations", element: D(AgentReservationsPage, ["agent", "manager", "admin", "super_admin"]) },
       { path: "/agent/leads", element: D(AgentLeadsPage, ["agent", "manager", "admin", "super_admin"]) },
       { path: "/agent/follow-ups", element: D(AgentFollowUpsPage, ["agent", "manager", "admin", "super_admin"]) },
       { path: "/agent/documents", element: D(AgentDocumentsPage, ["agent", "manager", "admin", "super_admin"]) },
       { path: "/manager/overview", element: D(ManagerDashboardPage, ["manager", "admin", "super_admin"]) },
-      { path: "/manager/dashboard", element: <Navigate to="/manager/overview" replace /> },
+      { path: "/manager/dashboard", element: <RedirectWithTenant to="/manager/overview" /> },
       { path: "/manager/units", element: D(ManagerUnitsPage, ["manager", "admin", "super_admin"]) },
       { path: "/manager/projects", element: D(ManagerProjectsPage, ["manager", "admin", "super_admin"]) },
       { path: "/manager/agents", element: D(ManagerAgentsPage, ["manager", "admin", "super_admin"]) },
@@ -359,29 +419,8 @@ const routes = [
     ],
   },
   { path: "/dashboard/*", element: <DashboardWildcardGate /> },
-  {
-    path: "/unauthorized",
-    element: (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <h1 className="text-4xl font-bold">403</h1>
-          <p className="text-muted-foreground">ليس لديك صلاحية للوصول إلى هذه الصفحة.</p>
-          <a href="/" className="text-primary hover:underline text-sm">الرجوع للرئيسية</a>
-        </div>
-      </div>
-    ),
-  },
-  {
-    path: "*",
-    element: (
-      <div className="min-h-screen grid place-items-center">
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-semibold">404</h1>
-          <a href="/" className="text-sm underline">Back to home</a>
-        </div>
-      </div>
-    ),
-  },
+  { path: "/unauthorized", element: <UnauthorizedPage /> },
+  { path: "*", element: <NotFoundPage /> },
 ];
 
 const router = createBrowserRouter(routes);

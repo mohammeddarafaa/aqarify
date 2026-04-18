@@ -2,23 +2,32 @@ import { Router, type Request, type Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { confirmReservation } from "../services/reservation.service";
 import { activateSubscription } from "../services/subscription.service";
-import { verifyPaymobHmac } from "../utils/hmac";
+import { verifyPaymobHmac, decrypt } from "../utils/hmac";
 import { logger } from "../utils/logger";
+
+async function resolveTenantPaymobHmacSecret(tenantId: string): Promise<string> {
+  const envFallback = process.env.PAYMOB_HMAC_SECRET ?? "";
+  const { data: tenant } = await supabaseAdmin
+    .from("tenants")
+    .select("paymob_hmac_secret_enc")
+    .eq("id", tenantId)
+    .maybeSingle();
+
+  if (!tenant?.paymob_hmac_secret_enc) return envFallback;
+  try {
+    return decrypt(tenant.paymob_hmac_secret_enc);
+  } catch (err) {
+    logger.warn("Failed to decrypt tenant Paymob HMAC; falling back to env", err);
+    return envFallback;
+  }
+}
 
 export const webhookRoutes = Router();
 
 webhookRoutes.post("/paymob/callback", async (req: Request, res: Response) => {
   try {
     const hmac = req.query.hmac as string;
-    const secret = process.env.PAYMOB_HMAC_SECRET ?? "";
     const payload = req.body?.obj ?? req.body;
-
-    if (!verifyPaymobHmac(payload, hmac, secret)) {
-      logger.warn("Paymob HMAC mismatch — ignoring request");
-      return res.status(200).json({ received: true });
-    }
-
-    if (!payload.success) return res.json({ received: true });
 
     const orderId: string = String(payload.merchant_order_id ?? payload.order?.id ?? "");
     const txId = String(payload.id);
@@ -26,11 +35,19 @@ webhookRoutes.post("/paymob/callback", async (req: Request, res: Response) => {
 
     const { data: reservation } = await supabaseAdmin
       .from("reservations")
-      .select("id, status")
+      .select("id, status, tenant_id")
       .eq("id", orderId)
       .maybeSingle();
 
     if (reservation) {
+      const secret = await resolveTenantPaymobHmacSecret(reservation.tenant_id);
+      if (!verifyPaymobHmac(payload, hmac, secret)) {
+        logger.warn("Paymob HMAC mismatch — ignoring request");
+        return res.status(200).json({ received: true });
+      }
+
+      if (!payload.success) return res.json({ received: true });
+
       if (reservation.status !== "pending") {
         logger.info(`Webhook skipped: reservation ${reservation.id} already ${reservation.status}`);
         return res.json({ received: true });
@@ -45,6 +62,16 @@ webhookRoutes.post("/paymob/callback", async (req: Request, res: Response) => {
       .select("id, status, tenant_id")
       .eq("id", orderId)
       .maybeSingle();
+
+    if (installment) {
+      const secret = await resolveTenantPaymobHmacSecret(installment.tenant_id);
+      if (!verifyPaymobHmac(payload, hmac, secret)) {
+        logger.warn("Paymob HMAC mismatch (installment) — ignoring request");
+        return res.status(200).json({ received: true });
+      }
+
+      if (!payload.success) return res.json({ received: true });
+    }
 
     if (installment && ["pending", "overdue"].includes(installment.status)) {
       const { data: updated } = await supabaseAdmin

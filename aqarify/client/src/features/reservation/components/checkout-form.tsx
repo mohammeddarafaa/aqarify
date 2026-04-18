@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -11,14 +12,25 @@ import {
   cn,
 } from "@/components/ui-kit";
 import type { CheckoutFormData } from "../types";
+import { useTenantStore } from "@/stores/tenant.store";
+import { useAuthStore } from "@/stores/auth.store";
+import { formatCurrency } from "@/lib/format";
 
-const schema = z.object({
-  full_name: z.string().min(2, "Name is required"),
-  email: z.string().email("Invalid email"),
-  phone: z.string().min(10, "Invalid phone"),
-  payment_method: z.enum(["card", "fawry", "vodafone_cash", "bank_transfer"]),
-  notes: z.string().optional(),
-});
+function buildCheckoutSchema(countryCode: string) {
+  return z.object({
+    full_name: z.string().min(2, "Name is required"),
+    email: z.string().email("Invalid email"),
+    phone: z.string().min(1, "Phone is required").refine(
+      (v) => {
+        const clean = v.replace(/[^\d+]/g, "");
+        return clean.length >= 8 && clean.length <= 20;
+      },
+      { message: "Invalid phone number format" },
+    ),
+    payment_method: z.enum(["card", "fawry", "vodafone_cash", "bank_transfer"]),
+    notes: z.string().optional(),
+  });
+}
 
 const METHODS = [
   { value: "card", label: "Credit / Debit card", icon: "💳" },
@@ -32,6 +44,12 @@ interface Props {
   reservationFee: number;
   onSubmit: (data: CheckoutFormData) => void;
   isLoading: boolean;
+  /** Shown when customer selects bank transfer (from tenant settings). */
+  bankTransfer?: {
+    bank_name: string | null;
+    bank_account_number: string | null;
+    bank_account_holder: string | null;
+  };
 }
 
 export function CheckoutForm({
@@ -39,7 +57,14 @@ export function CheckoutForm({
   reservationFee,
   onSubmit,
   isLoading,
+  bankTransfer,
 }: Props) {
+  const tenant = useTenantStore((s) => s.tenant);
+  const countryCode = tenant?.country_code ?? "EG";
+  const currency = tenant?.currency ?? "EGP";
+  const schema = useMemo(() => buildCheckoutSchema(countryCode), [countryCode]);
+
+  const user = useAuthStore((s) => s.user);
   const {
     register,
     handleSubmit,
@@ -48,9 +73,21 @@ export function CheckoutForm({
     formState: { errors },
   } = useForm<CheckoutFormData>({
     resolver: zodResolver(schema),
-    defaultValues: { payment_method: "card" },
+    defaultValues: {
+      payment_method: "card",
+      full_name: user?.full_name ?? "",
+      email: user?.email ?? "",
+      phone: user?.phone ?? "",
+    },
   });
   const selectedMethod = watch("payment_method");
+
+  const phonePlaceholder =
+    countryCode === "EG"
+      ? "01xxxxxxxxx"
+      : countryCode === "SA"
+        ? "05xxxxxxxx"
+        : "+971…";
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -64,7 +101,7 @@ export function CheckoutForm({
         </div>
         <div className="space-y-1">
           <Label htmlFor="phone">Phone</Label>
-          <Input id="phone" {...register("phone")} placeholder="01xxxxxxxxx" />
+          <Input id="phone" {...register("phone")} placeholder={phonePlaceholder} dir="ltr" />
           {errors.phone ? (
             <p className="text-xs text-red-500">{errors.phone.message}</p>
           ) : null}
@@ -111,6 +148,28 @@ export function CheckoutForm({
         </RadioGroup>
       </div>
 
+      {selectedMethod === "bank_transfer" ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+          <p className="font-medium">Bank transfer</p>
+          <p className="mt-1 text-xs opacity-90">
+            After you confirm, you will see our bank details and your reference number. Transfer the reservation fee, then upload the receipt from your dashboard → Documents.
+          </p>
+          {bankTransfer?.bank_account_number ? (
+            <ul className="mt-3 space-y-1 text-xs font-mono">
+              {bankTransfer.bank_name ? <li>Bank: {bankTransfer.bank_name}</li> : null}
+              {bankTransfer.bank_account_holder ? (
+                <li>Beneficiary: {bankTransfer.bank_account_holder}</li>
+              ) : null}
+              <li>Account: {bankTransfer.bank_account_number}</li>
+            </ul>
+          ) : (
+            <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">
+              This workspace has not published bank details yet; you will still get a reference number on the next screen—please contact the sales team if you need account info.
+            </p>
+          )}
+        </div>
+      ) : null}
+
       <div className="space-y-1">
         <Label htmlFor="notes">Notes (optional)</Label>
         <Textarea
@@ -124,11 +183,11 @@ export function CheckoutForm({
       <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-4 text-sm">
         <div className="flex justify-between text-muted-foreground">
           <span>Unit price</span>
-          <span>{unitPrice.toLocaleString()} EGP</span>
+          <span>{formatCurrency(unitPrice, currency, "en")}</span>
         </div>
         <div className="flex justify-between font-semibold text-primary">
           <span>Reservation fee due now</span>
-          <span>{reservationFee.toLocaleString()} EGP</span>
+          <span>{formatCurrency(reservationFee, currency, "en")}</span>
         </div>
       </div>
 

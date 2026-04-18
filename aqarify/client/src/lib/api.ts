@@ -13,7 +13,17 @@ export const api = axios.create({
 
 api.interceptors.request.use((config) => {
   const token = useAuthStore.getState().accessToken;
-  const tenantSlug = useTenantStore.getState().tenant?.slug ?? resolveTenantSlug();
+  const user = useAuthStore.getState().user;
+
+  // Logged-in tenant members must send their *home* tenant slug. The tenant store
+  // often reflects `?tenant=` / browse context and can disagree with users.tenant_id,
+  // which causes403 "Cross-tenant access denied" on manager/agent/admin routes.
+  const tenantSlug =
+    token && user?.tenant_slug
+      ? user.tenant_slug
+      : useTenantStore.getState().tenant?.slug ??
+        user?.tenant_slug ??
+        resolveTenantSlug();
 
   if (token) config.headers.Authorization = `Bearer ${token}`;
   if (tenantSlug) config.headers["x-tenant-slug"] = tenantSlug;

@@ -16,7 +16,7 @@ const columns: { title: string; items: FooterItem[] }[] = [
     title: "Get started",
     items: [
       { to: "/signup", label: "Create a workspace" },
-      { to: "/login", label: "Sign in" },
+      { to: "/discover", label: "Find a developer portal" },
       { to: "/#contact", label: "Talk to sales" },
     ],
   },

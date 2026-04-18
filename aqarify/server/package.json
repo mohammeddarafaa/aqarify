@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "type-check": "tsc --noEmit",
     "e2e": "tsx scripts/e2e.ts",
+    "seed:kdevelopments": "tsx scripts/seed-kdevelopments-demo.ts",
     "test:strict": "npm run type-check && npm run e2e"
   },
   "keywords": [],

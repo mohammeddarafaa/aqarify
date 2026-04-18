@@ -2,7 +2,8 @@ import { Menu, Bell, LogOut } from "lucide-react";
 import { useAuthStore } from "@/stores/auth.store";
 import { useTenantStore } from "@/stores/tenant.store";
 import { supabase } from "@/lib/supabase";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import { appendTenantSearch } from "@/lib/tenant-path";
 import { useNotificationBell } from "@/features/notifications/hooks/use-notification-bell";
 import { cn } from "@/lib/utils";
 import { isStaffRole, roleLabel } from "@/lib/rbac";
@@ -14,13 +15,16 @@ export function Topbar({ onMenuClick }: Props) {
   const user = useAuthStore((s) => s.user);
   const tenant = useTenantStore((s) => s.tenant);
   const navigate = useNavigate();
+  const { pathname, search } = useLocation();
 
   const { count } = useNotificationBell();
+
+  const tenantAware = (path: string) => appendTenantSearch(pathname, search, path);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     clearSession();
-    navigate("/login");
+    navigate(tenantAware("/login"));
   };
 
   return (
@@ -58,7 +62,7 @@ export function Topbar({ onMenuClick }: Props) {
       <div className="flex items-center gap-4 ms-auto">
         {/* Bell */}
         <button
-          onClick={() => navigate("/notifications")}
+          onClick={() => navigate(tenantAware("/notifications"))}
           className="relative text-[#888888] hover:text-[#141414] transition-colors">
           <Bell className="h-4 w-4" />
           {count > 0 && (

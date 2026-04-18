@@ -24,10 +24,13 @@ export function useSessionRestore() {
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (event === "SIGNED_OUT" || !session) { clearSession(); return; }
-        if (event === "TOKEN_REFRESHED" && session) {
-          useAuthStore.getState().accessToken !== session.access_token &&
-            setSession(useAuthStore.getState().user!, session.access_token);
+        if (event === "SIGNED_OUT" || !session) {
+          clearSession();
+          return;
+        }
+        if (event === "TOKEN_REFRESHED" && session.access_token) {
+          const { user } = useAuthStore.getState();
+          if (user) useAuthStore.getState().updateToken(session.access_token);
         }
       }
     );

@@ -3,16 +3,17 @@ import { cn } from "@/lib/utils";
 import { useTenantStore } from "@/stores/tenant.store";
 import { useAuthStore } from "@/stores/auth.store";
 import { appendTenantSearch } from "@/lib/tenant-path";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Home, Search, FileText, CreditCard, Users, BarChart3,
-  Settings, Bell, Building2, ClipboardList, X, PhoneCall,
+  Settings, Bell, Building2, ClipboardList, X, PhoneCall, UserCircle2,
 } from "lucide-react";
 
-type NavItem = { to: string; label: string; icon: React.ElementType; roles: string[] };
+type NavItem = { to: string; label: string; icon: React.ElementType; roles: string[] }
 
 const NAV: NavItem[] = [
   { to: "/customer/dashboard", label: "نظرة عامة", icon: Home, roles: ["customer"] },
-  { to: "/browse", label: "تصفح الوحدات", icon: Search, roles: ["customer"] },
+  { to: "/browse", label: "تصفح المشاريع", icon: Search, roles: ["customer"] },
   { to: "/reservations", label: "حجوزاتي", icon: FileText, roles: ["customer"] },
   { to: "/payments", label: "مدفوعاتي", icon: CreditCard, roles: ["customer"] },
   { to: "/waitlist", label: "قائمة الانتظار", icon: ClipboardList, roles: ["customer"] },
@@ -34,6 +35,11 @@ const NAV: NavItem[] = [
   { to: "/admin/activity-logs", label: "سجل النشاط", icon: ClipboardList, roles: ["admin", "super_admin"] },
   { to: "/notifications", label: "الإشعارات", icon: Bell, roles: ["customer", "agent", "manager", "admin", "super_admin"] },
 ];
+
+function initials(name?: string | null) {
+  if (!name) return "؟";
+  return name.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+}
 
 interface Props { isOpen: boolean; onClose: () => void }
 
@@ -92,12 +98,28 @@ export function Sidebar({ isOpen, onClose }: Props) {
           ))}
         </nav>
 
-        {/* Footer */}
-        <div className="border-t border-white/10 px-5 py-4">
-          <p className="text-[10px] font-medium text-white/60 truncate uppercase tracking-widest">
-            {user?.full_name}
-          </p>
-          <p className="text-[9px] text-white/30 truncate mt-0.5">{user?.email}</p>
+        {/* Footer — profile link */}
+        <div className="border-t border-white/10">
+          <NavLink
+            to={withTenant("/profile")}
+            onClick={onClose}
+            className={({ isActive }) => cn(
+              "flex items-center gap-3 px-5 py-4 transition-all w-full",
+              isActive ? "bg-white/5" : "hover:bg-white/5"
+            )}
+          >
+            <Avatar className="h-8 w-8 shrink-0">
+              <AvatarImage src={user?.avatar_url ?? undefined} />
+              <AvatarFallback className="bg-white/10 text-white text-xs">
+                {initials(user?.full_name)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-medium text-white truncate">{user?.full_name}</p>
+              <p className="text-[9px] text-white/30 truncate mt-0.5">{user?.email}</p>
+            </div>
+            <UserCircle2 className="h-3.5 w-3.5 text-white/30 shrink-0" />
+          </NavLink>
         </div>
       </aside>
     </>

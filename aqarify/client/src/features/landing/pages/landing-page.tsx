@@ -18,7 +18,10 @@ export default function LandingPage() {
     <>
       <Helmet>
         <title>{tenant?.name ?? "البوابة"} | حجز الوحدات</title>
-        <meta name="description" content={`${tenant?.name ?? "المطور"} — وحدات سكنية في ${tenant?.address ?? "مصر"}`} />
+        <meta
+          name="description"
+          content={`${tenant?.name ?? "المطور"} — مشاريع ووحدات سكنية في ${tenant?.address ?? "مصر"}`}
+        />
       </Helmet>
       <Navbar />
       <main>

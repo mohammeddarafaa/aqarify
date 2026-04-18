@@ -23,9 +23,12 @@ export interface Unit {
 }
 
 export interface BrowseFilters {
+  /** When set, limits units to this project (public browse project drill-down). */
+  project_id?: string;
   type?: string;
   bedrooms?: string;
   status?: string;
   search?: string;
+  location?: string;
   [key: string]: string | undefined;
 }

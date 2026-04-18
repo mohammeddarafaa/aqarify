@@ -1,7 +1,7 @@
 import { Helmet } from "react-helmet-async";
 import { Link, useLocation } from "react-router-dom";
 import { useMyReservations } from "@/features/reservation/hooks/use-reservation";
-import { useMyWaitingEntry } from "@/features/waiting-list/hooks/use-waiting-list";
+import { useMyWaitingEntries } from "@/features/waiting-list/hooks/use-waiting-list";
 import { useAuthStore } from "@/stores/auth.store";
 import { useTenantStore } from "@/stores/tenant.store";
 import { useQuery } from "@tanstack/react-query";
@@ -45,7 +45,9 @@ const STATUS_MAP: Record<
   pending: { label: "في الانتظار", variant: "secondary" },
   confirmed: { label: "مؤكد", variant: "default" },
   cancelled: { label: "ملغي", variant: "destructive" },
-  rejected: { label: "مرفوض", variant: "destructive" },
+  expired: { label: "منتهي", variant: "destructive" },
+  /** @deprecated DB may still contain legacy value */
+  rejected: { label: "منتهي", variant: "destructive" },
 };
 
 function initials(name?: string | null) {
@@ -65,7 +67,9 @@ export default function CustomerDashboardPage() {
   const user = useAuthStore((s) => s.user);
   const tenant = useTenantStore((s) => s.tenant);
   const { data: reservations = [], isLoading: resLoading } = useMyReservations();
-  const { data: waitingEntry } = useMyWaitingEntry();
+  const { data: waitingEntries = [] } = useMyWaitingEntries();
+  const bestWaitlist = [...waitingEntries].sort((a, b) => a.position - b.position)[0];
+  const waitlistMoreCount = Math.max(0, waitingEntries.length - 1);
   const { data: payments = [] } = useQuery<Payment[]>({
     queryKey: ["my-payments"],
     queryFn: async () => {
@@ -141,12 +145,12 @@ export default function CustomerDashboardPage() {
             icon={<Clock className="h-5 w-5 text-primary" />}
             title={
               <span className="text-3xl font-bold">
-                {waitingEntry ? `#${waitingEntry.position}` : "—"}
+                {bestWaitlist ? `#${bestWaitlist.position}` : "—"}
               </span>
             }
             description={
-              waitingEntry
-                ? "مركزك في قائمة الانتظار"
+              bestWaitlist
+                ? `أفضل مركز لك في قوائم الانتظار${waitlistMoreCount > 0 ? ` (+${waitlistMoreCount} قائمة أخرى)` : ""}`
                 : "لست في قائمة الانتظار حالياً"
             }
           />

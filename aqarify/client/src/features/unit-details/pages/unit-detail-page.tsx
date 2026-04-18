@@ -10,6 +10,7 @@ import {
   Share2Icon,
   CalendarIcon,
   DownloadIcon,
+  CheckCircleIcon,
 } from "lucide-react";
 import {
   Breadcrumb,
@@ -36,16 +37,23 @@ import { useUnitDetail } from "@/features/unit-details/hooks/use-unit-detail";
 import { useTenantStore } from "@/stores/tenant.store";
 import { appendTenantSearch } from "@/lib/tenant-path";
 
+import { useMyReservations } from "@/features/reservation/hooks/use-reservation";
+
 export default function UnitDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { pathname, search } = useLocation();
   const withTenant = (path: string) => appendTenantSearch(pathname, search, path);
   const { data: unit, isLoading } = useUnitDetail(id!);
+  const { data: myReservations } = useMyReservations();
   const tenant = useTenantStore((s) => s.tenant);
   const [shareOpen, setShareOpen] = useState(false);
   const [visitOpen, setVisitOpen] = useState(false);
   const [waitlistOpen, setWaitlistOpen] = useState(false);
   const [galleryIdx, setGalleryIdx] = useState(0);
+
+  const reservedByMe = myReservations?.some(
+    (r) => r.unit_id === unit?.id && ["pending", "confirmed"].includes(r.status)
+  );
 
   if (isLoading) {
     return (
@@ -231,7 +239,14 @@ export default function UnitDetailPage() {
             <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
               <PricingSection unit={unit} />
 
-              {unit.status === "available" && !isReadOnly ? (
+              {reservedByMe ? (
+                <Button
+                  disabled
+                  className="h-12 w-full rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700"
+                >
+                  <CheckCircleIcon className="mr-2 size-4" /> You reserved this unit
+                </Button>
+              ) : unit.status === "available" && !isReadOnly ? (
                 <Button asChild className="h-12 w-full rounded-full text-sm font-semibold">
                   <Link to={withTenant(`/checkout/${unit.id}`)}>Reserve now</Link>
                 </Button>
@@ -298,13 +313,13 @@ export default function UnitDetailPage() {
         open={visitOpen}
         onClose={() => setVisitOpen(false)}
         unitNumber={unit.unit_number}
+        unitId={unit.id}
       />
       <JoinWaitlistModal
         open={waitlistOpen}
         onClose={() => setWaitlistOpen(false)}
         unitId={unit.id}
         unitNumber={unit.unit_number}
-        tenantId={tenant?.id ?? ""}
       />
     </>
   );

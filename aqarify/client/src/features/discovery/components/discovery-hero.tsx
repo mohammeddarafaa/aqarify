@@ -5,7 +5,7 @@ import { Button, Card, CardContent, Avatar, AvatarFallback, ShimmeringText } fro
 import { Chip, Surface } from "@heroui/react";
 import { useTenantStore } from "@/stores/tenant.store";
 import { appendTenantSearch } from "@/lib/tenant-path";
-import { useUnitsQuery } from "@/features/browse/hooks/use-units-query";
+import { usePublicProjects } from "@/features/browse/hooks/use-public-projects";
 
 const HERO_IMAGE =
   "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1600&q=80";
@@ -17,10 +17,10 @@ export function DiscoveryHero() {
   const name = tenant?.name ?? "المطور";
   const area = tenant?.address ?? "مصر";
 
-  const { data: unitsData, isLoading: unitsLoading } = useUnitsQuery({});
-  const totalUnits = unitsData?.pages[0]?.meta.total ?? 0;
+  const { data: projects, isLoading: projectsLoading } = usePublicProjects();
+  const projectCount = projects?.length ?? 0;
 
-  const statPrimary = unitsLoading ? "—" : totalUnits > 0 ? `${totalUnits}+` : "جديد";
+  const statPrimary = projectsLoading ? "—" : projectCount > 0 ? `${projectCount}` : "جديد";
   const statSecondary = "مصر";
 
   return (
@@ -56,9 +56,9 @@ export function DiscoveryHero() {
             transition={{ delay: 0.08, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             className="display-xl max-w-xl text-balance text-[#141414]"
           >
-            اكتشف وحداتك
+            اكتشف مشاريعنا
             <br />
-            <span className="text-[#141414]/85">واحجز بخطوات واضحة</span>
+            <span className="text-[#141414]/85">ثم وحداتك — احجز بخطوات واضحة</span>
           </motion.h1>
 
           <motion.p
@@ -87,7 +87,7 @@ export function DiscoveryHero() {
                   <Button asChild className="h-11 shrink-0 rounded-full px-6">
                     <Link to={withTenant("/browse")} className="inline-flex items-center gap-2">
                       <Search className="size-4" />
-                      استكشف الوحدات
+                      استكشف المشاريع
                     </Link>
                   </Button>
                 </div>
@@ -105,7 +105,7 @@ export function DiscoveryHero() {
               <div>
                 <p className="text-3xl font-bold tracking-tight text-[#141414]">{statPrimary}</p>
                 <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.12em] text-[#888888]">
-                  وحدات وعروض
+                  مشاريع منشورة
                 </p>
               </div>
               <div>

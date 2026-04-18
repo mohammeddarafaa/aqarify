@@ -1,9 +1,11 @@
 import { Link, Outlet } from "react-router-dom";
 import { useTenant } from "@/hooks/use-tenant";
 import { useTenantTheme } from "@/hooks/use-tenant-theme";
+import { useSyncHomeTenantUrl } from "@/hooks/use-sync-home-tenant-url";
 import { ReadOnlyBanner } from "@/components/shared/read-only-banner";
 
 export default function PublicLayout() {
+  useSyncHomeTenantUrl();
   const { isLoading, tenant, isTenantNotFound, slug } = useTenant();
   useTenantTheme();
 
@@ -24,10 +26,10 @@ export default function PublicLayout() {
           تحقق من العنوان أو جرّب الرابط الذي أرسله لك المطوّر.
         </p>
         <Link
-          to="/"
+          to="/discover"
           className="mt-8 text-sm font-medium tracking-widest uppercase text-[#141414] underline underline-offset-4"
         >
-          الصفحة الرئيسية لـ Aqarify
+          تصفّح بوابات أخرى
         </Link>
       </div>
     );

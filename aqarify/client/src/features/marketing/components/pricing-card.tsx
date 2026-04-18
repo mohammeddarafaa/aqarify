@@ -2,11 +2,17 @@ import { Link } from "react-router-dom";
 import { CheckIcon } from "lucide-react";
 import { Button, cn } from "@/components/ui-kit";
 import type { Plan } from "../hooks/use-plans";
+import { formatCurrency } from "@/lib/format";
+
+export type PricingDisplayCurrency = "EGP" | "SAR" | "AED" | "USD";
 
 interface PricingCardProps {
   plan: Plan;
   billingCycle: "monthly" | "yearly";
   highlighted?: boolean;
+  /** Multiply EGP plan amounts by this factor for display (e.g. SAR rough equivalent). */
+  egpConversionFactor?: number;
+  displayCurrency?: PricingDisplayCurrency;
 }
 
 function featureLines(plan: Plan): string[] {
@@ -29,9 +35,16 @@ function featureLines(plan: Plan): string[] {
   return lines;
 }
 
-export function PricingCard({ plan, billingCycle, highlighted }: PricingCardProps) {
-  const price =
+export function PricingCard({
+  plan,
+  billingCycle,
+  highlighted,
+  egpConversionFactor = 1,
+  displayCurrency = "EGP",
+}: PricingCardProps) {
+  const priceEgp =
     billingCycle === "yearly" ? plan.price_egp_yearly : plan.price_egp_monthly;
+  const priceShown = Math.round(priceEgp * egpConversionFactor);
   const cadence = billingCycle === "yearly" ? "/ year" : "/ month";
 
   return (
@@ -61,11 +74,11 @@ export function PricingCard({ plan, billingCycle, highlighted }: PricingCardProp
         </p>
       ) : null}
 
-      <div className="mt-6 flex items-end gap-1.5">
+      <div className="mt-6 flex flex-wrap items-end gap-1.5">
         <span className="text-4xl font-semibold tracking-tight">
-          {price.toLocaleString("en-EG")}
+          {formatCurrency(priceShown, displayCurrency, "en")}
         </span>
-        <span className="pb-1 text-sm text-muted-foreground">EGP {cadence}</span>
+        <span className="pb-1 text-sm text-muted-foreground">{cadence}</span>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
         Billed via Paymob · VAT inclusive

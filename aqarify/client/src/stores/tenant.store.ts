@@ -40,6 +40,16 @@ export interface Tenant {
   contact_phone: string | null;
   contact_email: string | null;
   address: string | null;
+  currency?: string;
+  currency_symbol?: string;
+  country_code?: string;
+  map_center_lat?: number | null;
+  map_center_lng?: number | null;
+  map_zoom?: number | null;
+  payment_gateway?: string;
+  bank_name?: string | null;
+  bank_account_number?: string | null;
+  bank_account_holder?: string | null;
   status?: TenantStatus;
 }
 

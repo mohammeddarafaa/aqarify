@@ -22,7 +22,7 @@ export default function ManagerReservationsPage() {
   });
 
   const change = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: "confirmed" | "rejected" | "cancelled" }) =>
+    mutationFn: async ({ id, status }: { id: string; status: "confirmed" | "expired" | "cancelled" }) =>
       api.patch(`/manager/reservations/${id}/status`, { status }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["manager-reservations"] });
@@ -63,7 +63,7 @@ export default function ManagerReservationsPage() {
                     <td className="px-4 py-3">
                       <div className="flex gap-2 justify-end">
                         <Button size="sm" onClick={() => change.mutate({ id: r.id, status: "confirmed" })} disabled={change.isPending}>تأكيد</Button>
-                        <Button size="sm" variant="destructive" onClick={() => change.mutate({ id: r.id, status: "rejected" })} disabled={change.isPending}>رفض</Button>
+                        <Button size="sm" variant="destructive" onClick={() => change.mutate({ id: r.id, status: "expired" })} disabled={change.isPending}>إنهاء</Button>
                       </div>
                     </td>
                   </tr>

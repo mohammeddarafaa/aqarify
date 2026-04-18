@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import { ArrowLeftIcon, ShieldCheckIcon } from "lucide-react";
@@ -13,12 +13,14 @@ import {
   Skeleton,
 } from "@/components/ui-kit";
 import { useTenantStore } from "@/stores/tenant.store";
+import { appendTenantSearch } from "@/lib/tenant-path";
 import { CheckoutForm } from "../components/checkout-form";
 import { useCreateReservation } from "../hooks/use-reservation";
 
 export default function CheckoutPage() {
   const { unitId } = useParams<{ unitId: string }>();
   const navigate = useNavigate();
+  const { pathname, search } = useLocation();
   const tenant = useTenantStore((s) => s.tenant);
   const isReadOnly = tenant?.status === "read_only";
   const { mutate, isPending } = useCreateReservation();
@@ -41,19 +43,38 @@ export default function CheckoutPage() {
       { unit_id: unitId!, ...formData },
       {
         onSuccess: (data) => {
+          const iframeBase =
+            import.meta.env.VITE_PAYMOB_IFRAME_BASE_URL ??
+            "https://accept.paymob.com/api/acceptance/iframes";
           if (data.payment_key && data.iframe_id) {
-            window.location.href = `https://accept.paymob.com/api/acceptance/iframes/${data.iframe_id}?payment_token=${data.payment_key}`;
+            window.location.href = `${iframeBase.replace(/\/$/, "")}/${data.iframe_id}?payment_token=${data.payment_key}`;
           } else if (data.payment_key && !data.iframe_id) {
             toast.error(
               "Payment gateway not fully configured for this tenant. Contact support.",
             );
+          } else if (data.method === "bank_transfer") {
+            const ref = data.reservation.confirmation_number ?? data.reservation.id;
+            navigate(
+              appendTenantSearch(
+                pathname,
+                search,
+                `/reservations/success?ref=${encodeURIComponent(ref)}&method=bank_transfer`,
+              ),
+            );
           } else {
-            navigate(`/reservations/${data.reservation.id}/success`);
+            const ref = data.reservation.confirmation_number ?? data.reservation.id;
+            navigate(
+              appendTenantSearch(
+                pathname,
+                search,
+                `/reservations/success?ref=${encodeURIComponent(ref)}`,
+              ),
+            );
           }
         },
-        onError: (err: Error & { response?: { data?: { message?: string } } }) => {
+        onError: (err: any) => {
           toast.error(
-            err.response?.data?.message ?? "Reservation failed. Please try again.",
+            err.response?.data?.error?.message ?? "Reservation failed. Please try again.",
           );
         },
       },

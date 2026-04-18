@@ -1,12 +1,13 @@
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { toast } from "@/lib/app-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { useMyReservations } from "@/features/reservation/hooks/use-reservation";
 
 type Doc = {
   id: string;
@@ -28,6 +29,13 @@ export default function DocumentsPage() {
   const [file, setFile] = useState<File | null>(null);
   const [type, setType] = useState("national_id");
   const [reservationId, setReservationId] = useState("");
+  const { data: reservations = [] } = useMyReservations();
+
+  useEffect(() => {
+    if (reservations.length > 0 && !reservationId) {
+      setReservationId(reservations[0].id);
+    }
+  }, [reservations, reservationId]);
 
   const { data: docs = [], isLoading } = useQuery<Doc[]>({
     queryKey: ["customer-documents"],
@@ -37,28 +45,38 @@ export default function DocumentsPage() {
   const upload = useMutation({
     mutationFn: async () => {
       if (!file) throw new Error("اختر ملفا للرفع");
+      const rid = reservationId.trim();
+      if (!rid) throw new Error("اختر حجزاً مرتبطاً بالمستند");
       const fd = new FormData();
       fd.append("file", file);
       fd.append("type", type);
-      if (reservationId.trim()) fd.append("reservation_id", reservationId.trim());
+      fd.append("reservation_id", rid);
       await api.post("/documents/upload", fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
     },
     onSuccess: () => {
       setFile(null);
-      setReservationId("");
       qc.invalidateQueries({ queryKey: ["customer-documents"] });
       toast.success("تم رفع المستند بنجاح");
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "فشل رفع المستند"),
   });
 
+  const canUpload = reservations.length > 0;
+
   return (
     <>
       <Helmet><title>مستنداتي</title></Helmet>
       <div className="mx-auto max-w-5xl px-4 py-8 space-y-6">
         <h1 className="text-2xl font-bold">مستنداتي</h1>
+
+        {!canUpload ? (
+          <div className="rounded-xl border bg-muted/40 p-4 text-sm text-muted-foreground">
+            رفع المستندات متاح بعد إنشاء حجز. عندما يكون لديك حجز، اختره أدناه ثم ارفع الملفات المطلوبة.
+          </div>
+        ) : null}
+
         <div className="rounded-xl border bg-card p-4 space-y-4">
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-1">
@@ -71,15 +89,32 @@ export default function DocumentsPage() {
               </select>
             </div>
             <div className="space-y-1">
-              <Label>رقم الحجز (اختياري)</Label>
-              <Input value={reservationId} onChange={(e) => setReservationId(e.target.value)} placeholder="reservation uuid" dir="ltr" />
+              <Label>الحجز المرتبط</Label>
+              <select
+                value={reservationId}
+                onChange={(e) => setReservationId(e.target.value)}
+                className="h-9 w-full rounded-md border px-3 text-sm"
+                disabled={!canUpload}
+              >
+                {reservations.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.confirmation_number?.trim()
+                      ? r.confirmation_number
+                      : `#${r.id.slice(0, 8).toUpperCase()}`}{" "}
+                    — {r.status}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="space-y-1">
               <Label>الملف</Label>
-              <Input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+              <Input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} disabled={!canUpload} />
             </div>
           </div>
-          <Button onClick={() => upload.mutate()} disabled={upload.isPending || !file}>
+          <Button
+            onClick={() => upload.mutate()}
+            disabled={upload.isPending || !file || !canUpload || !reservationId.trim()}
+          >
             {upload.isPending ? "جاري الرفع..." : "رفع المستند"}
           </Button>
         </div>

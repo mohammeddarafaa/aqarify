@@ -1,5 +1,6 @@
 import { formatCurrency } from "@/lib/format";
 import { useUIStore } from "@/stores/ui.store";
+import { useTenantStore } from "@/stores/tenant.store";
 import { cn } from "@/lib/utils";
 
 interface CurrencyDisplayProps {
@@ -12,9 +13,10 @@ const sizeClass = { sm: "text-sm", base: "text-base", lg: "text-lg", xl: "text-x
 
 export function CurrencyDisplay({ amount, className, size = "base" }: CurrencyDisplayProps) {
   const language = useUIStore((s) => s.language);
+  const currency = useTenantStore((s) => s.tenant?.currency ?? "EGP");
   return (
     <span className={cn("font-semibold tabular-nums", sizeClass[size], className)}>
-      {formatCurrency(amount, language === "ar" ? "ar-EG" : "en-EG")}
+      {formatCurrency(amount, currency, language === "ar" ? "ar" : "en")}
     </span>
   );
 }

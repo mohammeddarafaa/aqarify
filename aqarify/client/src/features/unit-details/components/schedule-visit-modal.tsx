@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Calendar, Clock, CheckCircle } from "lucide-react";
+import { api } from "@/lib/api";
+import { toast } from "@/lib/app-toast";
 
 const schema = z.object({
   name: z.string().min(2, "الاسم مطلوب"),
@@ -23,20 +25,42 @@ interface Props {
   open: boolean;
   onClose: () => void;
   unitNumber: string;
+  unitId: string;
 }
 
-export function ScheduleVisitModal({ open, onClose, unitNumber }: Props) {
+function slotHour(index: number) {
+  return 9 + Math.max(0, Math.min(index, TIMES.length - 1));
+}
+
+export function ScheduleVisitModal({ open, onClose, unitNumber, unitId }: Props) {
   const [submitted, setSubmitted] = useState(false);
-  const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
 
   const selectedTime = watch("time");
 
-  const onSubmit = async (_data: FormData) => {
-    // In production: call API to create follow_up
-    await new Promise((r) => setTimeout(r, 800));
-    setSubmitted(true);
+  const onSubmit = async (data: FormData) => {
+    const idx = TIMES.indexOf(data.time);
+    const hour = slotHour(idx >= 0 ? idx : 0);
+    const scheduled_at = new Date(`${data.date}T${String(hour).padStart(2, "0")}:00:00`).toISOString();
+    try {
+      await api.post(`/units/${unitId}/schedule-visit`, {
+        scheduled_at,
+        phone: data.phone,
+        full_name: data.name,
+        notes: data.notes,
+      });
+      setSubmitted(true);
+    } catch {
+      toast.error("تعذر تسجيل الموعد. حاول مرة أخرى.");
+    }
   };
 
   const minDate = new Date();
@@ -44,7 +68,15 @@ export function ScheduleVisitModal({ open, onClose, unitNumber }: Props) {
   const minDateStr = minDate.toISOString().split("T")[0];
 
   return (
-    <Dialog open={open} onOpenChange={(v: boolean) => { if (!v) { onClose(); setSubmitted(false); } }}>
+    <Dialog
+      open={open}
+      onOpenChange={(v: boolean) => {
+        if (!v) {
+          onClose();
+          setSubmitted(false);
+        }
+      }}
+    >
       <DialogContent className="max-w-md" style={{ borderRadius: 0, border: "1px solid var(--color-border)" }}>
         <DialogHeader>
           <DialogTitle style={{ fontFamily: "var(--font-sans)", letterSpacing: "-0.03em" }}>
@@ -59,8 +91,13 @@ export function ScheduleVisitModal({ open, onClose, unitNumber }: Props) {
             <p className="text-sm" style={{ color: "var(--color-muted-foreground)" }}>
               سيتواصل معك أحد مستشارينا قريباً لتأكيد موعد الزيارة.
             </p>
-            <Button onClick={() => { onClose(); setSubmitted(false); }}
-              style={{ backgroundColor: "var(--color-foreground)", color: "white", borderRadius: 0 }}>
+            <Button
+              onClick={() => {
+                onClose();
+                setSubmitted(false);
+              }}
+              style={{ backgroundColor: "var(--color-foreground)", color: "white", borderRadius: 0 }}
+            >
               حسناً
             </Button>
           </div>
@@ -92,7 +129,9 @@ export function ScheduleVisitModal({ open, onClose, unitNumber }: Props) {
               </Label>
               <div className="grid grid-cols-4 gap-2">
                 {TIMES.map((t) => (
-                  <button type="button" key={t}
+                  <button
+                    type="button"
+                    key={t}
                     onClick={() => setValue("time", t)}
                     className="text-xs py-2 border transition-colors"
                     style={{
@@ -101,14 +140,20 @@ export function ScheduleVisitModal({ open, onClose, unitNumber }: Props) {
                       backgroundColor: selectedTime === t ? "var(--color-foreground)" : "transparent",
                       color: selectedTime === t ? "white" : "var(--color-foreground)",
                     }}
-                  >{t}</button>
+                  >
+                    {t}
+                  </button>
                 ))}
               </div>
               {errors.time && <p className="text-xs text-red-500">{errors.time.message}</p>}
             </div>
 
-            <Button type="submit" disabled={isSubmitting} className="w-full"
-              style={{ backgroundColor: "var(--color-foreground)", color: "white", borderRadius: 0 }}>
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full"
+              style={{ backgroundColor: "var(--color-foreground)", color: "white", borderRadius: 0 }}
+            >
               {isSubmitting ? "جاري الإرسال..." : "تأكيد طلب الزيارة"}
             </Button>
           </form>

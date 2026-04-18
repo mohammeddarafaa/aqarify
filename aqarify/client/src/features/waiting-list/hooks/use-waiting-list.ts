@@ -27,9 +27,14 @@ export function useMyWaitingEntries() {
   });
 }
 
-export function useMyWaitingEntry() {
+/** Prefer {@link useMyWaitingEntries} — customers may be on multiple unit waitlists. */
+/** Waitlist row for a specific unit (customers may hold multiple waitlist spots). */
+export function useMyWaitingEntry(unitId: string) {
   const q = useMyWaitingEntries();
-  return { ...q, data: q.data?.[0] ?? null };
+  return {
+    ...q,
+    data: q.data?.find((e) => e.unit_id === unitId) ?? null,
+  };
 }
 
 export function useJoinWaitingList() {
@@ -52,7 +57,7 @@ export function useJoinWaitingList() {
 export function useJoinWaitlist() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { unitId: string; tenantId: string; sms: boolean; email: boolean }) => {
+    mutationFn: async (payload: { unitId: string; sms: boolean; email: boolean }) => {
       const res = await api.post("/waiting-list", {
         unit_id: payload.unitId,
         notification_prefs: { sms: payload.sms, email: payload.email },
@@ -60,6 +65,11 @@ export function useJoinWaitlist() {
       return res.data.data as { position: number };
     },
     onSuccess: () => invalidateWaitlist(qc),
+    onError: (err: any) => {
+      import("@/lib/app-toast").then(({ toast }) => {
+        toast.error(err.response?.data?.error?.message ?? "Failed to join waitlist. Please try again.");
+      });
+    },
   });
 }
 

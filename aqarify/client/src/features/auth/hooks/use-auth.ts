@@ -18,7 +18,7 @@ import { useAuthStore, type AuthUser } from "@/stores/auth.store";
 import type { ApiSuccess } from "@/types/api.types";
 import { roleHomePath } from "@/lib/rbac";
 import { isApexMarketingHost, resolveTenantSlug, resolveTenantSlugLive } from "@/lib/host";
-import { appendTenantForSlug } from "@/lib/tenant-path";
+import { appendTenantForSlug, appendTenantSearch } from "@/lib/tenant-path";
 import { useTenantStore } from "@/stores/tenant.store";
 
 export function useAuth() {
@@ -29,11 +29,7 @@ export function useAuth() {
   const navigate = useNavigate();
   const location = useLocation();
   const { pathname, search } = location;
-  const withTenant = (path: string) => {
-    const slug =
-      resolveTenantSlugLive(pathname, search) ?? useTenantStore.getState().tenant?.slug ?? null;
-    return appendTenantForSlug(slug, pathname, search, path);
-  };
+  const withTenant = (path: string) => appendTenantSearch(pathname, search, path);
 
   async function login(email: string, password: string) {
     setIsLoading(true);
@@ -57,7 +53,8 @@ export function useAuth() {
         from.pathname.startsWith("/") &&
         !from.pathname.startsWith("//")
       ) {
-        navigate(`${from.pathname}${from.search ?? ""}${from.hash ?? ""}`, { replace: true });
+        const dest = `${from.pathname}${from.search ?? ""}${from.hash ?? ""}`;
+        navigate(appendTenantSearch(pathname, search, dest), { replace: true });
         return;
       }
 
@@ -146,6 +143,20 @@ export function useAuth() {
           headers: { Authorization: `Bearer ${token}` },
         });
         setSession(res.data.data, token);
+
+        const from = location.state?.from as
+          | { pathname: string; search?: string; hash?: string }
+          | undefined;
+        if (
+          from?.pathname &&
+          from.pathname.startsWith("/") &&
+          !from.pathname.startsWith("//")
+        ) {
+          const dest = `${from.pathname}${from.search ?? ""}${from.hash ?? ""}`;
+          navigate(appendTenantSearch(pathname, search, dest), { replace: true });
+          return;
+        }
+
         navigate(withTenant(roleHomePath(res.data.data.role)));
       } else {
         const verifyPath = opts?.asTeam ? "/login?verify=1&as=team" : "/login?verify=1";

@@ -15,7 +15,7 @@ export function DiscoveryBottomCta() {
           نساعدك على إتمام خطوة الحجز بثقة
         </h2>
         <p className="mx-auto mt-3 max-w-lg text-sm text-[#666666]">
-          ابدأ بتصفّح الوحدات أو تواصل مع فريق المبيعات من صفحة التواصل.
+          ابدأ بتصفّح المشاريع ثم الوحدات، أو تواصل مع فريق المبيعات من صفحة التواصل.
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <HeroButton

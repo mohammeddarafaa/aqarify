@@ -50,10 +50,14 @@ type FollowUp = {
   notes?: string;
   status: string;
   potential_customer_id: string;
-  potential_customers?: { full_name: string; phone: string };
+  potential_customers?: { name: string; full_name?: string; phone: string };
 };
 
-type Lead = { id: string; full_name: string; phone: string };
+type Lead = { id: string; name?: string; full_name?: string; phone: string };
+
+function leadDisplayName(p?: { name?: string; full_name?: string } | null) {
+  return p?.name ?? p?.full_name ?? "—";
+}
 
 const TYPE_META: Record<
   string,
@@ -120,12 +124,12 @@ function FollowUpCard({
         <div className="flex items-center gap-3 min-w-0">
           <Avatar size="sm">
             <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-semibold">
-              {initials(f.potential_customers?.full_name)}
+              {initials(leadDisplayName(f.potential_customers))}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0">
             <p className="font-medium truncate">
-              {f.potential_customers?.full_name ?? "—"}
+              {leadDisplayName(f.potential_customers)}
             </p>
             <a
               href={`tel:${f.potential_customers?.phone ?? ""}`}
@@ -309,7 +313,7 @@ export default function AgentFollowUpsPage() {
                     <SelectContent>
                       {(leadsData?.items ?? []).map((l) => (
                         <SelectItem key={l.id} value={l.id}>
-                          {l.full_name} — {l.phone}
+                          {leadDisplayName(l)} — {l.phone}
                         </SelectItem>
                       ))}
                     </SelectContent>

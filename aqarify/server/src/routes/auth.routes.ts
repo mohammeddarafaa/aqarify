@@ -12,14 +12,60 @@ authRoutes.get("/me", authenticate, async (req: AuthenticatedRequest, res, next)
   try {
     const { data, error } = await supabaseAdmin
       .from("users")
-      .select("id, email, full_name, role, tenant_id, avatar_url, phone")
+      .select("id, email, full_name, role, tenant_id, avatar_url, phone, tenants(slug)")
       .eq("id", req.userId!)
       .single();
 
     if (error || !data) {
       return sendError(res, ERROR_CODES.AUTH_REQUIRED, "User not found", 404);
     }
-    return sendSuccess(res, data);
+    const row = data as {
+      id: string;
+      email: string;
+      full_name: string;
+      role: string;
+      tenant_id: string | null;
+      avatar_url: string | null;
+      phone: string | null;
+      tenants: { slug: string } | { slug: string }[] | null;
+    };
+    const embed = row.tenants;
+    const tenant_slug = Array.isArray(embed)
+      ? (embed[0]?.slug ?? null)
+      : (embed?.slug ?? null);
+    return sendSuccess(res, {
+      id: row.id,
+      email: row.email,
+      full_name: row.full_name,
+      role: row.role,
+      tenant_id: row.tenant_id,
+      avatar_url: row.avatar_url,
+      phone: row.phone,
+      tenant_slug,
+    });
+  } catch (err) { return next(err); }
+});
+
+// PATCH /api/v1/auth/profile — update user profile
+const updateProfileSchema = z.object({
+  full_name: z.string().optional(),
+  phone: z.string().optional(),
+  avatar_url: z.string().optional(),
+});
+
+authRoutes.patch("/profile", authenticate, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const parsed = updateProfileSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return sendError(res, ERROR_CODES.VALIDATION_ERROR, "Invalid input", 400);
+    }
+    const { error } = await supabaseAdmin
+      .from("users")
+      .update(parsed.data)
+      .eq("id", req.userId!);
+
+    if (error) return sendError(res, ERROR_CODES.INTERNAL_ERROR, error.message, 500);
+    return sendSuccess(res, { updated: true });
   } catch (err) { return next(err); }
 });
 

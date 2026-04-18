@@ -1,4 +1,6 @@
 import { isApexMarketingHost, resolveTenantSlugLive } from "@/lib/host";
+import { useAuthStore } from "@/stores/auth.store";
+import { useTenantStore } from "@/stores/tenant.store";
 
 function splitPathQueryHash(path: string): { pathname: string; query: string; hash: string } {
   const hashIdx = path.indexOf("#");
@@ -23,7 +25,9 @@ function useTenantPathPrefixOnApex(targetPath: string): boolean {
     p === "/register" ||
     p === "/forgot-password" ||
     p === "/reset-password" ||
-    p === "/browse"
+    p === "/browse" ||
+    p.startsWith("/browse/projects/") ||
+    p === "/discover"
   ) {
     return true;
   }
@@ -57,18 +61,7 @@ export function appendTenantSlugToPath(targetPath: string, tenantSlug: string | 
   return `${pathname}${q ? `?${q}` : ""}${hash}`;
 }
 
-/**
- * Tenant-aware link target: on apex hosts prefers `/t/:slug/...` when that route exists;
- * otherwise appends `?tenant=`.
- */
-export function appendTenantSearch(
-  locationPathname: string,
-  locationSearch: string,
-  targetPath: string
-): string {
-  const slug = resolveTenantSlugLive(locationPathname, locationSearch);
-  if (!slug) return targetPath;
-
+function applyTenantToTarget(slug: string, targetPath: string): string {
   if (useTenantPathPrefixOnApex(targetPath)) {
     return toTenantPrefixedPath(slug, targetPath);
   }
@@ -76,8 +69,41 @@ export function appendTenantSearch(
 }
 
 /**
- * Like `appendTenantSearch`, but falls back to `tenantSlug` when the current URL has no
- * tenant (e.g. Zustand already resolved the tenant).
+ * Resolved slug for in-app navigation: current URL first, then hydrated tenant, then
+ * logged-in user's tenant (marketing / post-login before URL updates).
+ */
+export function resolveTenantSlugForLinks(
+  locationPathname: string,
+  locationSearch: string
+): string | null {
+  return (
+    resolveTenantSlugLive(locationPathname, locationSearch) ??
+    useTenantStore.getState().tenant?.slug ??
+    useAuthStore.getState().user?.tenant_slug ??
+    null
+  );
+}
+
+/**
+ * Tenant-aware link target: on apex hosts prefers `/t/:slug/...` when that route exists;
+ * otherwise appends `?tenant=`.
+ *
+ * Uses URL tenant when present; otherwise falls back to tenant store and auth profile so
+ * dashboard and deep links stay consistent.
+ */
+export function appendTenantSearch(
+  locationPathname: string,
+  locationSearch: string,
+  targetPath: string
+): string {
+  const slug = resolveTenantSlugForLinks(locationPathname, locationSearch);
+  if (!slug) return targetPath;
+  return applyTenantToTarget(slug, targetPath);
+}
+
+/**
+ * Like `appendTenantSearch`, but when the URL has no tenant, uses `tenantSlug` explicitly
+ * (e.g. redirect right after login). If the URL already has a tenant, that wins.
  */
 export function appendTenantForSlug(
   tenantSlug: string | null | undefined,
@@ -89,8 +115,5 @@ export function appendTenantForSlug(
   if (resolveTenantSlugLive(locationPathname, locationSearch)) {
     return appendTenantSearch(locationPathname, locationSearch, targetPath);
   }
-  if (useTenantPathPrefixOnApex(targetPath)) {
-    return toTenantPrefixedPath(tenantSlug, targetPath);
-  }
-  return appendTenantSlugToPath(targetPath, tenantSlug);
+  return applyTenantToTarget(tenantSlug, targetPath);
 }
