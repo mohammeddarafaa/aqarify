@@ -64,6 +64,7 @@ const ManagerReportsPage = lazy(() => import("@/features/manager-dashboard/pages
 const AdminSettingsPage = lazy(() => import("@/features/admin/pages/admin-settings-page"));
 const AdminOverviewPage = lazy(() => import("@/features/admin-dashboard/pages/overview-page"));
 const ActivityLogsPage = lazy(() => import("@/features/admin-dashboard/pages/activity-logs-page"));
+const PlatformAdminDashboardPage = lazy(() => import("@/features/platform-admin/pages/platform-admin-dashboard-page"));
 const NotificationsPage = lazy(() => import("@/features/notifications/pages/notifications-page"));
 const DiscoveryPage = lazy(() => import("@/features/discovery/pages/discovery-page"));
 const ProfilePage = lazy(() => import("@/features/auth/pages/profile-page"));
@@ -416,6 +417,7 @@ const routes = [
       { path: "/admin/overview", element: D(AdminOverviewPage, ["admin", "super_admin"]) },
       { path: "/admin/settings", element: D(AdminSettingsPage, ["admin", "super_admin"]) },
       { path: "/admin/activity-logs", element: D(ActivityLogsPage, ["admin", "super_admin"]) },
+      { path: "/platform-admin", element: D(PlatformAdminDashboardPage, ["super_admin"]) },
     ],
   },
   { path: "/dashboard/*", element: <DashboardWildcardGate /> },

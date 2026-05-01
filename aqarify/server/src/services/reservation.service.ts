@@ -3,6 +3,7 @@ import { logger } from "../utils/logger";
 import { autoAssignAgent, createLeadFromCancelledReservation } from "./leadGeneration.service";
 import { sendNotification } from "./notification.service";
 import { generateReceiptPDF } from "./pdf.service";
+import { emitDomainEvent } from "../events/domainEventBus";
 
 export async function createReservation(params: {
   tenantId: string;
@@ -163,6 +164,13 @@ export async function confirmReservation(reservationId: string, paymobTxId: stri
   }
 
   logger.info(`Reservation ${reservationId} confirmed`);
+  await emitDomainEvent({
+    tenantId: data?.tenant_id,
+    eventType: "reservation.confirmed",
+    aggregateType: "reservation",
+    aggregateId: reservationId,
+    payload: { reservation_id: reservationId, paymob_tx_id: paymobTxId, fee_paid: feePaid },
+  });
   return data;
 }
 
@@ -207,5 +215,12 @@ export async function cancelReservation(reservationId: string, tenantId: string,
   }
 
   logger.info(`Reservation ${reservationId} cancelled by ${cancelledBy}`);
+  await emitDomainEvent({
+    tenantId,
+    eventType: "reservation.cancelled",
+    aggregateType: "reservation",
+    aggregateId: reservationId,
+    payload: { reservation_id: reservationId, cancelled_by: cancelledBy },
+  });
   return data;
 }

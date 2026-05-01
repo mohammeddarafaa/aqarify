@@ -4,6 +4,7 @@ import { sendNotification } from "../services/notification.service";
 import { createLeadFromExpiredWaitlist } from "../services/leadGeneration.service";
 import { logger } from "../utils/logger";
 import { withCronLock } from "./cronLock";
+import { emitDomainEvent } from "../events/domainEventBus";
 
 async function processExpiredWaitlistEntries() {
   const now = new Date().toISOString();
@@ -55,6 +56,13 @@ async function processExpiredWaitlistEntries() {
         phone: nextUser.phone,
         email: nextUser.email,
         channels: ["in_app", "sms", "email"],
+      });
+      await emitDomainEvent({
+        tenantId: next.tenant_id,
+        eventType: "waitlist.notified",
+        aggregateType: "waiting_list",
+        aggregateId: next.id,
+        payload: { waitlist_id: next.id, unit_id: next.unit_id, customer_id: next.customer_id },
       });
     } else {
       // No one else waiting — unit is free

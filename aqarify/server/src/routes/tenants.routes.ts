@@ -31,6 +31,9 @@ const TENANT_BY_SLUG_SELECT_FULL = [
   "map_center_lng",
   "map_zoom",
   "payment_gateway",
+  "default_locale",
+  "default_timezone",
+  "fallback_currency",
 ].join(", ");
 
 // GET /api/v1/tenants/by-slug/:slug

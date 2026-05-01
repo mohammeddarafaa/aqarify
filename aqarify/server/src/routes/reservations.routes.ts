@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { resolveTenant, type TenantRequest } from "../middleware/tenant";
+import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
 import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { supabaseAdmin } from "../config/supabase";
 import { createReservation, confirmReservation, cancelReservation } from "../services/reservation.service";
@@ -12,7 +12,7 @@ import { receiptObjectPathFromStoredValue } from "../utils/receipt-storage";
 import { sendSuccess, sendError, ERROR_CODES } from "../utils/response";
 
 export const reservationRoutes = Router();
-reservationRoutes.use(resolveTenant, authenticate);
+reservationRoutes.use(resolveTenant, authenticate, requireTenant);
 
 const createSchema = z.object({
   unit_id: z.string().uuid(),

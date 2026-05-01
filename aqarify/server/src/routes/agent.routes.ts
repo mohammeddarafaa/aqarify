@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { resolveTenant, type TenantRequest } from "../middleware/tenant";
+import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
 import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { requireRole } from "../middleware/rbac";
 import { supabaseAdmin } from "../config/supabase";
@@ -16,7 +16,7 @@ const allowedReservationStatusByRole: Record<string, (typeof RESERVATION_STATUS_
 };
 
 export const agentRoutes = Router();
-agentRoutes.use(resolveTenant, authenticate, requireRole("agent", "manager", "admin", "super_admin"));
+agentRoutes.use(resolveTenant, authenticate, requireTenant, requireRole("agent", "manager", "admin", "super_admin"));
 
 // GET /api/v1/agent/stats — KPI dashboard stats
 agentRoutes.get("/stats", async (req: TenantRequest & AuthenticatedRequest, res, next) => {

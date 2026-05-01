@@ -1,13 +1,13 @@
 import { Router } from "express";
 import { z } from "zod";
-import { resolveTenant, type TenantRequest } from "../middleware/tenant";
+import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
 import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { requireRole } from "../middleware/rbac";
 import { supabaseAdmin } from "../config/supabase";
 import { sendSuccess, sendError, ERROR_CODES } from "../utils/response";
 
 export const negotiationRoutes = Router();
-negotiationRoutes.use(resolveTenant, authenticate, requireRole("agent", "manager", "admin"));
+negotiationRoutes.use(resolveTenant, authenticate, requireTenant, requireRole("agent", "manager", "admin"));
 
 // GET /api/v1/negotiations — all potential customers (leads)
 negotiationRoutes.get("/leads", async (req: TenantRequest & AuthenticatedRequest, res, next) => {

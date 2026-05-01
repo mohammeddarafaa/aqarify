@@ -28,11 +28,17 @@ import { subscriptionGuard } from "./middleware/subscriptionGuard";
 import { resolveTenant } from "./middleware/tenant";
 import { authenticate } from "./middleware/auth";
 import { requireRole } from "./middleware/rbac";
+import { attachTenantRegionHeaders } from "./middleware/tenantRegionHeaders";
 import { startPaymentReminderCron } from "./jobs/paymentReminders";
 import { startWaitlistTimerCron } from "./jobs/waitlistTimer";
 import { startDailySummaryCron } from "./jobs/dailySummary";
 import { startSubscriptionExpiryCron } from "./jobs/subscriptionExpiry";
 import { parseEncryptionKeyVersions } from "./utils/hmac";
+import { supabaseAdmin } from "./config/supabase";
+import { pluginRoutes } from "./routes/plugins.routes";
+import { platformAdminRoutes } from "./routes/platformAdmin.routes";
+import { registerDomainHandlers } from "./events/registerDomainHandlers";
+import { startDomainEventDispatcher } from "./events/domainEventBus";
 
 function validateEnv() {
   const required = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"];
@@ -65,6 +71,9 @@ validateEnv();
 const app = express();
 const PORT = process.env.PORT ?? 4000;
 
+const corsDomainCache = new Map<string, { allowed: boolean; expiresAt: number }>();
+const CORS_CACHE_MS = 5 * 60 * 1000;
+
 app.use(helmet());
 const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? process.env.CLIENT_URL ?? "http://localhost:3000").split(",").map((s) => s.trim()).filter(Boolean);
 const rootDomain = process.env.ROOT_DOMAIN ?? "localhost";
@@ -82,13 +91,40 @@ function rateLimitTenantKey(req: express.Request): string {
 
 app.use(
   cors({
-    origin: (origin, callback) => {
+    origin: async (origin, callback) => {
       if (!origin) return callback(null, true);
-      const ok =
-        allowedOrigins.some((o) => origin === o) ||
-        (rootDomain !== "localhost" && origin.endsWith(`.${rootDomain}`));
-      if (!ok) return callback(new Error("Not allowed by CORS"));
-      return callback(null, origin);
+      try {
+        const url = new URL(origin);
+        const host = url.host.toLowerCase();
+        const now = Date.now();
+
+        const cached = corsDomainCache.get(host);
+        if (cached && cached.expiresAt > now) {
+          if (cached.allowed) return callback(null, origin);
+          return callback(new Error("Not allowed by CORS"));
+        }
+
+        const fromAllowlist = allowedOrigins.some((o) => origin === o);
+        const fromPlatformSubdomain = rootDomain !== "localhost" && host.endsWith(`.${rootDomain}`);
+
+        let fromCustomDomain = false;
+        if (!fromAllowlist && !fromPlatformSubdomain) {
+          const result = await supabaseAdmin
+            .from("tenants")
+            .select("id")
+            .eq("custom_domain", host)
+            .in("status", ["active", "trial", "read_only"])
+            .maybeSingle();
+          fromCustomDomain = !!result.data?.id;
+        }
+
+        const ok = fromAllowlist || fromPlatformSubdomain || fromCustomDomain;
+        corsDomainCache.set(host, { allowed: ok, expiresAt: now + CORS_CACHE_MS });
+        if (!ok) return callback(new Error("Not allowed by CORS"));
+        return callback(null, origin);
+      } catch {
+        return callback(new Error("Invalid CORS origin"));
+      }
     },
     credentials: true,
   }),
@@ -137,12 +173,14 @@ app.use("/api", limiter);
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
+app.use(attachTenantRegionHeaders);
 
 // Routes — public (no subscription guard needed)
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/tenants", tenantRoutes);
 app.use("/api/v1/plans", planRoutes);
 app.use("/api/v1", platformSubscriptionRoutes); // /signup + /subscription/*
+app.use("/api/v1/platform-admin", platformAdminRoutes);
 app.use("/webhooks", webhookRoutes);
 
 // Routes — guarded by subscription status (writes blocked for expired tenants)
@@ -167,6 +205,11 @@ app.use(
 );
 app.use("/api/v1/manager", subscriptionGuard, managerRoutes);
 app.use("/api/v1/admin", subscriptionGuard, adminRoutes);
+app.use(
+  "/api/v1/plugins",
+  subscriptionGuard,
+  pluginRoutes,
+);
 
 // Health check + sitemap hint
 app.get("/health", (_req, res) => res.json({ ok: true, service: "aqarify-api", version: "1.0.0" }));
@@ -176,6 +219,8 @@ app.use(errorHandler);
 
 app.listen(PORT, () => {
   logger.info(`Aqarify API running on port ${PORT}`);
+  registerDomainHandlers();
+  startDomainEventDispatcher();
   // Start cron jobs
   if (process.env.ENABLE_CRONS !== "false" && process.env.CRON_PROCESS_ROLE !== "api") {
     startPaymentReminderCron();

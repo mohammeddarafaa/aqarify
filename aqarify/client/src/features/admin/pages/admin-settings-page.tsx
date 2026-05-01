@@ -27,6 +27,10 @@ const tenantSchema = z.object({
   bank_name: z.string().optional(),
   bank_account_number: z.string().optional(),
   bank_account_holder: z.string().optional(),
+  enabled_features: z.string().optional(),
+  default_locale: z.string().optional(),
+  default_timezone: z.string().optional(),
+  fallback_currency: z.string().optional(),
 });
 
 const paymobSchema = z.object({
@@ -110,13 +114,25 @@ export default function AdminSettingsPage() {
           bank_name: tenant.bank_name ?? "",
           bank_account_number: tenant.bank_account_number ?? "",
           bank_account_holder: tenant.bank_account_holder ?? "",
+          enabled_features: Array.isArray(tenant.enabled_features)
+            ? tenant.enabled_features.join(", ")
+            : "",
+          default_locale: tenant.default_locale ?? "ar-EG",
+          default_timezone: tenant.default_timezone ?? "Africa/Cairo",
+          fallback_currency: tenant.fallback_currency ?? "EGP",
         }
       : undefined,
   });
   const paymobForm = useForm<PaymobData>({ resolver: zodResolver(paymobSchema) });
 
   const saveTenant = useMutation({
-    mutationFn: async (d: TenantData) => { await api.patch("/admin/tenant", d); },
+    mutationFn: async (d: TenantData) => {
+      const enabledFeatures = (d.enabled_features ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      await api.patch("/admin/tenant", { ...d, enabled_features: enabledFeatures });
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-tenant"] }); toast.success("تم الحفظ"); },
     onError: () => toast.error("فشل الحفظ"),
   });
@@ -226,6 +242,25 @@ export default function AdminSettingsPage() {
                     <Input {...tenantForm.register("bank_account_number")} dir="ltr" /></div>
                   <div className="space-y-1 col-span-2"><Label>اسم صاحب الحساب</Label>
                     <Input {...tenantForm.register("bank_account_holder")} /></div>
+                  <div className="space-y-1 col-span-2">
+                    <Label>الميزات المفعلة (مفصولة بفاصلة)</Label>
+                    <Input
+                      {...tenantForm.register("enabled_features")}
+                      placeholder="custom_domain, whatsapp_notifications, crm_export"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>اللغة الافتراضية</Label>
+                    <Input {...tenantForm.register("default_locale")} placeholder="ar-EG" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>المنطقة الزمنية</Label>
+                    <Input {...tenantForm.register("default_timezone")} placeholder="Africa/Cairo" />
+                  </div>
+                  <div className="space-y-1 col-span-2 sm:col-span-1">
+                    <Label>عملة احتياطية</Label>
+                    <Input {...tenantForm.register("fallback_currency")} placeholder="EGP" />
+                  </div>
                 </div>
               </div>
             </div>

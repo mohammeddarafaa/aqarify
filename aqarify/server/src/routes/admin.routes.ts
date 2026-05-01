@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { resolveTenant, type TenantRequest } from "../middleware/tenant";
+import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
 import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { requireRole } from "../middleware/rbac";
 import { supabaseAdmin } from "../config/supabase";
@@ -8,14 +8,14 @@ import { encrypt } from "../utils/hmac";
 import { sendSuccess, sendError, ERROR_CODES } from "../utils/response";
 
 export const adminRoutes = Router();
-adminRoutes.use(resolveTenant, authenticate, requireRole("admin", "super_admin"));
+adminRoutes.use(resolveTenant, authenticate, requireTenant, requireRole("admin", "super_admin"));
 
 // GET /api/v1/admin/tenant — get tenant settings
 adminRoutes.get("/tenant", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
   try {
     const { data } = await supabaseAdmin.from("tenants")
       .select(
-        "id,name,slug,logo_url,favicon_url,theme_config,filter_schema,contact_email,contact_phone,address,social_links,bank_name,bank_account_number,bank_account_holder,currency,currency_symbol,country_code,email_from_address,email_from_name,sms_sender_name,notification_templates,receipt_footer_text,receipt_primary_color",
+        "id,name,slug,logo_url,favicon_url,theme_config,filter_schema,contact_email,contact_phone,address,social_links,bank_name,bank_account_number,bank_account_holder,currency,currency_symbol,country_code,email_from_address,email_from_name,sms_sender_name,notification_templates,receipt_footer_text,receipt_primary_color,enabled_features,default_locale,default_timezone,fallback_currency",
       )
       .eq("id", req.tenantId!).single();
     return sendSuccess(res, data);
@@ -73,6 +73,10 @@ const tenantUpdateSchema = z.object({
   })).optional(),
   receipt_footer_text: z.string().max(300).optional(),
   receipt_primary_color: hexColor.optional(),
+  enabled_features: z.array(z.string().regex(/^[a-z0-9_:-]+$/i)).max(100).optional(),
+  default_locale: z.string().max(20).optional(),
+  default_timezone: z.string().max(60).optional(),
+  fallback_currency: z.string().max(8).optional(),
 });
 
 // PATCH /api/v1/admin/tenant — update settings
@@ -88,6 +92,8 @@ adminRoutes.patch("/tenant", async (req: TenantRequest & AuthenticatedRequest, r
       "name", "logo_url", "favicon_url", "contact_email", "contact_phone", "address", "social_links",
       "bank_name", "bank_account_number", "bank_account_holder", "email_from_address", "email_from_name",
       "sms_sender_name", "notification_templates", "receipt_footer_text", "receipt_primary_color",
+      "enabled_features",
+      "default_locale", "default_timezone", "fallback_currency",
     ];
     for (const k of simple) {
       if (b[k] !== undefined) patch[k] = b[k];

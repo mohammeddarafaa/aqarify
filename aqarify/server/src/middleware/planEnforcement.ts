@@ -34,6 +34,29 @@ async function getTenantPlanLimits(tenantId: string): Promise<Record<string, num
   return (plan as Record<string, number> | null) ?? null;
 }
 
+async function getTenantPlanFeatures(tenantId: string): Promise<Record<string, unknown> | null> {
+  const nowIso = new Date().toISOString();
+  const { data: sub } = await supabaseAdmin
+    .from("tenant_subscriptions")
+    .select("plan_id, status, current_period_end")
+    .eq("tenant_id", tenantId)
+    .in("status", ["active", "past_due"])
+    .order("current_period_end", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!sub) return null;
+  if (sub.current_period_end && sub.current_period_end < nowIso) return null;
+
+  const { data: plan } = await supabaseAdmin
+    .from("subscription_plans")
+    .select("features")
+    .eq("id", sub.plan_id)
+    .maybeSingle();
+
+  return (plan?.features as Record<string, unknown> | null) ?? null;
+}
+
 async function currentUsage(tenantId: string, entity: Entity): Promise<number> {
   if (entity === "users") {
     const { count } = await supabaseAdmin
@@ -78,5 +101,25 @@ export function enforcePlanLimit(entity: Entity) {
     }
 
     return next();
+  };
+}
+
+export function enforcePlanFeature(featureKey: string) {
+  return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    const tenantId = req.tenantId;
+    if (!tenantId) return next();
+
+    const features = await getTenantPlanFeatures(tenantId);
+    if (!features) return next();
+
+    if (features[featureKey] === true) return next();
+
+    return sendError(
+      res,
+      ERROR_CODES.AUTH_FORBIDDEN,
+      `Your plan does not include '${featureKey}'.`,
+      402,
+      { feature: featureKey },
+    );
   };
 }

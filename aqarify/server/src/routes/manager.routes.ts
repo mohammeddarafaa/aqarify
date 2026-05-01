@@ -1,6 +1,6 @@
 import { Router } from "express";
 import multer from "multer";
-import { resolveTenant, type TenantRequest } from "../middleware/tenant";
+import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
 import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { requireRole } from "../middleware/rbac";
 import { enforcePlanLimit } from "../middleware/planEnforcement";
@@ -9,7 +9,7 @@ import { sendSuccess, sendError, ERROR_CODES } from "../utils/response";
 import { z } from "zod";
 
 export const managerRoutes = Router();
-managerRoutes.use(resolveTenant, authenticate, requireRole("manager", "admin"));
+managerRoutes.use(resolveTenant, authenticate, requireTenant, requireRole("manager", "admin"));
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 8 * 1024 * 1024 },

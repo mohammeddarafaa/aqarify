@@ -1,12 +1,12 @@
 import { Router } from "express";
-import { resolveTenant, type TenantRequest } from "../middleware/tenant";
+import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
 import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { requireRole } from "../middleware/rbac";
 import { supabaseAdmin } from "../config/supabase";
 import { sendSuccess } from "../utils/response";
 
 export const activityLogRoutes = Router();
-activityLogRoutes.use(resolveTenant, authenticate, requireRole("manager", "admin"));
+activityLogRoutes.use(resolveTenant, authenticate, requireTenant, requireRole("manager", "admin"));
 
 // GET /api/v1/activity-logs
 activityLogRoutes.get("/", async (req: TenantRequest & AuthenticatedRequest, res, next) => {

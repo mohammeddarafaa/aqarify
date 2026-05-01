@@ -5,6 +5,9 @@ import { sendError, ERROR_CODES } from "../utils/response";
 export interface TenantRequest extends Request {
   tenantId?: string;
   tenantSlug?: string;
+  tenantLocale?: string;
+  tenantTimezone?: string;
+  tenantCurrency?: string;
 }
 
 export async function resolveTenant(
@@ -28,7 +31,7 @@ export async function resolveTenant(
 
   const { data: tenant, error } = await supabaseAdmin
     .from("tenants")
-    .select("id, slug, status")
+    .select("id, slug, status, default_locale, default_timezone, fallback_currency")
     .or(`slug.eq.${slug},custom_domain.eq.${host}`)
     .single();
 
@@ -43,6 +46,9 @@ export async function resolveTenant(
 
   req.tenantId = tenant.id;
   req.tenantSlug = tenant.slug;
+  req.tenantLocale = tenant.default_locale ?? "ar-EG";
+  req.tenantTimezone = tenant.default_timezone ?? "Africa/Cairo";
+  req.tenantCurrency = tenant.fallback_currency ?? "EGP";
   return next();
 }
 

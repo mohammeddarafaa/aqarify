@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { resolveTenant, type TenantRequest } from "../middleware/tenant";
+import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
 import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { requireRole } from "../middleware/rbac";
 import {
@@ -8,10 +8,12 @@ import {
   getInventoryReport,
   getAgentPerformanceReport,
 } from "../services/report.service";
+import { enforcePlanFeature } from "../middleware/planEnforcement";
 import { sendSuccess } from "../utils/response";
 
 export const reportRoutes = Router();
-reportRoutes.use(resolveTenant, authenticate, requireRole("manager", "admin"));
+reportRoutes.use(resolveTenant, authenticate, requireTenant, requireRole("manager", "admin"));
+reportRoutes.use(enforcePlanFeature("reports"));
 
 function extractDateRange(query: Record<string, unknown>) {
   return {

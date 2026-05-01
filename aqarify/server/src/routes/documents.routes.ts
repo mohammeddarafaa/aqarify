@@ -1,7 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { z } from "zod";
-import { resolveTenant, type TenantRequest } from "../middleware/tenant";
+import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
 import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { requireRole } from "../middleware/rbac";
 import { supabaseAdmin } from "../config/supabase";
@@ -9,7 +9,7 @@ import { sendSuccess, sendError, ERROR_CODES } from "../utils/response";
 import { logger } from "../utils/logger";
 
 export const documentRoutes = Router();
-documentRoutes.use(resolveTenant, authenticate);
+documentRoutes.use(resolveTenant, authenticate, requireTenant);
 const staffRoles = new Set(["agent", "manager", "admin", "super_admin"]);
 
 const upload = multer({

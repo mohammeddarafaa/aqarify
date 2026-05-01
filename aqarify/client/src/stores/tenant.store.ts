@@ -50,6 +50,9 @@ export interface Tenant {
   map_center_lat?: number | null;
   map_center_lng?: number | null;
   map_zoom?: number | null;
+  default_locale?: string;
+  default_timezone?: string;
+  fallback_currency?: string;
   payment_gateway?: string;
   bank_name?: string | null;
   bank_account_number?: string | null;

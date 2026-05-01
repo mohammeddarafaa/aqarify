@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { resolveTenant, type TenantRequest } from "../middleware/tenant";
+import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
 import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { supabaseAdmin } from "../config/supabase";
 import { sendSuccess, sendError, ERROR_CODES } from "../utils/response";
@@ -7,7 +7,7 @@ import { createPaymobPaymentKey } from "../services/paymob.service";
 import { decrypt } from "../utils/hmac";
 
 export const paymentRoutes = Router();
-paymentRoutes.use(resolveTenant, authenticate);
+paymentRoutes.use(resolveTenant, authenticate, requireTenant);
 const staffRoles = new Set(["agent", "manager", "admin", "super_admin"]);
 
 // POST /api/v1/payments/:id/pay-intent — Paymob for an installment (before GET /:id)
