@@ -6,7 +6,7 @@ import {
   InfoIcon,
   Loader2Icon,
 } from "lucide-react";
-import hotToast, { Toaster, type ToastOptions } from "react-hot-toast";
+import hotToast, { Toaster, type Renderable, type ToastOptions } from "react-hot-toast";
 import { cn } from "@/lib/utils";
 
 /** Extra options on top of react-hot-toast. */
@@ -42,7 +42,7 @@ const variantClass = {
   neutral: "!border-l-[3px] !border-l-[var(--color-border)] !pl-3.5",
 } as const;
 
-function renderBody(title: ReactNode, description?: string): ReactNode {
+function renderBody(title: ReactNode, description?: string): Renderable {
   if (!description) return title;
   return (
     <div className="flex flex-col gap-1">
@@ -143,9 +143,11 @@ export const toast = {
         success: (data) =>
           renderBody(
             typeof messages.success === "function" ? messages.success(data) : messages.success,
-          ),
+          ) as Renderable,
         error: (err) =>
-          renderBody(typeof messages.error === "function" ? messages.error(err) : messages.error),
+          renderBody(
+            typeof messages.error === "function" ? messages.error(err) : messages.error,
+          ) as Renderable,
       },
       hotOpts("neutral", 4800, rest),
     );

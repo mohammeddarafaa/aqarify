@@ -2,12 +2,14 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { BrowseFilters, Unit } from "@/features/browse/types";
 import type { ApiSuccess, PaginationMeta } from "@/types/api.types";
+import { useTenantSlug } from "@/hooks/use-tenant-slug";
 
 const LIMIT = 12;
 
 export function useUnitsQuery(filters: BrowseFilters) {
+  const tenantSlug = useTenantSlug();
   return useInfiniteQuery<{ units: Unit[]; meta: PaginationMeta }>({
-    queryKey: ["units", filters],
+    queryKey: ["units", tenantSlug, filters],
     initialPageParam: 1,
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({

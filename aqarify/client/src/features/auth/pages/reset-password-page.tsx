@@ -20,6 +20,8 @@ type FormData = z.infer<typeof schema>;
 
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
+  const { pathname, search } = useLocation();
+  const withTenant = (path: string) => appendTenantSearch(pathname, search, path);
   const [success, setSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({

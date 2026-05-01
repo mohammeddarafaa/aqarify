@@ -15,6 +15,8 @@ type FormData = z.infer<typeof schema>;
 export default function ForgotPasswordPage() {
   const [sent, setSent] = useState(false);
   const { sendPasswordReset, isLoading } = useAuth();
+  const { pathname, search } = useLocation();
+  const withTenant = (path: string) => appendTenantSearch(pathname, search, path);
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });

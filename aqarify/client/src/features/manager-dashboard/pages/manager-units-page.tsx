@@ -219,7 +219,7 @@ export default function ManagerUnitsPage() {
                 </div>
               )}
             </div>
-            <div className="flex items-end"><Button className="w-full" onClick={() => createUnit.mutate(createForm)} disabled={createUnit.isPending || !createForm.project_id || !createForm.unit_number}>حفظ الوحدة</Button></div>
+            <div className="flex items-end"><Button className="w-full" onClick={() => createUnit.mutate(createForm)} disabled={createUnit.isPending || uploadingCreate || !createForm.project_id || !createForm.unit_number}>حفظ الوحدة</Button></div>
           </div>
         )}
 

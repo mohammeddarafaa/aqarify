@@ -23,6 +23,7 @@ export function RouteErrorBoundary() {
       <p className="max-w-md text-sm text-muted-foreground">
         نعتذر، واجهنا مشكلة غير متوقعة. فريقنا أُبلغ بالخطأ وسيقوم بمعالجته.
       </p>
+      <p className="max-w-md text-xs text-muted-foreground">{message}</p>
       <p className="text-xs text-muted-foreground">
         رمز الخطأ: <span className="font-mono">{errorId}</span>
       </p>

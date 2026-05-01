@@ -16,7 +16,7 @@ import { useTenantStore } from "@/stores/tenant.store";
 import { useAuthStore } from "@/stores/auth.store";
 import { formatCurrency } from "@/lib/format";
 
-function buildCheckoutSchema(countryCode: string) {
+function buildCheckoutSchema() {
   return z.object({
     full_name: z.string().min(2, "Name is required"),
     email: z.string().email("Invalid email"),
@@ -62,7 +62,7 @@ export function CheckoutForm({
   const tenant = useTenantStore((s) => s.tenant);
   const countryCode = tenant?.country_code ?? "EG";
   const currency = tenant?.currency ?? "EGP";
-  const schema = useMemo(() => buildCheckoutSchema(countryCode), [countryCode]);
+  const schema = useMemo(() => buildCheckoutSchema(), []);
 
   const user = useAuthStore((s) => s.user);
   const {
