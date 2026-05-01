@@ -13,15 +13,23 @@ import {
   Skeleton,
 } from "@/components/ui-kit";
 import { useTenantStore } from "@/stores/tenant.store";
+import { useTenantUi } from "@/hooks/use-tenant-ui";
 import { appendTenantSearch } from "@/lib/tenant-path";
 import { CheckoutForm } from "../components/checkout-form";
 import { useCreateReservation } from "../hooks/use-reservation";
+
+function readApiErrorMessage(error: unknown): string | null {
+  if (typeof error !== "object" || !error) return null;
+  const maybeResponse = (error as { response?: { data?: { error?: { message?: string } } } }).response;
+  return maybeResponse?.data?.error?.message ?? null;
+}
 
 export default function CheckoutPage() {
   const { unitId } = useParams<{ unitId: string }>();
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
   const tenant = useTenantStore((s) => s.tenant);
+  const { appName } = useTenantUi();
   const isReadOnly = tenant?.status === "read_only";
   const { mutate, isPending } = useCreateReservation();
 
@@ -72,10 +80,8 @@ export default function CheckoutPage() {
             );
           }
         },
-        onError: (err: any) => {
-          toast.error(
-            err.response?.data?.error?.message ?? "Reservation failed. Please try again.",
-          );
+        onError: (err: unknown) => {
+          toast.error(readApiErrorMessage(err) ?? "Reservation failed. Please try again.");
         },
       },
     );
@@ -100,7 +106,7 @@ export default function CheckoutPage() {
     <>
       <Helmet>
         <title>
-          Reserve unit {unit.unit_number} | {tenant?.name ?? "Aqarify"}
+          Reserve unit {unit.unit_number} | {appName}
         </title>
       </Helmet>
       <div className="mx-auto max-w-2xl px-4 py-10">

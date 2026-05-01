@@ -2,6 +2,7 @@ import { Link, Outlet, useLocation } from "react-router-dom";
 import { AuroraBackground, Card, CardContent } from "@/components/ui-kit";
 import { useTenant } from "@/hooks/use-tenant";
 import { useTenantTheme } from "@/hooks/use-tenant-theme";
+import { useTenantUi } from "@/hooks/use-tenant-ui";
 import { useTenantStore } from "@/stores/tenant.store";
 import { appendTenantSearch } from "@/lib/tenant-path";
 
@@ -11,6 +12,7 @@ export default function AuthLayout() {
   const { pathname, search } = useLocation();
   const withTenant = (path: string) => appendTenantSearch(pathname, search, path);
   const tenant = useTenantStore((s) => s.tenant);
+  const { appName } = useTenantUi();
 
   return (
     <AuroraBackground className="min-h-screen">
@@ -30,10 +32,10 @@ export default function AuthLayout() {
             ) : (
               <div className="flex flex-col items-center leading-none">
                 <span className="text-lg font-bold uppercase tracking-widest text-foreground">
-                  {tenant?.name ?? "Aqarify"}
+                  {appName}
                 </span>
                 <span className="mt-0.5 text-[9px] font-medium uppercase tracking-[0.22em] text-muted-foreground">
-                  Real estate
+                  {tenant?.tenant_ui_config?.branding.tagline || "Real estate"}
                 </span>
               </div>
             )}

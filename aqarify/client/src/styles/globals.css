@@ -29,6 +29,9 @@
     /* Typography */
     --font-sans: 'Maison Neue', 'DM Sans', system-ui, sans-serif;
     --font-arabic: 'Cairo', 'Maison Neue', 'DM Sans', sans-serif;
+    --font-size-base: 16px;
+    --tenant-gradient: linear-gradient(#141414, #2a2a2a);
+    --sold-badge: none;
 
     /* Spacing scale for luxury feel */
     --section-gap: 7rem;
@@ -50,6 +53,7 @@
 
   html {
     font-family: var(--font-sans);
+    font-size: var(--font-size-base);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;

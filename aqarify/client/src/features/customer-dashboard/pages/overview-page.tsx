@@ -5,6 +5,7 @@ import { CalendarDays, CreditCard, Home, Phone } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth.store";
 import { useTenantStore } from "@/stores/tenant.store";
+import { useTenantUi } from "@/hooks/use-tenant-ui";
 import { appendTenantSearch } from "@/lib/tenant-path";
 import { Badge, Button, Skeleton } from "@/components/ui-kit";
 
@@ -25,6 +26,7 @@ type Reservation = {
 export default function CustomerOverviewPage() {
   const user = useAuthStore((s) => s.user);
   const tenant = useTenantStore((s) => s.tenant);
+  const { appName } = useTenantUi();
   const { pathname, search } = useLocation();
   const withTenant = (p: string) => appendTenantSearch(pathname, search, p);
 
@@ -53,7 +55,7 @@ export default function CustomerOverviewPage() {
   return (
     <>
       <Helmet>
-        <title>نظرتي — {tenant?.name ?? "Aqarify"}</title>
+        <title>نظرتي — {appName}</title>
       </Helmet>
       <div className="mx-auto max-w-4xl space-y-6 px-4 py-8">
         <div>

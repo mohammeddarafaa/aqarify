@@ -3,6 +3,7 @@ import { Helmet } from "react-helmet-async";
 import { AlertCircleIcon, RefreshCwIcon, CreditCardIcon } from "lucide-react";
 import { Alert, AlertDescription, Button, Card, CardContent } from "@/components/ui-kit";
 import { useTenantStore } from "@/stores/tenant.store";
+import { useTenantUi } from "@/hooks/use-tenant-ui";
 import { appendTenantSearch } from "@/lib/tenant-path";
 
 export default function PaymentFailurePage() {
@@ -11,12 +12,13 @@ export default function PaymentFailurePage() {
   const { pathname, search } = useLocation();
   const withTenantPath = (path: string) => appendTenantSearch(pathname, search, path);
   const tenant = useTenantStore((s) => s.tenant);
+  const { appName } = useTenantUi();
   const unitId = params.get("unit_id");
 
   return (
     <>
       <Helmet>
-        <title>Payment failed | {tenant?.name ?? "Aqarify"}</title>
+        <title>Payment failed | {appName}</title>
       </Helmet>
       <div className="flex min-h-screen items-center justify-center px-4">
         <Card className="w-full max-w-md rounded-2xl border-border shadow-sm">

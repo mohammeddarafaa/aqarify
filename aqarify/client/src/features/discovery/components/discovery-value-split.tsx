@@ -2,16 +2,22 @@ import { Link, useLocation } from "react-router-dom";
 import { motion } from "motion/react";
 import { Button, Separator } from "@/components/ui-kit";
 import { useTenantStore } from "@/stores/tenant.store";
+import { useTenantUi } from "@/hooks/use-tenant-ui";
 import { appendTenantSearch } from "@/lib/tenant-path";
-
-const SPLIT_IMAGE =
-  "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80";
+import { usePublicProjects } from "@/features/browse/hooks/use-public-projects";
 
 export function DiscoveryValueSplit() {
   const tenant = useTenantStore((s) => s.tenant);
+  const { appName, ui } = useTenantUi();
   const { pathname, search } = useLocation();
   const withTenant = (path: string) => appendTenantSearch(pathname, search, path);
-  const name = tenant?.name ?? "المطور";
+  const name = appName;
+  const { data: projects } = usePublicProjects();
+  const splitImage =
+    projects?.find((p) => p.gallery?.length)?.gallery?.[0] ??
+    projects?.find((p) => p.cover_image_url)?.cover_image_url ??
+    tenant?.logo_url ??
+    null;
 
   return (
     <section className="bg-white py-20">
@@ -24,11 +30,11 @@ export function DiscoveryValueSplit() {
         >
           <p className="label-overline mb-4 text-[var(--color-muted-foreground)]">حول المنصة</p>
           <h2 className="display-lg max-w-lg text-balance text-[#141414]">
-            أفضل طريقة لتجد وحدة تناسبك
+            {ui?.content.value_statement ?? "أفضل طريقة لتجد وحدة تناسبك"}
           </h2>
           <p className="mt-5 max-w-md text-[15px] leading-relaxed text-[#666666]">
             شفافية في الأسعار، تفاصيل الوحدات، ومتابعة الحجز من لوحة واحدة — بدون مفاجآت.
-            {name} يقدّم عروضه عبر Aqarify لتجربة حجز موحّدة.
+            {` ${name} يقدّم عروضه عبر بوابته الرقمية لتجربة حجز موحّدة.`}
           </p>
           <Separator className="my-8 max-w-md bg-[var(--color-border)]" />
           <ul className="space-y-3 text-sm text-[#444444]">
@@ -56,7 +62,13 @@ export function DiscoveryValueSplit() {
           className="relative"
         >
           <div className="aspect-[4/5] overflow-hidden rounded-[2rem] border border-[var(--color-border)] bg-[#f5f5f5] shadow-lg lg:aspect-square">
-            <img src={SPLIT_IMAGE} alt="" className="h-full w-full object-cover" />
+            {splitImage ? (
+              <img src={splitImage} alt={name} className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#f9fafb] to-[#e5e7eb]">
+                <span className="text-sm font-medium tracking-wide text-[#6b7280]">{name}</span>
+              </div>
+            )}
           </div>
           <div className="absolute -bottom-6 -start-6 hidden max-w-xs rounded-2xl border border-[var(--color-border)] bg-white p-5 shadow-xl sm:block">
             <p className="text-2xl font-bold text-[#141414]">100%</p>

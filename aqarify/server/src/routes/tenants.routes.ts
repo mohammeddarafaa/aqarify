@@ -12,6 +12,7 @@ const TENANT_BY_SLUG_SELECT_MIN = [
   "logo_url",
   "favicon_url",
   "theme_config",
+  "ui_config",
   "filter_schema",
   "contact_phone",
   "contact_email",

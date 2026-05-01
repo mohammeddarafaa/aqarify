@@ -12,6 +12,7 @@ import {
 import { Button as HeroButton } from "@heroui/react";
 import { usePublicProjects } from "@/features/browse/hooks/use-public-projects";
 import { useTenantStore } from "@/stores/tenant.store";
+import { useTenantUi } from "@/hooks/use-tenant-ui";
 import { appendTenantSearch } from "@/lib/tenant-path";
 
 export function DiscoveryFeaturedCarousel() {
@@ -20,6 +21,7 @@ export function DiscoveryFeaturedCarousel() {
   const { pathname, search } = useLocation();
   const withTenant = (path: string) => appendTenantSearch(pathname, search, path);
   const tenant = useTenantStore((s) => s.tenant);
+  const { appName, ui } = useTenantUi();
   const { data: projects, isLoading } = usePublicProjects();
   const list = (projects ?? []).slice(0, 12);
 
@@ -36,7 +38,7 @@ export function DiscoveryFeaturedCarousel() {
               مميز
             </p>
             <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-              مشاريع من {tenant?.name ?? "المطور"}
+              {ui?.content.featured_title ?? `مشاريع من ${appName}`}
             </h2>
             <p className="mt-2 max-w-lg text-sm text-white/55">
               اختر مشروعًا لعرض الوحدات المتاحة والحجز.
@@ -93,7 +95,8 @@ export function DiscoveryFeaturedCarousel() {
               const img =
                 p.cover_image_url ??
                 p.gallery?.[0] ??
-                `https://placehold.co/640x800/1a1a1a/888888?text=${encodeURIComponent(p.name)}`;
+                tenant?.logo_url ??
+                null;
               return (
                 <button
                   key={p.id}
@@ -103,11 +106,17 @@ export function DiscoveryFeaturedCarousel() {
                 >
                   <Card className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-none transition-transform duration-300 hover:-translate-y-1">
                     <div className="relative aspect-[4/5] overflow-hidden">
-                      <img
-                        src={img}
-                        alt=""
-                        className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                      />
+                      {img ? (
+                        <img
+                          src={img}
+                          alt={p.name}
+                          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#1f2937] to-[#111827]">
+                          <span className="px-4 text-center text-sm font-medium text-white/70">{p.name}</span>
+                        </div>
+                      )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
                       <span
                         className="absolute end-3 top-3 inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-black/30 text-white backdrop-blur-sm"

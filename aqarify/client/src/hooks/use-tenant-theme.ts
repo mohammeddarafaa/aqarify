@@ -13,7 +13,17 @@ export function useTenantTheme() {
       "--color-primary",
       "--color-secondary",
       "--color-accent",
+      "--color-gold",
+      "--color-gold-light",
+      "--primary",
+      "--secondary",
+      "--accent",
       "--font-family",
+      "--font-sans",
+      "--font-arabic",
+      "--font-size-base",
+      "--tenant-gradient",
+      "--sold-badge",
       "--radius-base",
       "--shadow-depth",
       "--spacing-scale",
@@ -21,21 +31,33 @@ export function useTenantTheme() {
     ];
 
     if (tenant?.theme_config) {
-      const {
-        primary_color,
-        secondary_color,
-        accent_color,
-        font_family,
-        radius_base,
-        shadow_depth,
-        spacing_scale,
-        font_scale,
-      } =
-        tenant.theme_config;
-      root.style.setProperty("--color-primary", primary_color);
-      root.style.setProperty("--color-secondary", secondary_color);
-      root.style.setProperty("--color-accent", accent_color);
-      root.style.setProperty("--font-family", font_family);
+      const theme = tenant.theme_config as Record<string, string | undefined>;
+      const primary = theme.primary_color ?? theme.pcolor1 ?? "#141414";
+      const secondary = theme.secondary_color ?? theme.pcolor2 ?? "#141414";
+      const accent = theme.accent_color ?? theme.pcolor3 ?? "#B8892E";
+      const fontFamily = theme.font_family ?? theme.fontFamilyNormal ?? "Cairo, sans-serif";
+      const gradient = theme.gradient_primary ?? theme.pcolorG;
+      const fontSize = theme.font_size ?? theme.fontSize;
+      const soldBadge = theme.sold_badge ?? theme.soldBadge;
+      const radius_base = theme.radius_base;
+      const shadow_depth = theme.shadow_depth;
+      const spacing_scale = theme.spacing_scale;
+      const font_scale = theme.font_scale;
+
+      root.style.setProperty("--color-primary", primary);
+      root.style.setProperty("--color-secondary", secondary);
+      root.style.setProperty("--color-accent", accent);
+      root.style.setProperty("--color-gold", accent);
+      root.style.setProperty("--color-gold-light", primary);
+      root.style.setProperty("--primary", primary);
+      root.style.setProperty("--secondary", secondary);
+      root.style.setProperty("--accent", accent);
+      root.style.setProperty("--font-family", fontFamily);
+      root.style.setProperty("--font-sans", fontFamily);
+      root.style.setProperty("--font-arabic", fontFamily);
+      if (fontSize) root.style.setProperty("--font-size-base", fontSize);
+      if (gradient) root.style.setProperty("--tenant-gradient", gradient);
+      if (soldBadge) root.style.setProperty("--sold-badge", soldBadge);
       if (radius_base) root.style.setProperty("--radius-base", radius_base);
       if (shadow_depth) root.style.setProperty("--shadow-depth", shadow_depth);
       if (spacing_scale) root.style.setProperty("--spacing-scale", spacing_scale);

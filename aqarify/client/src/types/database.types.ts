@@ -144,6 +144,27 @@ export type Database = {
           },
         ]
       }
+      cron_job_locks: {
+        Row: {
+          job_name: string
+          locked_by: string | null
+          locked_until: string
+          updated_at: string
+        }
+        Insert: {
+          job_name: string
+          locked_by?: string | null
+          locked_until: string
+          updated_at?: string
+        }
+        Update: {
+          job_name?: string
+          locked_by?: string | null
+          locked_until?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       documents: {
         Row: {
           created_at: string
@@ -209,6 +230,50 @@ export type Database = {
           },
         ]
       }
+      domain_events: {
+        Row: {
+          aggregate_id: string | null
+          aggregate_type: string | null
+          created_at: string
+          event_type: string
+          id: string
+          payload: Json
+          processed_at: string | null
+          status: string
+          tenant_id: string | null
+        }
+        Insert: {
+          aggregate_id?: string | null
+          aggregate_type?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          status?: string
+          tenant_id?: string | null
+        }
+        Update: {
+          aggregate_id?: string | null
+          aggregate_type?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          status?: string
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "domain_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       follow_ups: {
         Row: {
           agent_id: string
@@ -220,6 +285,7 @@ export type Database = {
           outcome: string | null
           potential_customer_id: string | null
           scheduled_at: string
+          status: string
           tenant_id: string
           type: Database["public"]["Enums"]["followup_type"]
         }
@@ -233,6 +299,7 @@ export type Database = {
           outcome?: string | null
           potential_customer_id?: string | null
           scheduled_at: string
+          status?: string
           tenant_id: string
           type?: Database["public"]["Enums"]["followup_type"]
         }
@@ -246,6 +313,7 @@ export type Database = {
           outcome?: string | null
           potential_customer_id?: string | null
           scheduled_at?: string
+          status?: string
           tenant_id?: string
           type?: Database["public"]["Enums"]["followup_type"]
         }
@@ -554,6 +622,7 @@ export type Database = {
           preferred_locations: Json | null
           source: Database["public"]["Enums"]["lead_source"]
           source_reservation_id: string | null
+          source_waitlist_id: string | null
           tenant_id: string
         }
         Insert: {
@@ -574,6 +643,7 @@ export type Database = {
           preferred_locations?: Json | null
           source?: Database["public"]["Enums"]["lead_source"]
           source_reservation_id?: string | null
+          source_waitlist_id?: string | null
           tenant_id: string
         }
         Update: {
@@ -594,6 +664,7 @@ export type Database = {
           preferred_locations?: Json | null
           source?: Database["public"]["Enums"]["lead_source"]
           source_reservation_id?: string | null
+          source_waitlist_id?: string | null
           tenant_id?: string
         }
         Relationships: [
@@ -616,6 +687,13 @@ export type Database = {
             columns: ["source_reservation_id"]
             isOneToOne: false
             referencedRelation: "reservations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "potential_customers_source_waitlist_id_fkey"
+            columns: ["source_waitlist_id"]
+            isOneToOne: false
+            referencedRelation: "waiting_list"
             referencedColumns: ["id"]
           },
           {
@@ -695,6 +773,7 @@ export type Database = {
           notes: string | null
           payment_method: string | null
           paymob_transaction_id: string | null
+          receipt_url: string | null
           reservation_fee_paid: number
           status: Database["public"]["Enums"]["reservation_status"]
           tenant_id: string
@@ -704,7 +783,7 @@ export type Database = {
         Insert: {
           agent_id?: string | null
           cancelled_at?: string | null
-          confirmation_number?: string
+          confirmation_number: string
           confirmed_at?: string | null
           created_at?: string
           customer_id: string
@@ -712,6 +791,7 @@ export type Database = {
           notes?: string | null
           payment_method?: string | null
           paymob_transaction_id?: string | null
+          receipt_url?: string | null
           reservation_fee_paid?: number
           status?: Database["public"]["Enums"]["reservation_status"]
           tenant_id: string
@@ -729,6 +809,7 @@ export type Database = {
           notes?: string | null
           payment_method?: string | null
           paymob_transaction_id?: string | null
+          receipt_url?: string | null
           reservation_fee_paid?: number
           status?: Database["public"]["Enums"]["reservation_status"]
           tenant_id?: string
@@ -814,9 +895,48 @@ export type Database = {
         }
         Relationships: []
       }
+      tenant_plugins: {
+        Row: {
+          config: Json
+          created_at: string
+          id: string
+          is_enabled: boolean
+          plugin_key: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          plugin_key: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          plugin_key?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_plugins_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_subscriptions: {
         Row: {
           amount_egp: number
+          billing_currency: string
           billing_cycle: Database["public"]["Enums"]["billing_cycle"]
           cancel_at_period_end: boolean
           created_at: string
@@ -832,6 +952,7 @@ export type Database = {
         }
         Insert: {
           amount_egp: number
+          billing_currency?: string
           billing_cycle?: Database["public"]["Enums"]["billing_cycle"]
           cancel_at_period_end?: boolean
           created_at?: string
@@ -847,6 +968,7 @@ export type Database = {
         }
         Update: {
           amount_egp?: number
+          billing_currency?: string
           billing_cycle?: Database["public"]["Enums"]["billing_cycle"]
           cancel_at_period_end?: boolean
           created_at?: string
@@ -885,20 +1007,39 @@ export type Database = {
           bank_name: string | null
           contact_email: string | null
           contact_phone: string | null
+          country_code: string
           created_at: string
+          currency: string
+          currency_symbol: string
           custom_domain: string | null
+          default_locale: string
+          default_timezone: string
+          email_from_address: string | null
+          email_from_name: string | null
+          enabled_features: Json
+          fallback_currency: string
           favicon_url: string | null
           filter_schema: Json
           id: string
           logo_url: string | null
+          map_center_lat: number | null
+          map_center_lng: number | null
+          map_zoom: number
           name: string
+          notification_templates: Json
+          payment_gateway: string
           paymob_api_key_enc: string | null
           paymob_hmac_secret_enc: string | null
-          paymob_integration_id: string | null
           paymob_iframe_id: string | null
+          paymob_integration_id: string | null
+          receipt_footer_text: string | null
+          receipt_primary_color: string | null
           slug: string
+          sms_sender_name: string | null
+          social_links: Json | null
           status: Database["public"]["Enums"]["tenant_status"]
           theme_config: Json
+          ui_config: Json
         }
         Insert: {
           address?: string | null
@@ -907,20 +1048,39 @@ export type Database = {
           bank_name?: string | null
           contact_email?: string | null
           contact_phone?: string | null
+          country_code?: string
           created_at?: string
+          currency?: string
+          currency_symbol?: string
           custom_domain?: string | null
+          default_locale?: string
+          default_timezone?: string
+          email_from_address?: string | null
+          email_from_name?: string | null
+          enabled_features?: Json
+          fallback_currency?: string
           favicon_url?: string | null
           filter_schema?: Json
           id?: string
           logo_url?: string | null
+          map_center_lat?: number | null
+          map_center_lng?: number | null
+          map_zoom?: number
           name: string
+          notification_templates?: Json
+          payment_gateway?: string
           paymob_api_key_enc?: string | null
           paymob_hmac_secret_enc?: string | null
-          paymob_integration_id?: string | null
           paymob_iframe_id?: string | null
+          paymob_integration_id?: string | null
+          receipt_footer_text?: string | null
+          receipt_primary_color?: string | null
           slug: string
+          sms_sender_name?: string | null
+          social_links?: Json | null
           status?: Database["public"]["Enums"]["tenant_status"]
           theme_config?: Json
+          ui_config?: Json
         }
         Update: {
           address?: string | null
@@ -929,20 +1089,39 @@ export type Database = {
           bank_name?: string | null
           contact_email?: string | null
           contact_phone?: string | null
+          country_code?: string
           created_at?: string
+          currency?: string
+          currency_symbol?: string
           custom_domain?: string | null
+          default_locale?: string
+          default_timezone?: string
+          email_from_address?: string | null
+          email_from_name?: string | null
+          enabled_features?: Json
+          fallback_currency?: string
           favicon_url?: string | null
           filter_schema?: Json
           id?: string
           logo_url?: string | null
+          map_center_lat?: number | null
+          map_center_lng?: number | null
+          map_zoom?: number
           name?: string
+          notification_templates?: Json
+          payment_gateway?: string
           paymob_api_key_enc?: string | null
           paymob_hmac_secret_enc?: string | null
-          paymob_integration_id?: string | null
           paymob_iframe_id?: string | null
+          paymob_integration_id?: string | null
+          receipt_footer_text?: string | null
+          receipt_primary_color?: string | null
           slug?: string
+          sms_sender_name?: string | null
+          social_links?: Json | null
           status?: Database["public"]["Enums"]["tenant_status"]
           theme_config?: Json
+          ui_config?: Json
         }
         Relationships: []
       }
@@ -963,6 +1142,8 @@ export type Database = {
           has_garden: boolean
           id: string
           installment_months: number
+          location_lat: number | null
+          location_lng: number | null
           price: number
           project_id: string
           reservation_fee: number
@@ -990,6 +1171,8 @@ export type Database = {
           has_garden?: boolean
           id?: string
           installment_months?: number
+          location_lat?: number | null
+          location_lng?: number | null
           price: number
           project_id: string
           reservation_fee?: number
@@ -1017,6 +1200,8 @@ export type Database = {
           has_garden?: boolean
           id?: string
           installment_months?: number
+          location_lat?: number | null
+          location_lng?: number | null
           price?: number
           project_id?: string
           reservation_fee?: number
@@ -1105,9 +1290,13 @@ export type Database = {
           customer_id: string
           expires_at: string | null
           id: string
+          max_budget: number | null
+          notes: string | null
           notification_prefs: Json
           notified_at: string | null
           position: number
+          preferred_floor: number | null
+          preferred_type: string | null
           status: Database["public"]["Enums"]["waitlist_status"]
           tenant_id: string
           unit_id: string
@@ -1117,9 +1306,13 @@ export type Database = {
           customer_id: string
           expires_at?: string | null
           id?: string
+          max_budget?: number | null
+          notes?: string | null
           notification_prefs?: Json
           notified_at?: string | null
           position: number
+          preferred_floor?: number | null
+          preferred_type?: string | null
           status?: Database["public"]["Enums"]["waitlist_status"]
           tenant_id: string
           unit_id: string
@@ -1129,9 +1322,13 @@ export type Database = {
           customer_id?: string
           expires_at?: string | null
           id?: string
+          max_budget?: number | null
+          notes?: string | null
           notification_prefs?: Json
           notified_at?: string | null
           position?: number
+          preferred_floor?: number | null
+          preferred_type?: string | null
           status?: Database["public"]["Enums"]["waitlist_status"]
           tenant_id?: string
           unit_id?: string
@@ -1160,6 +1357,41 @@ export type Database = {
           },
         ]
       }
+      webhook_events: {
+        Row: {
+          created_at: string
+          event_key: string
+          id: string
+          payload: Json
+          provider: string
+          tenant_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_key: string
+          id?: string
+          payload?: Json
+          provider: string
+          tenant_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_key?: string
+          id?: string
+          payload?: Json
+          provider?: string
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1181,7 +1413,13 @@ export type Database = {
       billing_cycle: "monthly" | "yearly"
       document_status: "pending" | "approved" | "rejected"
       document_type: "national_id" | "proof_of_address" | "contract" | "receipt"
-      followup_type: "call" | "visit" | "message" | "email"
+      followup_type:
+        | "call"
+        | "visit"
+        | "message"
+        | "email"
+        | "whatsapp"
+        | "other"
       lead_source:
         | "reservation_cancelled"
         | "waitlist_expired"
@@ -1202,7 +1440,12 @@ export type Database = {
       payment_type: "reservation_fee" | "down_payment" | "installment"
       plan_tier: "starter" | "growth" | "pro"
       platform_payment_status: "pending" | "succeeded" | "failed" | "refunded"
-      reservation_status: "pending" | "confirmed" | "cancelled" | "expired"
+      reservation_status:
+        | "pending"
+        | "confirmed"
+        | "cancelled"
+        | "expired"
+        | "rejected"
       subscription_status:
         | "pending_payment"
         | "active"
@@ -1223,6 +1466,8 @@ export type Database = {
         | "converted"
         | "expired"
         | "removed"
+        | "waiting"
+        | "cancelled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1356,7 +1601,7 @@ export const Constants = {
       billing_cycle: ["monthly", "yearly"],
       document_status: ["pending", "approved", "rejected"],
       document_type: ["national_id", "proof_of_address", "contract", "receipt"],
-      followup_type: ["call", "visit", "message", "email"],
+      followup_type: ["call", "visit", "message", "email", "whatsapp", "other"],
       lead_source: [
         "reservation_cancelled",
         "waitlist_expired",
@@ -1379,7 +1624,13 @@ export const Constants = {
       payment_type: ["reservation_fee", "down_payment", "installment"],
       plan_tier: ["starter", "growth", "pro"],
       platform_payment_status: ["pending", "succeeded", "failed", "refunded"],
-      reservation_status: ["pending", "confirmed", "cancelled", "expired"],
+      reservation_status: [
+        "pending",
+        "confirmed",
+        "cancelled",
+        "expired",
+        "rejected",
+      ],
       subscription_status: [
         "pending_payment",
         "active",
@@ -1402,6 +1653,8 @@ export const Constants = {
         "converted",
         "expired",
         "removed",
+        "waiting",
+        "cancelled",
       ],
     },
   },

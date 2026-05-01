@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { TenantUiConfig } from "@/lib/tenant-ui-config";
 
 export interface ThemeConfig {
   primary_color: string;
@@ -54,6 +55,8 @@ export interface Tenant {
   default_timezone?: string;
   fallback_currency?: string;
   payment_gateway?: string;
+  ui_config?: unknown;
+  tenant_ui_config?: TenantUiConfig;
   bank_name?: string | null;
   bank_account_number?: string | null;
   bank_account_holder?: string | null;

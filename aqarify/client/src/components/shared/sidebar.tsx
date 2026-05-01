@@ -2,6 +2,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useTenantStore } from "@/stores/tenant.store";
 import { useAuthStore } from "@/stores/auth.store";
+import { useTenantUi } from "@/hooks/use-tenant-ui";
 import { appendTenantSearch } from "@/lib/tenant-path";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -45,6 +46,7 @@ interface Props { isOpen: boolean; onClose: () => void }
 
 export function Sidebar({ isOpen, onClose }: Props) {
   const tenant = useTenantStore((s) => s.tenant);
+  const { appName } = useTenantUi();
   const user = useAuthStore((s) => s.user);
   const { pathname, search } = useLocation();
   const role = user?.role ?? "customer";
@@ -67,10 +69,10 @@ export function Sidebar({ isOpen, onClose }: Props) {
           ) : (
             <div className="flex flex-col leading-none">
               <span className="text-[13px] font-bold tracking-widest text-white uppercase">
-                {tenant?.name ?? "Aqarify"}
+                {appName}
               </span>
               <span className="text-[8px] font-medium tracking-[0.2em] text-white/40 uppercase mt-0.5">
-                Real Estate
+                {tenant?.tenant_ui_config?.branding.tagline || "Real Estate"}
               </span>
             </div>
           )}

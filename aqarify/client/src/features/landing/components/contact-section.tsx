@@ -1,9 +1,11 @@
 import { FadeInView } from "@/components/motion/fade-in-view";
 import { Phone, Mail, MapPin, MessageCircle } from "lucide-react";
 import { useTenantStore } from "@/stores/tenant.store";
+import { useTenantUi } from "@/hooks/use-tenant-ui";
 
 export function ContactSection() {
   const tenant = useTenantStore((s) => s.tenant);
+  const { ui } = useTenantUi();
   const phone = tenant?.contact_phone ?? "+201000000000";
   const waLink = `https://wa.me/${phone.replace(/\D/g, "")}`;
 
@@ -18,19 +20,20 @@ export function ContactSection() {
           {/* Left — info */}
           <FadeInView>
             <h2 className="display-lg text-white mb-8">
-              دعنا نساعدك
+              {ui?.content.contact_title ?? "دعنا نساعدك"}
               <br />
               في اختيارك.
             </h2>
             <p className="text-[15px] text-white/50 leading-relaxed mb-12 max-w-sm">
-              فريقنا جاهز للإجابة على جميع استفساراتك ومساعدتك في اختيار وحدتك المثالية.
+              {ui?.content.contact_description ??
+                "فريقنا جاهز للإجابة على جميع استفساراتك ومساعدتك في اختيار وحدتك المثالية."}
             </p>
 
             <div className="space-y-0 border-t border-white/10">
               {[
                 { icon: Phone, label: "اتصل بنا", value: phone, href: `tel:${phone}` },
                 { icon: MessageCircle, label: "واتساب", value: "تواصل عبر واتساب", href: waLink },
-                { icon: Mail, label: "البريد الإلكتروني", value: tenant?.contact_email ?? "info@aqarify.com", href: `mailto:${tenant?.contact_email}` },
+                { icon: Mail, label: "البريد الإلكتروني", value: tenant?.contact_email ?? "info@example.com", href: `mailto:${tenant?.contact_email ?? ""}` },
                 { icon: MapPin, label: "الموقع", value: tenant?.address ?? "القاهرة الجديدة، مصر", href: "#map" },
               ].map(({ icon: Icon, label, value, href }) => (
                 <a key={label} href={href} target={href.startsWith("http") ? "_blank" : undefined}

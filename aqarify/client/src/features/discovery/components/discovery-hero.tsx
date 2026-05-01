@@ -4,21 +4,25 @@ import { MapPin, Search, Star } from "lucide-react";
 import { Button, Card, CardContent, Avatar, AvatarFallback, ShimmeringText } from "@/components/ui-kit";
 import { Chip, Surface } from "@heroui/react";
 import { useTenantStore } from "@/stores/tenant.store";
+import { useTenantUi } from "@/hooks/use-tenant-ui";
 import { appendTenantSearch } from "@/lib/tenant-path";
 import { usePublicProjects } from "@/features/browse/hooks/use-public-projects";
 
-const HERO_IMAGE =
-  "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1600&q=80";
-
 export function DiscoveryHero() {
   const tenant = useTenantStore((s) => s.tenant);
+  const { appName, ui } = useTenantUi();
   const { pathname, search } = useLocation();
   const withTenant = (path: string) => appendTenantSearch(pathname, search, path);
-  const name = tenant?.name ?? "المطور";
+  const name = appName;
   const area = tenant?.address ?? "مصر";
 
   const { data: projects, isLoading: projectsLoading } = usePublicProjects();
   const projectCount = projects?.length ?? 0;
+  const heroImage =
+    projects?.find((p) => p.cover_image_url)?.cover_image_url ??
+    projects?.find((p) => p.gallery?.length)?.gallery?.[0] ??
+    tenant?.logo_url ??
+    null;
 
   const statPrimary = projectsLoading ? "—" : projectCount > 0 ? `${projectCount}` : "جديد";
   const statSecondary = "مصر";
@@ -56,9 +60,11 @@ export function DiscoveryHero() {
             transition={{ delay: 0.08, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             className="display-xl max-w-xl text-balance text-[#141414]"
           >
-            اكتشف مشاريعنا
+            {ui?.content.hero_title ?? "اكتشف مشاريعنا"}
             <br />
-            <span className="text-[#141414]/85">ثم وحداتك — احجز بخطوات واضحة</span>
+            <span className="text-[#141414]/85">
+              {ui?.content.hero_subtitle ?? "ثم وحداتك — احجز بخطوات واضحة"}
+            </span>
           </motion.h1>
 
           <motion.p
@@ -67,8 +73,8 @@ export function DiscoveryHero() {
             transition={{ delay: 0.15, duration: 0.45 }}
             className="mt-5 max-w-md text-[15px] leading-relaxed text-[#666666]"
           >
-            تصفّح المشاريع، قارن الأسعار والمساحات، واحجز عبر منصة موثوقة مع متابعة لحالة طلبك
-            في أي وقت.
+            {ui?.content.hero_description ??
+              "تصفّح المشاريع، قارن الأسعار والمساحات، واحجز عبر منصة موثوقة مع متابعة لحالة طلبك في أي وقت."}
           </motion.p>
 
           <motion.div
@@ -122,7 +128,7 @@ export function DiscoveryHero() {
             >
               <Avatar className="size-11 border border-[var(--color-border)]">
                 <AvatarFallback className="bg-[#141414] text-xs font-semibold text-white">
-                  AQ
+                  {name.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1 text-start">
@@ -146,7 +152,13 @@ export function DiscoveryHero() {
           className="order-1 lg:order-2"
         >
           <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] border border-[var(--color-border)] bg-[#f0f0f0] shadow-[0_24px_60px_-12px_rgba(0,0,0,0.18)] sm:aspect-[5/6]">
-            <img src={HERO_IMAGE} alt="" className="h-full w-full object-cover" />
+            {heroImage ? (
+              <img src={heroImage} alt={name} className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#f3f4f6] to-[#e5e7eb]">
+                <span className="text-sm font-medium tracking-wide text-[#6b7280]">{name}</span>
+              </div>
+            )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
             <div className="absolute bottom-5 start-5 end-5 sm:bottom-8 sm:start-8 sm:end-8">
               <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-white/80">

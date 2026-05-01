@@ -4,6 +4,7 @@ import { useTenantStore } from "@/stores/tenant.store";
 import { api } from "@/lib/api";
 import type { Tenant } from "@/stores/tenant.store";
 import { useTenantSlug } from "@/hooks/use-tenant-slug";
+import { resolveTenantUiConfig } from "@/lib/tenant-ui-config";
 
 export function useTenant() {
   const { setTenant, setLoading, clearTenant, tenant } = useTenantStore();
@@ -15,7 +16,8 @@ export function useTenant() {
       const res = await api.get<{ ok: boolean; data: Tenant }>(
         `/tenants/by-slug/${slug}`
       );
-      return res.data.data;
+      const tenant = res.data.data;
+      return { ...tenant, tenant_ui_config: resolveTenantUiConfig(tenant) };
     },
     enabled: !!slug,
     staleTime: 5 * 60 * 1000,
