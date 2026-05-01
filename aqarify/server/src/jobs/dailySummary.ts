@@ -2,6 +2,7 @@ import cron from "node-cron";
 import { supabaseAdmin } from "../config/supabase";
 import { sendNotification } from "../services/notification.service";
 import { logger } from "../utils/logger";
+import { withCronLock } from "./cronLock";
 
 async function sendDailySummaries() {
   const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
@@ -48,7 +49,7 @@ export function startDailySummaryCron() {
   // Run every day at 9 AM
   cron.schedule("0 9 * * *", async () => {
     logger.info("Running daily summary cron...");
-    await sendDailySummaries();
+    await withCronLock("daily_summary", 15 * 60, sendDailySummaries);
   });
   logger.info("Daily summary cron scheduled (daily 9AM)");
 }

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
 import { authenticate, optionalAuth, type AuthenticatedRequest } from "../middleware/auth";
 import { requireRole } from "../middleware/rbac";
+import { enforcePlanLimit } from "../middleware/planEnforcement";
 import { supabaseAdmin } from "../config/supabase";
 import { sendSuccess, sendError, ERROR_CODES } from "../utils/response";
 
@@ -43,7 +44,7 @@ const projectSchema = z.object({
 });
 
 // POST /api/v1/projects — manager+
-projectRoutes.post("/", authenticate, requireRole("manager", "admin"), async (req: TenantRequest & AuthenticatedRequest, res, next) => {
+projectRoutes.post("/", authenticate, requireRole("manager", "admin"), enforcePlanLimit("projects"), async (req: TenantRequest & AuthenticatedRequest, res, next) => {
   try {
     const parsed = projectSchema.safeParse(req.body);
     if (!parsed.success) return sendError(res, ERROR_CODES.VALIDATION_ERROR, "Invalid input", 400, parsed.error.flatten());

@@ -13,14 +13,17 @@ export async function createReservation(params: {
   paymentMethod: string;
   notes?: string;
 }) {
-  const { data: unit } = await supabaseAdmin
+  const { data: lockedUnit, error: lockError } = await supabaseAdmin
     .from("units")
-    .select("status, price, reservation_fee")
+    .update({ status: "reserved" })
     .eq("id", params.unitId)
     .eq("tenant_id", params.tenantId)
-    .single();
+    .eq("status", "available")
+    .select("id")
+    .maybeSingle();
 
-  if (!unit || unit.status !== "available") {
+  if (lockError) throw lockError;
+  if (!lockedUnit) {
     throw Object.assign(new Error("Unit not available"), { code: "UNIT_NOT_AVAILABLE" });
   }
 
@@ -35,20 +38,24 @@ export async function createReservation(params: {
     notes: params.notes,
   }).select().single();
 
-  if (error) throw error;
-
-  // Immediately lock the unit so no one else can reserve it concurrently
-  if (data) {
+  if (error) {
     await supabaseAdmin.from("units")
-      .update({ status: "reserved" })
+      .update({ status: "available" })
       .eq("id", params.unitId)
-      .eq("tenant_id", params.tenantId);
+      .eq("tenant_id", params.tenantId)
+      .eq("status", "reserved");
+    throw error;
   }
 
   return data;
 }
 
 export async function confirmReservation(reservationId: string, paymobTxId: string, feePaid: number) {
+  const { count: existingPayments } = await supabaseAdmin
+    .from("payments")
+    .select("*", { count: "exact", head: true })
+    .eq("reservation_id", reservationId);
+
   const { data, error } = await supabaseAdmin
     .from("reservations")
     .update({
@@ -58,10 +65,23 @@ export async function confirmReservation(reservationId: string, paymobTxId: stri
       confirmed_at: new Date().toISOString(),
     })
     .eq("id", reservationId)
+    .eq("status", "pending")
     .select("*, units(price, down_payment_pct, installment_months, unit_number), users!customer_id(full_name, phone, email)")
-    .single();
+    .maybeSingle();
 
   if (error) throw error;
+
+  if (!data) {
+    const { data: alreadyConfirmed, error: fetchErr } = await supabaseAdmin
+      .from("reservations")
+      .select("*, units(price, down_payment_pct, installment_months, unit_number), users!customer_id(full_name, phone, email)")
+      .eq("id", reservationId)
+      .maybeSingle();
+    if (fetchErr) throw fetchErr;
+    if (!alreadyConfirmed) throw new Error("Reservation not found");
+    logger.info(`Reservation ${reservationId} confirmation skipped (already processed)`);
+    return alreadyConfirmed;
+  }
 
   if (data) {
     const unit = (data as { units: { price: number; down_payment_pct: number; installment_months: number; unit_number: string } }).units;
@@ -82,20 +102,24 @@ export async function confirmReservation(reservationId: string, paymobTxId: stri
       };
     });
 
-    await supabaseAdmin.from("payments").insert([
-      {
-        tenant_id: data.tenant_id, reservation_id: reservationId,
-        customer_id: data.customer_id, type: "reservation_fee",
-        amount: feePaid, due_date: today.toISOString().split("T")[0],
-        status: "paid", paid_at: today.toISOString(),
-      },
-      {
-        tenant_id: data.tenant_id, reservation_id: reservationId,
-        customer_id: data.customer_id, type: "down_payment",
-        amount: downPayment, due_date: today.toISOString().split("T")[0], status: "pending",
-      },
-      ...installments,
-    ]);
+    if ((existingPayments ?? 0) === 0) {
+      await supabaseAdmin.from("payments").insert([
+        {
+          tenant_id: data.tenant_id, reservation_id: reservationId,
+          customer_id: data.customer_id, type: "reservation_fee",
+          amount: feePaid, due_date: today.toISOString().split("T")[0],
+          status: "paid", paid_at: today.toISOString(),
+        },
+        {
+          tenant_id: data.tenant_id, reservation_id: reservationId,
+          customer_id: data.customer_id, type: "down_payment",
+          amount: downPayment, due_date: today.toISOString().split("T")[0], status: "pending",
+        },
+        ...installments,
+      ]);
+    } else {
+      logger.info(`Skipping payment schedule generation for ${reservationId}; payments already exist`);
+    }
 
     // Auto-assign agent
     await autoAssignAgent(data.tenant_id, reservationId);

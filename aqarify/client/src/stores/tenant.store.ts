@@ -5,6 +5,10 @@ export interface ThemeConfig {
   secondary_color: string;
   accent_color: string;
   font_family: string;
+  radius_base?: string;
+  shadow_depth?: string;
+  spacing_scale?: string;
+  font_scale?: string;
 }
 
 export interface FilterSchema {

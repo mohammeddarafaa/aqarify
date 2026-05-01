@@ -32,6 +32,16 @@ webhookRoutes.post("/paymob/callback", async (req: Request, res: Response) => {
     const orderId: string = String(payload.merchant_order_id ?? payload.order?.id ?? "");
     const txId = String(payload.id);
     const amountCents = Number(payload.amount_cents ?? 0);
+    const eventKey = `${txId}:${orderId}:${String(payload.success ?? false)}`;
+    const { error: eventErr } = await supabaseAdmin.from("webhook_events").insert({
+      provider: "paymob",
+      event_key: eventKey,
+      payload,
+    });
+    if (eventErr && eventErr.code === "23505") {
+      logger.info(`Duplicate Paymob webhook ignored: ${eventKey}`);
+      return res.json({ received: true });
+    }
 
     const { data: reservation } = await supabaseAdmin
       .from("reservations")
@@ -122,6 +132,16 @@ webhookRoutes.post("/paymob/platform", async (req: Request, res: Response) => {
     );
     const txId = String(payload.id);
     const amountEgp = Number(payload.amount_cents ?? 0) / 100;
+    const eventKey = `platform:${txId}:${subscriptionId}:${String(payload.success ?? false)}`;
+    const { error: eventErr } = await supabaseAdmin.from("webhook_events").insert({
+      provider: "paymob_platform",
+      event_key: eventKey,
+      payload,
+    });
+    if (eventErr && eventErr.code === "23505") {
+      logger.info(`Duplicate platform webhook ignored: ${eventKey}`);
+      return res.json({ received: true });
+    }
 
     if (!subscriptionId) {
       logger.warn("Platform webhook missing merchant_order_id");

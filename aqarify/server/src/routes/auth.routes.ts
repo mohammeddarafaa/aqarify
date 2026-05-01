@@ -4,6 +4,7 @@ import { supabaseAdmin } from "../config/supabase";
 import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { resolveTenant, type TenantRequest } from "../middleware/tenant";
 import { sendSuccess, sendError, ERROR_CODES } from "../utils/response";
+import { decrypt, encrypt } from "../utils/hmac";
 
 export const authRoutes = Router();
 
@@ -51,6 +52,7 @@ const updateProfileSchema = z.object({
   full_name: z.string().optional(),
   phone: z.string().optional(),
   avatar_url: z.string().optional(),
+  national_id: z.string().min(5).max(64).optional(),
 });
 
 authRoutes.patch("/profile", authenticate, async (req: AuthenticatedRequest, res, next) => {
@@ -59,9 +61,14 @@ authRoutes.patch("/profile", authenticate, async (req: AuthenticatedRequest, res
     if (!parsed.success) {
       return sendError(res, ERROR_CODES.VALIDATION_ERROR, "Invalid input", 400);
     }
+    const patch = { ...parsed.data } as Record<string, unknown>;
+    if (typeof patch.national_id === "string" && patch.national_id.trim()) {
+      patch.national_id = encrypt(patch.national_id.trim());
+    }
+
     const { error } = await supabaseAdmin
       .from("users")
-      .update(parsed.data)
+      .update(patch)
       .eq("id", req.userId!);
 
     if (error) return sendError(res, ERROR_CODES.INTERNAL_ERROR, error.message, 500);
@@ -101,10 +108,26 @@ authRoutes.get("/session", resolveTenant, authenticate, async (
   try {
     const { data: user } = await supabaseAdmin
       .from("users")
-      .select("id, email, full_name, role, tenant_id, avatar_url, phone")
+      .select("id, email, full_name, role, tenant_id, avatar_url, phone, national_id")
       .eq("id", req.userId!)
       .single();
 
-    return sendSuccess(res, { user, tenant_id: req.tenantId });
+    const normalizedUser = user
+      ? {
+        ...user,
+        national_id:
+          typeof user.national_id === "string" && user.national_id.startsWith("v")
+            ? (() => {
+              try {
+                return decrypt(user.national_id);
+              } catch {
+                return null;
+              }
+            })()
+            : user.national_id,
+      }
+      : null;
+
+    return sendSuccess(res, { user: normalizedUser, tenant_id: req.tenantId });
   } catch (err) { return next(err); }
 });

@@ -3,6 +3,7 @@ import multer from "multer";
 import { resolveTenant, type TenantRequest } from "../middleware/tenant";
 import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { requireRole } from "../middleware/rbac";
+import { enforcePlanLimit } from "../middleware/planEnforcement";
 import { supabaseAdmin } from "../config/supabase";
 import { sendSuccess, sendError, ERROR_CODES } from "../utils/response";
 import { z } from "zod";
@@ -67,7 +68,7 @@ managerRoutes.get("/dashboard", async (req: TenantRequest & AuthenticatedRequest
       supabaseAdmin.from("units").select("status", { count: "exact" }).eq("tenant_id", tid),
       supabaseAdmin.from("reservations").select("status", { count: "exact" }).eq("tenant_id", tid),
       supabaseAdmin.from("payments").select("amount").eq("tenant_id", tid).eq("status", "paid"),
-      supabaseAdmin.from("potential_customers").select("stage", { count: "exact" }).eq("tenant_id", tid),
+      supabaseAdmin.from("potential_customers").select("negotiation_status", { count: "exact" }).eq("tenant_id", tid),
     ]);
 
     const unitStats = (units.data ?? []).reduce((acc: Record<string, number>, u: { status: string }) => {
@@ -79,8 +80,8 @@ managerRoutes.get("/dashboard", async (req: TenantRequest & AuthenticatedRequest
     }, {});
 
     const totalRevenue = (revenue.data ?? []).reduce((sum: number, p: { amount: number }) => sum + p.amount, 0);
-    const leadStats = (leads.data ?? []).reduce((acc: Record<string, number>, l: { stage: string }) => {
-      acc[l.stage] = (acc[l.stage] ?? 0) + 1; return acc;
+    const leadStats = (leads.data ?? []).reduce((acc: Record<string, number>, l: { negotiation_status: string }) => {
+      acc[l.negotiation_status] = (acc[l.negotiation_status] ?? 0) + 1; return acc;
     }, {});
 
     return sendSuccess(res, {
@@ -121,7 +122,7 @@ const inviteSchema = z.object({
   role: z.enum(["agent", "manager"]),
 });
 
-managerRoutes.post("/agents", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
+managerRoutes.post("/agents", enforcePlanLimit("users"), async (req: TenantRequest & AuthenticatedRequest, res, next) => {
   try {
     const parsed = inviteSchema.safeParse(req.body);
     if (!parsed.success) return sendError(res, ERROR_CODES.VALIDATION_ERROR, "Invalid input", 400);
@@ -198,7 +199,7 @@ const unitSchema = z.object({
   custom_attributes: z.record(z.string(), z.unknown()).optional(),
 });
 
-managerRoutes.post("/units", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
+managerRoutes.post("/units", enforcePlanLimit("units"), async (req: TenantRequest & AuthenticatedRequest, res, next) => {
   try {
     const parsed = unitSchema.safeParse(req.body);
     if (!parsed.success) return sendError(res, ERROR_CODES.VALIDATION_ERROR, "Invalid input", 400, parsed.error.flatten());

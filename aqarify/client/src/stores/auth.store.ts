@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 
 export type UserRole =
   | "super_admin"
@@ -23,6 +23,7 @@ export interface AuthUser {
 interface AuthState {
   user: AuthUser | null;
   accessToken: string | null;
+  tokenExpiresAt: number | null;
   isAuthenticated: boolean;
   setSession: (user: AuthUser, token: string) => void;
   clearSession: () => void;
@@ -32,22 +33,59 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set) => {
+      const decodeExp = (token: string): number | null => {
+        try {
+          const payload = JSON.parse(atob(token.split(".")[1] ?? ""));
+          const exp = Number(payload?.exp);
+          return Number.isFinite(exp) ? exp * 1000 : null;
+        } catch {
+          return null;
+        }
+      };
+      const isExpired = (expiresAt: number | null): boolean =>
+        typeof expiresAt === "number" && Date.now() >= expiresAt;
+
+      return {
       user: null,
       accessToken: null,
+      tokenExpiresAt: null,
       isAuthenticated: false,
-      setSession: (user, accessToken) =>
-        set({ user, accessToken, isAuthenticated: true }),
+      setSession: (user, accessToken) => {
+        const tokenExpiresAt = decodeExp(accessToken);
+        set({
+          user,
+          accessToken,
+          tokenExpiresAt,
+          isAuthenticated: !isExpired(tokenExpiresAt),
+        });
+      },
       clearSession: () =>
-        set({ user: null, accessToken: null, isAuthenticated: false }),
+        set({ user: null, accessToken: null, tokenExpiresAt: null, isAuthenticated: false }),
       updateUser: (updates) =>
         set((s) => ({ user: s.user ? { ...s.user, ...updates } : null })),
       updateToken: (accessToken) =>
-        set((s) => ({
-          accessToken,
-          isAuthenticated: !!accessToken && !!s.user,
-        })),
-    }),
-    { name: "aqarify-auth" }
+        set((s) => {
+          const tokenExpiresAt = decodeExp(accessToken);
+          return {
+            accessToken,
+            tokenExpiresAt,
+            isAuthenticated: !!accessToken && !!s.user && !isExpired(tokenExpiresAt),
+          };
+        }),
+    };
+    },
+    {
+      name: "aqarify-auth",
+      storage: createJSONStorage(() => sessionStorage),
+      onRehydrateStorage: () => (state) => {
+        if (!state?.accessToken) return;
+        if (typeof state.tokenExpiresAt === "number" && Date.now() >= state.tokenExpiresAt) {
+          state.clearSession();
+        } else {
+          state.isAuthenticated = !!state.user;
+        }
+      },
+    }
   )
 );

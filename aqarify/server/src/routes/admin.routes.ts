@@ -15,7 +15,7 @@ adminRoutes.get("/tenant", async (req: TenantRequest & AuthenticatedRequest, res
   try {
     const { data } = await supabaseAdmin.from("tenants")
       .select(
-        "id,name,slug,logo_url,favicon_url,theme_config,filter_schema,contact_email,contact_phone,address,social_links,bank_name,bank_account_number,bank_account_holder,currency,currency_symbol,country_code",
+        "id,name,slug,logo_url,favicon_url,theme_config,filter_schema,contact_email,contact_phone,address,social_links,bank_name,bank_account_number,bank_account_holder,currency,currency_symbol,country_code,email_from_address,email_from_name,sms_sender_name,notification_templates,receipt_footer_text,receipt_primary_color",
       )
       .eq("id", req.tenantId!).single();
     return sendSuccess(res, data);
@@ -28,6 +28,10 @@ const themeConfigSchema = z.object({
   secondary_color: hexColor,
   accent_color: hexColor,
   font_family: z.string().max(60),
+  radius_base: z.string().max(32).optional(),
+  shadow_depth: z.string().max(32).optional(),
+  spacing_scale: z.string().max(32).optional(),
+  font_scale: z.string().max(32).optional(),
 });
 
 const filterDefinitionSchema = z.object({
@@ -60,6 +64,15 @@ const tenantUpdateSchema = z.object({
   bank_name: z.string().optional(),
   bank_account_number: z.string().optional(),
   bank_account_holder: z.string().optional(),
+  email_from_address: z.string().email().optional(),
+  email_from_name: z.string().max(120).optional(),
+  sms_sender_name: z.string().max(11).optional(),
+  notification_templates: z.record(z.string(), z.object({
+    title: z.string().optional(),
+    body: z.string().optional(),
+  })).optional(),
+  receipt_footer_text: z.string().max(300).optional(),
+  receipt_primary_color: hexColor.optional(),
 });
 
 // PATCH /api/v1/admin/tenant — update settings
@@ -73,7 +86,8 @@ adminRoutes.patch("/tenant", async (req: TenantRequest & AuthenticatedRequest, r
 
     const simple: (keyof typeof b)[] = [
       "name", "logo_url", "favicon_url", "contact_email", "contact_phone", "address", "social_links",
-      "bank_name", "bank_account_number", "bank_account_holder",
+      "bank_name", "bank_account_number", "bank_account_holder", "email_from_address", "email_from_name",
+      "sms_sender_name", "notification_templates", "receipt_footer_text", "receipt_primary_color",
     ];
     for (const k of simple) {
       if (b[k] !== undefined) patch[k] = b[k];

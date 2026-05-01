@@ -69,6 +69,17 @@ app.use(helmet());
 const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? process.env.CLIENT_URL ?? "http://localhost:3000").split(",").map((s) => s.trim()).filter(Boolean);
 const rootDomain = process.env.ROOT_DOMAIN ?? "localhost";
 
+function rateLimitTenantKey(req: express.Request): string {
+  const slugFromHeader = String(req.headers["x-tenant-slug"] ?? "").trim().toLowerCase();
+  const host = String(req.headers.host ?? "").toLowerCase();
+  const subdomain = host.split(".")[0];
+  const slugFromSubdomain =
+    subdomain && !["www", "api", "localhost"].includes(subdomain) ? subdomain : "";
+  const slugFromQuery = typeof req.query.tenant === "string" ? req.query.tenant.toLowerCase() : "";
+  const tenantKey = slugFromHeader || slugFromSubdomain || slugFromQuery || "public";
+  return `${tenantKey}:${req.ip ?? "unknown"}`;
+}
+
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -83,10 +94,10 @@ app.use(
   }),
 );
 
-const limiter = rateLimit({ windowMs: 60_000, max: 300 });
-const authLimiter = rateLimit({ windowMs: 60_000, max: 10 });
-const publicLimiter = rateLimit({ windowMs: 60_000, max: 100 });
-const webhookLimiter = rateLimit({ windowMs: 60_000, max: 100 });
+const limiter = rateLimit({ windowMs: 60_000, max: 300, keyGenerator: rateLimitTenantKey });
+const authLimiter = rateLimit({ windowMs: 60_000, max: 10, keyGenerator: rateLimitTenantKey });
+const publicLimiter = rateLimit({ windowMs: 60_000, max: 100, keyGenerator: rateLimitTenantKey });
+const webhookLimiter = rateLimit({ windowMs: 60_000, max: 100, keyGenerator: rateLimitTenantKey });
 const rateJson = { ok: false as const, error: { code: "RATE_LIMITED", message: "Too many requests" } };
 const reservationLimiter = rateLimit({
   windowMs: 60_000,
@@ -95,6 +106,7 @@ const reservationLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => req.method === "GET",
+  keyGenerator: rateLimitTenantKey,
 });
 const waitlistLimiter = rateLimit({
   windowMs: 60_000,
@@ -103,6 +115,7 @@ const waitlistLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => req.method === "GET",
+  keyGenerator: rateLimitTenantKey,
 });
 const uploadLimiter = rateLimit({
   windowMs: 60_000,
@@ -111,6 +124,7 @@ const uploadLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => req.method === "GET",
+  keyGenerator: rateLimitTenantKey,
 });
 app.use("/webhooks", webhookLimiter);
 app.use("/api/v1/auth", authLimiter);
@@ -163,7 +177,7 @@ app.use(errorHandler);
 app.listen(PORT, () => {
   logger.info(`Aqarify API running on port ${PORT}`);
   // Start cron jobs
-  if (process.env.ENABLE_CRONS !== "false") {
+  if (process.env.ENABLE_CRONS !== "false" && process.env.CRON_PROCESS_ROLE !== "api") {
     startPaymentReminderCron();
     startWaitlistTimerCron();
     startDailySummaryCron();

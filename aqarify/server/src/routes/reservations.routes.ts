@@ -124,7 +124,12 @@ reservationRoutes.post("/", async (req: TenantRequest & AuthenticatedRequest, re
 
     return sendError(res, ERROR_CODES.VALIDATION_ERROR, "Unsupported payment method", 400);
   } catch (err: unknown) {
-    if (err instanceof Error && err.message === "UNIT_NOT_AVAILABLE") {
+    if (
+      typeof err === "object" &&
+      err !== null &&
+      "code" in err &&
+      (err as { code?: string }).code === "UNIT_NOT_AVAILABLE"
+    ) {
       return sendError(res, ERROR_CODES.UNIT_NOT_AVAILABLE, "Unit is not available", 409);
     }
     return next(err);

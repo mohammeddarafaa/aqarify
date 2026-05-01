@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { sendError, ERROR_CODES } from "../utils/response";
+import { logger } from "../utils/logger";
 
 export interface AuthenticatedRequest extends Request {
   userId?: string;
@@ -28,9 +29,13 @@ export async function authenticate(
   // Fetch user profile with role
   const { data: profile } = await supabaseAdmin
     .from("users")
-    .select("role, tenant_id")
+    .select("role, tenant_id, is_active")
     .eq("id", data.user.id)
     .single();
+
+  if (!profile?.is_active) {
+    return sendError(res, ERROR_CODES.AUTH_FORBIDDEN, "User account is disabled", 403);
+  }
 
   req.userId = data.user.id;
   req.userRole = profile?.role;
@@ -49,6 +54,24 @@ export async function authenticate(
 
   if (profile?.role === "super_admin") {
     req.tenantId = resolvedByHeader ?? userTenantId;
+    if (resolvedByHeader && resolvedByHeader !== userTenantId) {
+      await supabaseAdmin.from("activity_logs").insert({
+        tenant_id: resolvedByHeader,
+        user_id: data.user.id,
+        action: "super_admin_cross_tenant_access",
+        entity_type: "tenant",
+        entity_id: resolvedByHeader,
+        details: {
+          requested_tenant_id: resolvedByHeader,
+          original_tenant_id: userTenantId ?? null,
+          path: req.path,
+          method: req.method,
+        },
+        ip_address: req.ip,
+      }).then(({ error: auditError }) => {
+        if (auditError) logger.warn("Failed to write super_admin access audit log", auditError);
+      });
+    }
   } else {
     req.tenantId = userTenantId ?? resolvedByHeader;
   }

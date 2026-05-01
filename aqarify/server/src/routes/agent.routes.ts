@@ -36,13 +36,13 @@ agentRoutes.get("/stats", async (req: TenantRequest & AuthenticatedRequest, res,
       resStats.cancelled = resData.filter(r => r.status === "cancelled").length;
     }
 
-    let tLeads = supabaseAdmin.from("potential_customers").select("stage").eq("tenant_id", tenantId);
-    if (isAgent) tLeads = tLeads.eq("agent_id", agentId);
+    let tLeads = supabaseAdmin.from("potential_customers").select("negotiation_status").eq("tenant_id", tenantId);
+    if (isAgent) tLeads = tLeads.eq("assigned_agent_id", agentId);
     const { data: leadsData } = await tLeads;
     const leadsStats = { total: 0, new: 0 };
     if (leadsData) {
       leadsStats.total = leadsData.length;
-      leadsStats.new = leadsData.filter(l => l.stage === "new").length;
+      leadsStats.new = leadsData.filter(l => l.negotiation_status === "new").length;
     }
 
     const todayStr = new Date().toISOString().split("T")[0];

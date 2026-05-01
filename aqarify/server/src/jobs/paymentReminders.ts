@@ -2,6 +2,7 @@ import cron from "node-cron";
 import { supabaseAdmin } from "../config/supabase";
 import { sendNotification } from "../services/notification.service";
 import { logger } from "../utils/logger";
+import { withCronLock } from "./cronLock";
 
 async function runPaymentReminders() {
   const today = new Date().toISOString().split("T")[0];
@@ -50,7 +51,7 @@ export function startPaymentReminderCron() {
   // Run every day at 9 AM
   cron.schedule("0 9 * * *", async () => {
     logger.info("Running payment reminder cron...");
-    await runPaymentReminders();
+    await withCronLock("payment_reminders", 20 * 60, runPaymentReminders);
   });
   logger.info("Payment reminder cron scheduled (daily 9AM)");
 }

@@ -3,6 +3,7 @@ import { supabaseAdmin } from "../config/supabase";
 import { sendNotification } from "../services/notification.service";
 import { createLeadFromExpiredWaitlist } from "../services/leadGeneration.service";
 import { logger } from "../utils/logger";
+import { withCronLock } from "./cronLock";
 
 async function processExpiredWaitlistEntries() {
   const now = new Date().toISOString();
@@ -70,7 +71,7 @@ async function processExpiredWaitlistEntries() {
 export function startWaitlistTimerCron() {
   // Run every minute
   cron.schedule("* * * * *", async () => {
-    await processExpiredWaitlistEntries();
+    await withCronLock("waitlist_timer", 55, processExpiredWaitlistEntries);
   });
   logger.info("Waitlist timer cron scheduled (every minute)");
 }

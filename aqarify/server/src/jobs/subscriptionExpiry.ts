@@ -2,6 +2,7 @@ import cron from "node-cron";
 import { supabaseAdmin } from "../config/supabase";
 import { sendNotification } from "../services/notification.service";
 import { logger } from "../utils/logger";
+import { withCronLock } from "./cronLock";
 
 async function runSubscriptionExpiry() {
   const now = new Date().toISOString();
@@ -57,7 +58,7 @@ async function runSubscriptionExpiry() {
 export function startSubscriptionExpiryCron() {
   cron.schedule("0 3 * * *", async () => {
     logger.info("Running subscription expiry cron...");
-    await runSubscriptionExpiry();
+    await withCronLock("subscription_expiry", 20 * 60, runSubscriptionExpiry);
   });
   logger.info("Subscription expiry cron scheduled (daily 3AM)");
 }

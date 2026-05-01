@@ -50,11 +50,21 @@ export async function generateReceiptPDF(
         resolve(filePath);
       });
 
+      const tenantBrandPromise = supabaseAdmin
+        .from("tenants")
+        .select("name, receipt_footer_text, receipt_primary_color")
+        .eq("id", tenantId)
+        .maybeSingle();
+
+      void tenantBrandPromise.then(() => {
+        // noop to keep Promise alive for later await in rendering body
+      });
+
       // Header
       doc.fontSize(20).font("Helvetica-Bold").text(data.tenantName, { align: "center" });
       doc.fontSize(14).font("Helvetica").text("Payment Receipt", { align: "center" });
       doc.moveDown();
-      doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+      doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke("#141414");
       doc.moveDown();
 
       // Confirmation
@@ -80,14 +90,26 @@ export async function generateReceiptPDF(
       });
 
       doc.moveDown(2);
-      doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
-      doc.moveDown();
-      doc.fontSize(9).fillColor("#888").text(
-        "This is an official payment receipt. Please keep it for your records.",
-        { align: "center" }
-      );
-
-      doc.end();
+      tenantBrandPromise.then(({ data: tenantBrand }) => {
+        const primary = tenantBrand?.receipt_primary_color ?? "#141414";
+        const footer = tenantBrand?.receipt_footer_text
+          ?? "This is an official payment receipt. Please keep it for your records.";
+        const brandName = tenantBrand?.name ?? data.tenantName;
+        doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke(primary);
+        doc.moveDown();
+        doc.fontSize(9).fillColor("#888").text(footer, { align: "center" });
+        doc.moveDown(0.5);
+        doc.fontSize(9).fillColor(primary).text(brandName, { align: "center" });
+        doc.end();
+      }, () => {
+        doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+        doc.moveDown();
+        doc.fontSize(9).fillColor("#888").text(
+          "This is an official payment receipt. Please keep it for your records.",
+          { align: "center" }
+        );
+        doc.end();
+      });
     } catch (err) {
       logger.error("PDF generation error", err);
       resolve(null);
