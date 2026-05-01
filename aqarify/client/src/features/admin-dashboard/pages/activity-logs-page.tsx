@@ -40,22 +40,38 @@ export default function ActivityLogsPage() {
         <DataTableShell
           columns={[
             {
+              id: "user",
+              accessorFn: (row) => row.users?.full_name ?? row.users?.email ?? "—",
               header: "المستخدم",
               cell: ({ row }) =>
                 row.original.users?.full_name ?? row.original.users?.email ?? "—",
             },
-            { header: "الإجراء", cell: ({ row }) => row.original.action },
-            { header: "الكيان", cell: ({ row }) => row.original.entity_type },
             {
+              accessorKey: "action",
+              header: "الإجراء",
+              cell: ({ row }) => row.original.action,
+            },
+            {
+              accessorKey: "entity_type",
+              header: "الكيان",
+              cell: ({ row }) => row.original.entity_type,
+            },
+            {
+              accessorKey: "created_at",
               header: "التاريخ",
               cell: ({ row }) =>
                 new Date(row.original.created_at).toLocaleString("ar-EG"),
+              meta: {
+                csvValue: (row: LogItem) =>
+                  new Date(row.created_at).toLocaleString("ar-EG"),
+              },
             },
           ] satisfies ColumnDef<LogItem>[]}
           data={isLoading ? [] : filtered}
           searchValue={searchValue}
           onSearchChange={setSearchValue}
           searchPlaceholder="ابحث بالمستخدم أو الإجراء أو الكيان..."
+          exportFileName="activity-logs"
         />
       </div>
     </>

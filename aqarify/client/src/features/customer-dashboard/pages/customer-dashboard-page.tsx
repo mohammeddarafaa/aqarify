@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link, useLocation } from "react-router-dom";
 import { useMyReservations } from "@/features/reservation/hooks/use-reservation";
@@ -75,6 +76,19 @@ export default function CustomerDashboardPage() {
     },
   });
 
+  const totalPaidSum = useMemo(
+    () =>
+      payments
+        .filter((p) => p.status === "paid")
+        .reduce((sum, p) => sum + Number(p.amount), 0),
+    [payments],
+  );
+
+  const paidInstallmentCount = useMemo(
+    () => payments.filter((p) => p.status === "paid").length,
+    [payments],
+  );
+
   const upcomingPayments = payments
     .filter((p) => p.status === "pending" && new Date(p.due_date) >= new Date())
     .sort(
@@ -121,7 +135,14 @@ export default function CustomerDashboardPage() {
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard title="إجمالي حجوزاتي" value={reservations.length} icon={Home} />
-          <KpiCard title="إجمالي المدفوعات" value={payments.length} icon={CreditCard} />
+          <KpiCard
+            title="إجمالي ما دفعته"
+            value={`${totalPaidSum.toLocaleString("ar-EG")} ج.م`}
+            subtitle={
+              paidInstallmentCount > 0 ? `${paidInstallmentCount} دفعة مسجَّلة` : "لم تُسجَّل دفعات بعد"
+            }
+            icon={CreditCard}
+          />
           <KpiCard
             title="أفضل ترتيب انتظار"
             value={bestWaitlist ? `#${bestWaitlist.position}` : "—"}

@@ -169,8 +169,9 @@ export default function ManagerOverviewPage() {
       {
         id: "action",
         header: "Action",
+        enableHiding: false,
         cell: () => (
-          <button className="grid h-11 w-11 place-items-center rounded-full bg-background/80">
+          <button type="button" className="grid h-11 w-11 place-items-center rounded-full bg-background/80">
             <ArrowUpRight className="h-4 w-4" />
           </button>
         ),
@@ -252,6 +253,7 @@ export default function ManagerOverviewPage() {
           columns={columns}
           data={rows}
           searchPlaceholder="Search"
+          exportFileName="properties-overview"
           filters={[
             {
               key: "district",

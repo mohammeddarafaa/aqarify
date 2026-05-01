@@ -129,7 +129,9 @@ export default function ManagerProjectsPage() {
         <DataTableShell
           columns={[
             {
+              accessorKey: "cover_image_url",
               header: "الصورة",
+              meta: { omitFromCsv: true },
               cell: ({ row }) =>
                 row.original.cover_image_url ? (
                   <img
@@ -142,12 +144,14 @@ export default function ManagerProjectsPage() {
                 ),
             },
             {
+              accessorKey: "name",
               header: "الاسم",
               cell: ({ row }) => (
                 <span className="font-medium">{row.original.name}</span>
               ),
             },
             {
+              accessorKey: "address",
               header: "العنوان",
               cell: ({ row }) => (
                 <span className="text-muted-foreground">
@@ -155,10 +159,15 @@ export default function ManagerProjectsPage() {
                 </span>
               ),
             },
-            { header: "الحالة", cell: ({ row }) => row.original.status },
+            {
+              accessorKey: "status",
+              header: "الحالة",
+              cell: ({ row }) => row.original.status,
+            },
             {
               id: "actions",
               header: "إجراءات",
+              enableHiding: false,
               cell: ({ row }) => (
                 <button
                   onClick={() => {
@@ -182,6 +191,7 @@ export default function ManagerProjectsPage() {
           searchValue={searchValue}
           onSearchChange={setSearchValue}
           searchPlaceholder="ابحث باسم المشروع أو العنوان..."
+          exportFileName="projects"
           filters={[
             {
               key: "status",

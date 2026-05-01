@@ -158,13 +158,46 @@ export default function ManagerUnitsPage() {
         <DataTableShell
           columns={useMemo<ColumnDef<Unit>[]>(
             () => [
-              { header: "رقم الوحدة", cell: ({ row }) => <span className="font-medium">{row.original.unit_number}</span> },
-              { header: "المشروع", cell: ({ row }) => row.original.projects?.name ?? "—" },
-              { header: "النوع", cell: ({ row }) => row.original.type },
-              { header: "الطابق", cell: ({ row }) => row.original.floor },
-              { header: "المساحة", cell: ({ row }) => `${row.original.size_sqm} م²` },
-              { header: "السعر", cell: ({ row }) => `${row.original.price?.toLocaleString("ar-EG")} ج.م` },
               {
+                accessorKey: "unit_number",
+                header: "رقم الوحدة",
+                cell: ({ row }) => <span className="font-medium">{row.original.unit_number}</span>,
+              },
+              {
+                id: "project_name",
+                accessorFn: (row) => row.projects?.name ?? "—",
+                header: "المشروع",
+                cell: ({ row }) => row.original.projects?.name ?? "—",
+              },
+              {
+                accessorKey: "type",
+                header: "النوع",
+                cell: ({ row }) => row.original.type,
+              },
+              {
+                accessorKey: "floor",
+                header: "الطابق",
+                cell: ({ row }) => row.original.floor,
+              },
+              {
+                accessorKey: "size_sqm",
+                header: "المساحة",
+                cell: ({ row }) => `${row.original.size_sqm} م²`,
+                meta: {
+                  csvValue: (row: Unit) => `${row.size_sqm} م²`,
+                },
+              },
+              {
+                accessorKey: "price",
+                header: "السعر",
+                cell: ({ row }) => `${row.original.price?.toLocaleString("ar-EG")} ج.م`,
+                meta: {
+                  csvValue: (row: Unit) =>
+                    `${row.price?.toLocaleString("ar-EG") ?? ""} ج.م`,
+                },
+              },
+              {
+                accessorKey: "status",
                 header: "الحالة",
                 cell: ({ row }) => (
                   <Badge
@@ -172,17 +205,22 @@ export default function ManagerUnitsPage() {
                       row.original.status === "available"
                         ? "default"
                         : row.original.status === "reserved"
-                          ? "secondary"
+                          ? "warning"
                           : "outline"
                     }
                   >
                     {STATUS_LABELS[row.original.status] ?? row.original.status}
                   </Badge>
                 ),
+                meta: {
+                  csvValue: (row: Unit) =>
+                    STATUS_LABELS[row.status] ?? row.status,
+                },
               },
               {
                 id: "actions",
                 header: "إجراءات",
+                enableHiding: false,
                 cell: ({ row }) => (
                   <div className="flex gap-2">
                     <Select
@@ -219,6 +257,7 @@ export default function ManagerUnitsPage() {
           searchValue={searchValue}
           onSearchChange={setSearchValue}
           searchPlaceholder="ابحث برقم الوحدة أو المشروع أو النوع..."
+          exportFileName="units"
           filters={[
             {
               key: "status",

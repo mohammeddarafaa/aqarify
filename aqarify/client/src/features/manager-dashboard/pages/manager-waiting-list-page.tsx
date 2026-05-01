@@ -34,17 +34,36 @@ export default function ManagerWaitingListPage() {
         </h1>
         <DataTableShell
           columns={[
-            { header: "الترتيب", cell: ({ row }) => `#${row.original.position}` },
             {
+              accessorKey: "position",
+              header: "الترتيب",
+              cell: ({ row }) => `#${row.original.position}`,
+              meta: {
+                csvValue: (row: WaitingListEntry) => String(row.position),
+              },
+            },
+            {
+              id: "client_name",
+              accessorFn: (row) => row.users?.full_name ?? "—",
               header: "العميل",
               cell: ({ row }) => row.original.users?.full_name ?? "—",
             },
             {
+              id: "contact",
+              accessorFn: (row) =>
+                `${row.users?.phone ?? "—"} | ${row.users?.email ?? "—"}`,
               header: "التواصل",
               cell: ({ row }) =>
                 `${row.original.users?.phone ?? "—"} | ${row.original.users?.email ?? "—"}`,
             },
             {
+              id: "prefs",
+              accessorFn: (row) =>
+                `${row.preferred_type ? `نوع: ${row.preferred_type}` : "نوع: —"}${
+                  row.max_budget
+                    ? ` | ميزانية: ${row.max_budget.toLocaleString("ar-EG")} ج.م`
+                    : ""
+                }`,
               header: "النوع/الميزانية",
               cell: ({ row }) =>
                 `${row.original.preferred_type ? `نوع: ${row.original.preferred_type}` : "نوع: —"}${
@@ -54,17 +73,24 @@ export default function ManagerWaitingListPage() {
                 }`,
             },
             {
+              accessorKey: "created_at",
               header: "التاريخ",
               cell: ({ row }) =>
                 new Date(row.original.created_at).toLocaleDateString("ar-EG"),
+              meta: {
+                csvValue: (row: WaitingListEntry) =>
+                  new Date(row.created_at).toLocaleDateString("ar-EG"),
+              },
             },
             {
+              accessorKey: "notes",
               header: "ملاحظات",
               cell: ({ row }) => row.original.notes ?? "—",
             },
           ] satisfies ColumnDef<WaitingListEntry>[]}
           data={isLoading ? [] : data}
           searchPlaceholder="بحث..."
+          exportFileName="waiting-list"
         />
       </div>
     </>

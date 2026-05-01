@@ -2,12 +2,17 @@ import { Link, Outlet } from "react-router-dom";
 import { useTenant } from "@/hooks/use-tenant";
 import { useTenantTheme } from "@/hooks/use-tenant-theme";
 import { useSyncHomeTenantUrl } from "@/hooks/use-sync-home-tenant-url";
+import { useAuthStore } from "@/stores/auth.store";
 import { ReadOnlyBanner } from "@/components/shared/read-only-banner";
+import { isMobileBottomNavAudience, MobileBottomNav } from "@/components/shared/mobile-bottom-nav";
+import { cn } from "@/lib/utils";
 
 export default function PublicLayout() {
   useSyncHomeTenantUrl();
   const { isLoading, tenant, isTenantNotFound, slug } = useTenant();
   useTenantTheme();
+  const user = useAuthStore((s) => s.user);
+  const reserveBottomNavInset = isMobileBottomNavAudience(user);
 
   if (isLoading && !tenant) {
     return (
@@ -38,7 +43,15 @@ export default function PublicLayout() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <ReadOnlyBanner />
-      <Outlet />
+      <div
+        className={cn(
+          reserveBottomNavInset &&
+            "pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] lg:pb-0",
+        )}
+      >
+        <Outlet />
+      </div>
+      <MobileBottomNav />
     </div>
   );
 }

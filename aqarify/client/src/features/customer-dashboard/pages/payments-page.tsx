@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link, useLocation } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Download, CreditCard, Receipt } from "lucide-react";
-import { useMemo } from "react";
 import { DataTableShell } from "@/components/shared/data-table-shell";
 import { appendTenantSearch } from "@/lib/tenant-path";
 
@@ -125,26 +124,30 @@ export default function PaymentsPage() {
       <div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
         <h1 className="text-2xl font-bold tracking-tight">مدفوعاتي</h1>
 
-        {/* Summary cards */}
-        {!isLoading && payments.length > 0 && (
+        {/* مجموع الدفعات المسدّدة بحالة «مدفوع» في الجدول */}
+        {!isLoading && (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <div className="rounded-xl border bg-card p-4 space-y-1">
+            <div className="rounded-xl border border-primary/25 bg-primary/5 p-4 space-y-1">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Receipt className="h-4 w-4" /> إجمالي المدفوع
+                <Receipt className="h-4 w-4 text-primary" /> إجمالي ما دفعته
               </div>
-              <p className="text-xl font-bold">{totalPaid.toLocaleString("ar-EG")} ج.م</p>
+              <p className="text-xl font-bold tabular-nums">{totalPaid.toLocaleString("ar-EG")} ج.م</p>
+              <p className="text-[11px] text-muted-foreground">
+                مجموع المبالغ المسجَّلة «مدفوع» من جدولة الأقساط
+              </p>
             </div>
             <div className="rounded-xl border bg-card p-4 space-y-1">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <CreditCard className="h-4 w-4" /> المتبقي
+                <CreditCard className="h-4 w-4" /> المتبقي (قيد / متأخر)
               </div>
-              <p className="text-xl font-bold">{totalDue.toLocaleString("ar-EG")} ج.م</p>
+              <p className="text-xl font-bold tabular-nums">{totalDue.toLocaleString("ar-EG")} ج.م</p>
             </div>
             <div className="rounded-xl border bg-card p-4 space-y-1 col-span-2 sm:col-span-1">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                إجمالي الأقساط
+                بنود الجدولة
               </div>
-              <p className="text-xl font-bold">{payments.length}</p>
+              <p className="text-xl font-bold tabular-nums">{payments.length}</p>
+              <p className="text-[11px] text-muted-foreground">أسطر الدفعات في حسابك</p>
             </div>
           </div>
         )}
@@ -177,30 +180,44 @@ export default function PaymentsPage() {
           <DataTableShell
             columns={[
               {
+                accessorKey: "type",
                 header: "النوع",
                 cell: ({ row }) => (
                   <span className="font-medium">
                     {TYPE_LABEL[row.original.type] ?? row.original.type}
                   </span>
                 ),
+                meta: {
+                  csvValue: (row: Payment) => TYPE_LABEL[row.type] ?? row.type,
+                },
               },
               {
+                accessorKey: "status",
                 header: "الحالة",
                 cell: ({ row }) => (
                   <Badge variant={STATUS_MAP[row.original.status].variant}>
                     {STATUS_MAP[row.original.status].label}
                   </Badge>
                 ),
+                meta: {
+                  csvValue: (row: Payment) => STATUS_MAP[row.status].label,
+                },
               },
               {
+                accessorKey: "due_date",
                 header: "تاريخ الاستحقاق",
                 cell: ({ row }) => (
                   <span className="text-xs text-muted-foreground">
                     {new Date(row.original.due_date).toLocaleDateString("ar-EG")}
                   </span>
                 ),
+                meta: {
+                  csvValue: (row: Payment) =>
+                    new Date(row.due_date).toLocaleDateString("ar-EG"),
+                },
               },
               {
+                accessorKey: "paid_at",
                 header: "تاريخ الدفع",
                 cell: ({ row }) => (
                   <span className="text-xs text-muted-foreground">
@@ -209,18 +226,30 @@ export default function PaymentsPage() {
                       : "—"}
                   </span>
                 ),
+                meta: {
+                  csvValue: (row: Payment) =>
+                    row.paid_at
+                      ? new Date(row.paid_at).toLocaleDateString("ar-EG")
+                      : "—",
+                },
               },
               {
+                accessorKey: "amount",
                 header: "المبلغ",
                 cell: ({ row }) => (
                   <span className="font-medium">
                     {row.original.amount.toLocaleString("ar-EG")} ج.م
                   </span>
                 ),
+                meta: {
+                  csvValue: (row: Payment) =>
+                    `${row.amount.toLocaleString("ar-EG")} ج.م`,
+                },
               },
               {
                 id: "actions",
                 header: "إجراء",
+                enableHiding: false,
                 cell: ({ row }) => (
                   <div className="flex flex-wrap items-center justify-center gap-1">
                     {["pending", "overdue"].includes(row.original.status) ? (
@@ -251,6 +280,7 @@ export default function PaymentsPage() {
             searchValue={searchValue}
             onSearchChange={setSearchValue}
             searchPlaceholder="ابحث بالمعرّف أو النوع أو المبلغ..."
+            exportFileName="my-payments"
             filters={[
               {
                 key: "status",

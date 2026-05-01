@@ -132,8 +132,16 @@ export default function DocumentsPage() {
 
         <DataTableShell
           columns={[
-            { header: "النوع", cell: ({ row }) => TYPE_LABEL[row.original.type] ?? row.original.type },
             {
+              accessorKey: "type",
+              header: "النوع",
+              cell: ({ row }) => TYPE_LABEL[row.original.type] ?? row.original.type,
+              meta: {
+                csvValue: (row: Doc) => TYPE_LABEL[row.type] ?? row.type,
+              },
+            },
+            {
+              accessorKey: "status",
               header: "الحالة",
               cell: ({ row }) => (
                 <Badge
@@ -150,10 +158,16 @@ export default function DocumentsPage() {
               ),
             },
             {
+              accessorKey: "created_at",
               header: "التاريخ",
               cell: ({ row }) => new Date(row.original.created_at).toLocaleDateString("ar-EG"),
+              meta: {
+                csvValue: (row: Doc) =>
+                  new Date(row.created_at).toLocaleDateString("ar-EG"),
+              },
             },
             {
+              accessorKey: "file_url",
               header: "الملف",
               cell: ({ row }) => (
                 <a
@@ -171,6 +185,7 @@ export default function DocumentsPage() {
           searchValue={searchValue}
           onSearchChange={setSearchValue}
           searchPlaceholder="ابحث بنوع المستند..."
+          exportFileName="my-documents"
           filters={[
             {
               key: "status",

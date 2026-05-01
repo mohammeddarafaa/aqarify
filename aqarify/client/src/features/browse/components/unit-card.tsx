@@ -1,4 +1,5 @@
 import type React from "react";
+import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion } from "motion/react";
 import { HeartIcon, HomeIcon, Share2Icon } from "lucide-react";
@@ -9,11 +10,16 @@ import { appendTenantSearch } from "@/lib/tenant-path";
 import type { Unit } from "@/features/browse/types";
 import { useFavorites } from "@/features/browse/hooks/use-favorites";
 import { useFavoritesStore } from "@/stores/favorites.store";
+import { ShareModal } from "@/features/unit-details/components/share-modal";
 import { toast } from "@/lib/app-toast";
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   available: { label: "متاح", color: "text-emerald-600" },
-  reserved: { label: "محجوز", color: "text-amber-600" },
+  reserved: {
+    label: "محجوز",
+    color:
+      "border-0 bg-[color-mix(in_oklch,var(--status-warning)_20%,transparent)] text-[color-mix(in_oklch,var(--status-warning)_82%,var(--foreground))] ring-1 ring-[color-mix(in_oklch,var(--status-warning)_45%,transparent)] font-semibold",
+  },
   sold: { label: "مباع", color: "text-muted-foreground" },
   unavailable: { label: "غير متاح", color: "text-muted-foreground" },
 };
@@ -21,6 +27,7 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 interface UnitCardProps { unit: Unit; }
 
 export function UnitCard({ unit }: UnitCardProps) {
+  const [shareOpen, setShareOpen] = useState(false);
   const { pathname, search } = useLocation();
   const tenant = useTenantStore((s) => s.tenant);
   const cover = unit.gallery?.[0] ?? tenant?.logo_url ?? null;
@@ -29,31 +36,18 @@ export function UnitCard({ unit }: UnitCardProps) {
   const { isFavorite, toggleFavorite } = useFavorites();
   const isCompared = useFavoritesStore((s) => s.isCompared(unit.id));
 
-  const onShare = async (e: React.MouseEvent<HTMLButtonElement>) => {
+  const onShare = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    const url = `${window.location.origin}${unitHref}`;
-    const text = `Check out unit ${unit.unit_number} — ${url}`;
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: `Unit ${unit.unit_number}`, text, url });
-      } else {
-        await navigator.clipboard.writeText(url);
-        toast.success("Unit link copied");
-      }
-    } catch {
-      // ignore canceled shares
-    }
+    setShareOpen(true);
   };
 
   const onCompare = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
     const result = useFavoritesStore.getState().toggleCompareUnit(unit.id);
-    if (result.blocked) {
-      toast.info("You can compare up to 2 units.");
-    } else if (result.selected) {
-      toast.success("Unit added to compare.");
+    if (result.selected) {
+      toast.success("Added to compare.");
     }
   };
 
@@ -156,6 +150,14 @@ export function UnitCard({ unit }: UnitCardProps) {
           </div>
         </div>
       </Link>
+
+      <ShareModal
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        unitNumber={unit.unit_number}
+        unitId={unit.id}
+        price={unit.price}
+      />
     </motion.article>
   );
 }

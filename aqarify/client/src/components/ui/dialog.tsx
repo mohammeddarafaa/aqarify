@@ -39,7 +39,7 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 isolate z-50 bg-[color-mix(in_oklch,var(--color-foreground)_10%,transparent)] duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 isolate z-50 bg-[color-mix(in_oklch,var(--color-foreground)_10%,transparent)] duration-100 supports-backdrop-filter:backdrop-blur-xs data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
         className
       )}
       {...props}
@@ -58,11 +58,14 @@ function DialogContent({
   return (
     <DialogPortal>
       <DialogOverlay />
+      {/* translate3d(...) keeps true viewport center without tailwind-merge fighting -translate-x / -translate-y */}
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-          className
+          "fixed top-1/2 left-1/2 z-[51] grid w-full max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] gap-4 overflow-hidden rounded-xl border border-transparent bg-popover p-4 text-sm text-popover-foreground shadow-sm ring-1 ring-foreground/10 outline-none",
+          "[transform:translate3d(-50%,-50%,0)] sm:max-w-sm",
+          "duration-150 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
+          className,
         )}
         {...props}
       >
@@ -71,7 +74,7 @@ function DialogContent({
           <DialogPrimitive.Close data-slot="dialog-close" asChild>
             <Button
               variant="ghost"
-              className="absolute top-2 end-2"
+              className="absolute top-2 end-2 z-10"
               size="icon-sm"
             >
               <XIcon

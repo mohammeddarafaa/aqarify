@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { SlidersHorizontal, X, ChevronLeft } from "lucide-react";
+import { SlidersHorizontal, X, ChevronLeft, Scaling } from "lucide-react";
 import { Navbar } from "@/features/landing/components/navbar";
 import { FilterBar } from "@/features/browse/components/filter-bar";
 import { FilterPanelMobile } from "@/features/browse/components/filter-panel-mobile";
@@ -200,9 +200,22 @@ export default function BrowseUnitsPage() {
           </>
         )}
       </main>
+      {compareUnitIds.length > 0 && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-8 z-30 hidden justify-center px-4 md:flex">
+          <Link
+            to={withTenant("/compare")}
+            className="pointer-events-auto flex items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-sm font-medium shadow-lg transition-colors hover:bg-muted/80"
+          >
+            <Scaling className="size-4" aria-hidden />
+            Compare {compareUnitIds.length === 1 ? "1 unit" : `${compareUnitIds.length} units`}
+          </Link>
+        </div>
+      )}
+
       <MobilePropertyActions
         favoriteActive={favoriteIds.length > 0}
-        compareActive={compareUnitIds.length === 2}
+        compareActive={compareUnitIds.length > 0}
+        compareCount={compareUnitIds.length}
         onFavorite={() => {
           window.location.assign(withTenant("/favorites"));
         }}
@@ -220,12 +233,11 @@ export default function BrowseUnitsPage() {
           }
         }}
         onCompare={() => {
-          if (compareUnitIds.length !== 2) {
-            toast.info("Pick 2 units using the home icon on cards.");
+          if (compareUnitIds.length === 0) {
+            toast.info("Use the home icon on unit cards to add them to compare.");
             return;
           }
-          const ids = compareUnitIds.join(",");
-          window.location.assign(withTenant(`/compare?ids=${encodeURIComponent(ids)}`));
+          window.location.assign(withTenant("/compare"));
         }}
       />
     </>

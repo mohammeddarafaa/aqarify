@@ -39,11 +39,18 @@ export function FeaturedListingsSection() {
         ) : (
           <div className="grid gap-4 md:grid-cols-3">
             {list.slice(0, 6).map((project) => (
-              <button
+              <div
                 key={project.id}
+                role="button"
+                tabIndex={0}
+                className="cursor-pointer rounded-[2rem] text-start outline-none transition-opacity hover:opacity-[0.99] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 onClick={() => navigate(withTenant(`/browse/projects/${project.id}`))}
-                className="text-start"
-                type="button"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    navigate(withTenant(`/browse/projects/${project.id}`));
+                  }
+                }}
               >
                 <PropertyCard
                   title={project.name}
@@ -56,8 +63,9 @@ export function FeaturedListingsSection() {
                   beds={3}
                   baths={2}
                   area={1450}
+                  sharePath={withTenant(`/browse/projects/${project.id}`)}
                 />
-              </button>
+              </div>
             ))}
           </div>
         )}

@@ -51,14 +51,19 @@ export default function ReservationsPage() {
         <DataTableShell
           columns={[
             {
+              accessorKey: "id",
               header: "رقم الحجز",
               cell: ({ row }) => (
                 <span className="font-mono text-xs">
                   #{row.original.id.slice(0, 8).toUpperCase()}
                 </span>
               ),
+              meta: {
+                csvValue: (row: (typeof reservations)[number]) => row.id,
+              },
             },
             {
+              accessorKey: "status",
               header: "الحالة",
               cell: ({ row }) => {
                 const status = STATUS_MAP[row.original.status] ?? {
@@ -67,8 +72,13 @@ export default function ReservationsPage() {
                 };
                 return <Badge variant={status.variant}>{status.label}</Badge>;
               },
+              meta: {
+                csvValue: (row: (typeof reservations)[number]) =>
+                  STATUS_MAP[row.status]?.label ?? getReservationStatusLabel(row.status),
+              },
             },
             {
+              accessorKey: "created_at",
               header: "تاريخ الإنشاء",
               cell: ({ row }) => (
                 <span className="text-xs text-muted-foreground">
@@ -77,6 +87,7 @@ export default function ReservationsPage() {
               ),
             },
             {
+              accessorKey: "total_price",
               header: "المبلغ",
               cell: ({ row }) => (
                 <span className="font-medium">
@@ -86,6 +97,7 @@ export default function ReservationsPage() {
             },
           ] satisfies ColumnDef<(typeof reservations)[number]>[]}
           data={isLoading ? [] : filtered}
+          exportFileName="my-reservations"
           searchValue={searchValue}
           onSearchChange={setSearchValue}
           searchPlaceholder="ابحث برقم الحجز أو المبلغ..."

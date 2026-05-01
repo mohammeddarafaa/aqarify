@@ -4,6 +4,7 @@ import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { supabaseAdmin } from "../config/supabase";
 import { sendSuccess, sendError, ERROR_CODES } from "../utils/response";
 import { createPaymobPaymentKey } from "../services/paymob.service";
+import { backfillMissingPaymentSchedulesForCustomer } from "../services/reservation.service";
 import { decrypt } from "../utils/hmac";
 
 export const paymentRoutes = Router();
@@ -70,6 +71,9 @@ paymentRoutes.post("/:id/pay-intent", async (req: TenantRequest & AuthenticatedR
 // GET /api/v1/payments — customer payments
 paymentRoutes.get("/", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
   try {
+    if (req.userRole === "customer" && req.userId && req.tenantId) {
+      await backfillMissingPaymentSchedulesForCustomer(req.userId, req.tenantId);
+    }
     const { data } = await supabaseAdmin.from("payments")
       .select("*, reservations(units(unit_number, type))")
       .eq("customer_id", req.userId!).eq("tenant_id", req.tenantId!)

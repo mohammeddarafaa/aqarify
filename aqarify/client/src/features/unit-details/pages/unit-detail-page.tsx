@@ -11,6 +11,7 @@ import {
   CalendarIcon,
   DownloadIcon,
   CheckCircleIcon,
+  Scaling,
 } from "lucide-react";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,9 @@ export default function UnitDetailPage() {
   const [galleryIdx, setGalleryIdx] = useState(0);
   const { isFavorite, toggleFavorite } = useFavorites();
   const isCompared = useFavoritesStore((s) => (unit ? s.isCompared(unit.id) : false));
+  const compareUnitIds = useFavoritesStore((s) => s.compareUnitIds);
+  const compareCount = compareUnitIds.length;
+  const toggleCompareUnit = useFavoritesStore((s) => s.toggleCompareUnit);
 
   const reservedByMe = myReservations?.some(
     (r) => r.unit_id === unit?.id && ["pending", "confirmed"].includes(r.status)
@@ -288,6 +292,17 @@ export default function UnitDetailPage() {
                 </Button>
               )}
 
+              <Button
+                variant={isCompared ? "secondary" : "outline"}
+                className="w-full gap-2 rounded-full text-xs"
+                type="button"
+                onClick={() => {
+                  toggleCompareUnit(unit.id);
+                }}
+              >
+                {isCompared ? "Remove from compare" : "Add to compare"}
+              </Button>
+
               <div className="grid grid-cols-2 gap-2">
                 <Button
                   variant="outline"
@@ -349,20 +364,35 @@ export default function UnitDetailPage() {
         unitId={unit.id}
         unitNumber={unit.unit_number}
       />
+      {compareCount > 0 && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-8 z-30 hidden justify-center px-4 md:flex">
+          <Link
+            to={withTenant("/compare")}
+            className="pointer-events-auto flex items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-sm font-medium shadow-lg transition-colors hover:bg-muted/80"
+          >
+            <Scaling className="size-4" aria-hidden />
+            Compare {compareCount === 1 ? "1 unit" : `${compareCount} units`}
+          </Link>
+        </div>
+      )}
+
       <MobilePropertyActions
         favoriteActive={isFavorite(unit.id)}
-        compareActive={isCompared}
+        compareActive={compareCount > 0}
+        compareCount={compareCount}
         onFavorite={async () => {
           await toggleFavorite(unit.id);
         }}
         onShare={() => setShareOpen(true)}
         onCompare={() => {
-          const result = useFavoritesStore.getState().toggleCompareUnit(unit.id);
-          if (result.blocked) {
-            toast.info("You can compare up to 2 units.");
-          } else if (result.selected) {
-            toast.success("Unit added to compare.");
+          if (!isCompared) {
+            toggleCompareUnit(unit.id);
           }
+          if (useFavoritesStore.getState().compareUnitIds.length === 0) {
+            toast.info("Something went wrong updating compare.");
+            return;
+          }
+          window.location.assign(withTenant("/compare"));
         }}
       />
     </>

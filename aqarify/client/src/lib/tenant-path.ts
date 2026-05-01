@@ -27,6 +27,7 @@ function useTenantPathPrefixOnApex(targetPath: string): boolean {
     p === "/reset-password" ||
     p === "/browse" ||
     p.startsWith("/browse/projects/") ||
+    p === "/compare" ||
     p === "/discover"
   ) {
     return true;

@@ -92,7 +92,13 @@ export default function AgentReservationsPage() {
   const columns = useMemo<ColumnDef<ReservationItem>[]>(
     () => [
       {
+        id: "client",
+        accessorFn: (r) => r.users?.full_name ?? "—",
         header: "العميل",
+        meta: {
+          csvValue: (r: ReservationItem) =>
+            [r.users?.full_name ?? "—", r.users?.phone ?? "—"].join(" | "),
+        },
         cell: ({ row }) => {
           const r = row.original;
           return (
@@ -114,7 +120,15 @@ export default function AgentReservationsPage() {
         },
       },
       {
+        id: "unit",
+        accessorFn: (r) => r.units?.unit_number ?? "—",
         header: "الوحدة",
+        meta: {
+          csvValue: (r: ReservationItem) =>
+            [r.units?.unit_number ?? "—", r.units?.project?.name ?? r.units?.type ?? ""]
+              .filter(Boolean)
+              .join(" · "),
+        },
         cell: ({ row }) => {
           const r = row.original;
           return (
@@ -131,24 +145,39 @@ export default function AgentReservationsPage() {
         },
       },
       {
+        accessorKey: "status",
         header: "الحالة",
         cell: ({ row }) => (
           <Badge variant={getReservationStatusVariant(row.original.status)}>
             {getReservationStatusLabel(row.original.status)}
           </Badge>
         ),
+        meta: {
+          csvValue: (r: ReservationItem) => getReservationStatusLabel(r.status),
+        },
       },
       {
+        accessorKey: "created_at",
         header: "التاريخ",
         cell: ({ row }) => new Date(row.original.created_at).toLocaleDateString("ar-EG"),
+        meta: {
+          csvValue: (r: ReservationItem) =>
+            new Date(r.created_at).toLocaleDateString("ar-EG"),
+        },
       },
       {
+        accessorKey: "total_price",
         header: "المبلغ",
         cell: ({ row }) => `${row.original.total_price?.toLocaleString("ar-EG")} ج.م`,
+        meta: {
+          csvValue: (r: ReservationItem) =>
+            `${r.total_price?.toLocaleString("ar-EG") ?? ""} ج.م`,
+        },
       },
       {
         id: "actions",
         header: "",
+        enableHiding: false,
         cell: ({ row }) => {
           const r = row.original;
           return (
@@ -206,6 +235,7 @@ export default function AgentReservationsPage() {
           searchValue={searchValue}
           onSearchChange={setSearchValue}
           searchPlaceholder="ابحث باسم العميل أو الهاتف أو الوحدة..."
+          exportFileName="agent-reservations"
           filters={[{
             key: "status",
             label: "الحالة",

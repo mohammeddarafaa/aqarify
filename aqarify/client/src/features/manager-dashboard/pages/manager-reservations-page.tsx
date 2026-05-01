@@ -65,29 +65,43 @@ export default function ManagerReservationsPage() {
         <DataTableShell
           columns={[
             {
+              accessorFn: (row) => row.users?.full_name ?? "—",
+              id: "client_name",
               header: "العميل",
               cell: ({ row }) => row.original.users?.full_name ?? "—",
             },
             {
+              accessorFn: (row) => row.units?.unit_number ?? "—",
+              id: "unit_number",
               header: "الوحدة",
               cell: ({ row }) => row.original.units?.unit_number ?? "—",
             },
             {
+              accessorKey: "status",
               header: "الحالة",
               cell: ({ row }) => (
                 <Badge variant={getReservationStatusVariant(row.original.status)}>
                   {getReservationStatusLabel(row.original.status)}
                 </Badge>
               ),
+              meta: {
+                csvValue: (row: Reservation) => getReservationStatusLabel(row.status),
+              },
             },
             {
+              accessorKey: "total_price",
               header: "المبلغ",
               cell: ({ row }) =>
                 `${row.original.total_price?.toLocaleString("ar-EG")} ج.م`,
+              meta: {
+                csvValue: (row: Reservation) =>
+                  `${row.total_price?.toLocaleString("ar-EG") ?? ""} ج.م`,
+              },
             },
             {
               id: "actions",
               header: "إجراءات",
+              enableHiding: false,
               cell: ({ row }) => (
                 <div className="flex gap-2">
                   <Button
@@ -127,6 +141,7 @@ export default function ManagerReservationsPage() {
           searchValue={searchValue}
           onSearchChange={setSearchValue}
           searchPlaceholder="ابحث باسم العميل أو رقم الوحدة..."
+          exportFileName="manager-reservations"
           filters={[
             {
               key: "status",

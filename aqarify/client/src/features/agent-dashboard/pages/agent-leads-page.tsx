@@ -259,6 +259,8 @@ export default function AgentLeadsPage() {
           columns={useMemo<ColumnDef<Lead>[]>(
             () => [
               {
+                accessorFn: (row) => leadName(row),
+                id: "lead_name",
                 header: "العميل",
                 cell: ({ row }) => {
                   const lead = row.original;
@@ -275,6 +277,7 @@ export default function AgentLeadsPage() {
                 },
               },
               {
+                accessorKey: "phone",
                 header: "الهاتف",
                 cell: ({ row }) => (
                   <a
@@ -287,20 +290,27 @@ export default function AgentLeadsPage() {
                 ),
               },
               {
+                accessorFn: (row) => getLeadStage(row),
+                id: "stage",
                 header: "المرحلة",
                 cell: ({ row }) => (
                   <Badge variant="outline">
                     {getLeadStageLabel(getLeadStage(row.original))}
                   </Badge>
                 ),
+                meta: {
+                  csvValue: (row: Lead) => getLeadStageLabel(getLeadStage(row)),
+                },
               },
               {
+                accessorKey: "source",
                 header: "المصدر",
                 cell: ({ row }) => row.original.source || "—",
               },
               {
                 id: "actions",
                 header: "إجراءات",
+                enableHiding: false,
                 cell: ({ row }) => {
                   const lead = row.original;
                   return (
@@ -361,6 +371,7 @@ export default function AgentLeadsPage() {
           searchValue={search}
           onSearchChange={setSearch}
           searchPlaceholder="بحث بالاسم أو الهاتف..."
+          exportFileName="leads"
           filters={[
             {
               key: "stage",

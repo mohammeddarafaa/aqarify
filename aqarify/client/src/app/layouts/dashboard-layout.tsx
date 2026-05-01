@@ -7,14 +7,15 @@ import { useAuthStore } from "@/stores/auth.store";
 import { Sidebar } from "@/components/shared/sidebar";
 import { Topbar } from "@/components/shared/topbar";
 import { ReadOnlyBanner } from "@/components/shared/read-only-banner";
-import { MobileBottomNav } from "@/components/shared/mobile-bottom-nav";
+import { isMobileBottomNavAudience, MobileBottomNav } from "@/components/shared/mobile-bottom-nav";
 import { appendTenantSearch } from "@/lib/tenant-path";
 
 export default function DashboardLayout() {
   useSyncHomeTenantUrl();
   const { isLoading } = useTenant();
   useTenantTheme();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
+  const reserveBottomNavInset = isMobileBottomNavAudience(user);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { pathname, search } = useLocation();
 
@@ -35,7 +36,13 @@ export default function DashboardLayout() {
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar onMenuClick={() => setSidebarOpen(true)} />
         <ReadOnlyBanner />
-        <main className="flex-1 overflow-y-auto p-4 pb-24 sm:p-6 lg:pb-6">
+        <main
+          className={
+            reserveBottomNavInset
+              ? "flex-1 overflow-y-auto p-4 pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] sm:p-6 lg:pb-6"
+              : "flex-1 overflow-y-auto p-4 sm:p-6 lg:pb-6"
+          }
+        >
           <Outlet />
         </main>
         <MobileBottomNav />

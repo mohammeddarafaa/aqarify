@@ -174,6 +174,111 @@ export async function confirmReservation(reservationId: string, paymobTxId: stri
   return data;
 }
 
+/**
+ * Confirmed reservations should always have a payment schedule. If status was set to
+ * `confirmed` without running `confirmReservation` (seed, SQL, legacy path), inserts
+ * the same rows so customers see مدفوعاتي.
+ */
+export async function backfillMissingPaymentSchedulesForCustomer(
+  customerId: string,
+  tenantId: string,
+): Promise<void> {
+  const { data: reservations, error: listErr } = await supabaseAdmin
+    .from("reservations")
+    .select("id")
+    .eq("customer_id", customerId)
+    .eq("tenant_id", tenantId)
+    .eq("status", "confirmed");
+
+  if (listErr || !reservations?.length) return;
+
+  for (const row of reservations) {
+    await ensurePaymentScheduleForReservationIfMissing(row.id);
+  }
+}
+
+async function ensurePaymentScheduleForReservationIfMissing(reservationId: string): Promise<void> {
+  const { count, error: countErr } = await supabaseAdmin
+    .from("payments")
+    .select("*", { count: "exact", head: true })
+    .eq("reservation_id", reservationId);
+
+  if (countErr) return;
+  if ((count ?? 0) > 0) return;
+
+  const { data: res, error: fetchErr } = await supabaseAdmin
+    .from("reservations")
+    .select("*, units(price, down_payment_pct, installment_months, unit_number)")
+    .eq("id", reservationId)
+    .maybeSingle();
+
+  if (fetchErr || !res || res.status !== "confirmed") return;
+
+  const unit = res.units as {
+    price: number;
+    down_payment_pct: number;
+    installment_months: number;
+    unit_number: string;
+  } | null;
+
+  if (!unit || unit.price == null || Number.isNaN(Number(unit.price))) {
+    logger.warn(`backfill payments skipped: reservation ${reservationId} has no usable unit price`);
+    return;
+  }
+
+  const feePaid = Number(res.reservation_fee_paid ?? 0);
+  const downPayment = (Number(unit.price) * (unit.down_payment_pct ?? 10)) / 100;
+  const remaining = Number(unit.price) - downPayment;
+  const months = unit.installment_months ?? 48;
+  const monthly = remaining / months;
+  const anchor = res.confirmed_at
+    ? new Date(res.confirmed_at as string)
+    : new Date(res.created_at as string);
+
+  const installments = Array.from({ length: months }, (_, i) => {
+    const due = new Date(anchor);
+    due.setMonth(due.getMonth() + i + 1);
+    return {
+      tenant_id: res.tenant_id as string,
+      reservation_id: reservationId,
+      customer_id: res.customer_id as string,
+      type: "installment" as const,
+      amount: monthly,
+      due_date: due.toISOString().split("T")[0],
+      status: "pending" as const,
+    };
+  });
+
+  const { error: insertErr } = await supabaseAdmin.from("payments").insert([
+    {
+      tenant_id: res.tenant_id,
+      reservation_id: reservationId,
+      customer_id: res.customer_id,
+      type: "reservation_fee",
+      amount: feePaid,
+      due_date: anchor.toISOString().split("T")[0],
+      status: feePaid > 0 ? ("paid" as const) : ("pending" as const),
+      paid_at: feePaid > 0 ? anchor.toISOString() : null,
+    },
+    {
+      tenant_id: res.tenant_id,
+      reservation_id: reservationId,
+      customer_id: res.customer_id,
+      type: "down_payment",
+      amount: downPayment,
+      due_date: anchor.toISOString().split("T")[0],
+      status: "pending" as const,
+    },
+    ...installments,
+  ]);
+
+  if (insertErr) {
+    logger.error(`backfill payments insert failed for ${reservationId}`, insertErr);
+    return;
+  }
+  logger.info(`Backfilled payment schedule for confirmed reservation ${reservationId}`);
+}
+
 export async function cancelReservation(reservationId: string, tenantId: string, cancelledBy: string) {
   const { data } = await supabaseAdmin.from("reservations")
     .update({ status: "cancelled", cancelled_at: new Date().toISOString() })

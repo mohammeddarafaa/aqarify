@@ -131,6 +131,41 @@ unitRoutes.get("/", async (req: TenantRequest, res, next) => {
   } catch (err) { return next(err); }
 });
 
+/** Batch fetch units for compare (GET so read_only tenants keep public browse). Ordered to match `ids`. */
+const UUID_IN_QUERY = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+unitRoutes.get("/by-ids", async (req: TenantRequest, res, next) => {
+  try {
+    const q = req.query.ids;
+    const raw = typeof q === "string" ? q : Array.isArray(q) && typeof q[0] === "string" ? q[0] : "";
+    const tokens = raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const parsedIds = [...new Set(tokens.filter((t) => UUID_IN_QUERY.test(t)))].slice(0, 250);
+    if (parsedIds.length === 0) {
+      return sendSuccess(res, []);
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("units")
+      .select("*")
+      .eq("tenant_id", req.tenantId!)
+      .in("id", parsedIds);
+
+    if (error) throw error;
+
+    const byId = new Map((data ?? []).map((u) => [u.id, u]));
+    const ordered = parsedIds.flatMap((id) => {
+      const u = byId.get(id);
+      return u ? [u] : [];
+    });
+    return sendSuccess(res, ordered);
+  } catch (err) {
+    return next(err);
+  }
+});
+
 const scheduleVisitSchema = z.object({
   scheduled_at: z.string().min(1),
   phone: z.string().min(8),

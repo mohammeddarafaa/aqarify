@@ -105,18 +105,21 @@ export default function ManagerAgentsPage() {
         <DataTableShell
           columns={[
             {
+              accessorKey: "full_name",
               header: "الاسم",
               cell: ({ row }) => (
                 <span className="font-medium">{row.original.full_name}</span>
               ),
             },
             {
+              accessorKey: "email",
               header: "البريد",
               cell: ({ row }) => (
                 <span className="text-muted-foreground">{row.original.email}</span>
               ),
             },
             {
+              accessorKey: "phone",
               header: "الهاتف",
               cell: ({ row }) => (
                 <span className="text-muted-foreground">
@@ -125,6 +128,7 @@ export default function ManagerAgentsPage() {
               ),
             },
             {
+              accessorKey: "role",
               header: "الدور",
               cell: ({ row }) => (
                 <Badge variant="outline">
@@ -133,12 +137,17 @@ export default function ManagerAgentsPage() {
                     : "موظف مبيعات"}
                 </Badge>
               ),
+              meta: {
+                csvValue: (row: TeamUser) =>
+                  row.role === "manager" ? "مدير مبيعات" : "موظف مبيعات",
+              },
             },
           ] satisfies ColumnDef<TeamUser>[]}
           data={isLoading ? [] : filteredUsers}
           searchValue={searchValue}
           onSearchChange={setSearchValue}
           searchPlaceholder="ابحث بالاسم أو البريد أو الهاتف..."
+          exportFileName="team-members"
           filters={[
             {
               key: "role",

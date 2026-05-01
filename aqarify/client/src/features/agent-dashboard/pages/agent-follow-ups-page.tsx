@@ -272,19 +272,32 @@ export default function AgentFollowUpsPage() {
         <DataTableShell
           columns={[
             {
+              id: "lead",
+              accessorFn: (row) => leadDisplayName(row.potential_customers),
               header: "العميل",
               cell: ({ row }) => leadDisplayName(row.original.potential_customers),
             },
             {
+              accessorKey: "type",
               header: "النوع",
               cell: ({ row }) => (TYPE_META[row.original.type] ?? TYPE_META.other).label,
+              meta: {
+                csvValue: (row: FollowUp) =>
+                  (TYPE_META[row.type] ?? TYPE_META.other).label,
+              },
             },
             {
+              accessorKey: "scheduled_at",
               header: "الموعد",
               cell: ({ row }) =>
                 new Date(row.original.scheduled_at).toLocaleString("ar-EG"),
+              meta: {
+                csvValue: (row: FollowUp) =>
+                  new Date(row.scheduled_at).toLocaleString("ar-EG"),
+              },
             },
             {
+              accessorKey: "status",
               header: "الحالة",
               cell: ({ row }) => {
                 const f = row.original;
@@ -309,10 +322,28 @@ export default function AgentFollowUpsPage() {
                   </Badge>
                 );
               },
+              meta: {
+                csvValue: (row: FollowUp) => {
+                  const overdueFlag =
+                    row.status === "scheduled" &&
+                    new Date(row.scheduled_at) < new Date();
+                  return row.status === "completed"
+                    ? "مكتملة"
+                    : overdueFlag
+                      ? "متأخرة"
+                      : "قادمة";
+                },
+              },
+            },
+            {
+              accessorKey: "notes",
+              header: "ملاحظات",
+              cell: ({ row }) => row.original.notes ?? "—",
             },
             {
               id: "actions",
               header: "إجراء",
+              enableHiding: false,
               cell: ({ row }) =>
                 row.original.status === "scheduled" ? (
                   <Button
@@ -331,6 +362,7 @@ export default function AgentFollowUpsPage() {
           data={isLoading ? [] : tableRows}
           searchPlaceholder="ابحث باسم العميل أو رقم الهاتف..."
           searchValue=""
+          exportFileName="follow-ups"
           filters={[
             {
               key: "status",
