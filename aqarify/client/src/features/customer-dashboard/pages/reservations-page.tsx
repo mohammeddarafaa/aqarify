@@ -1,25 +1,25 @@
 import { Helmet } from "react-helmet-async";
 import { Link, useLocation } from "react-router-dom";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useMyReservations } from "@/features/reservation/hooks/use-reservation";
-import { Badge, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui-kit";
+import { Badge } from "@/components/ui/badge";
 import { appendTenantSearch } from "@/lib/tenant-path";
 import { useMemo, useState } from "react";
-import { SaaSPageShell } from "@/components/shared/saas-page-shell";
-import { SaaSListToolbar } from "@/components/shared/saas-list-toolbar";
-import { SaaSTableShell } from "@/components/shared/saas-table-shell";
+import { DataTableShell } from "@/components/shared/data-table-shell";
 import {
+  type ReservationStatusBadgeVariant,
   RESERVATION_STATUS_OPTIONS,
   getReservationStatusLabel,
   getReservationStatusVariant,
 } from "@/features/reservations/shared/reservation-status";
 
-const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  pending: { label: "في الانتظار", variant: "secondary" },
-  confirmed: { label: "مؤكد", variant: "default" },
+const STATUS_MAP: Record<string, { label: string; variant: ReservationStatusBadgeVariant }> = {
+  pending: { label: "في الانتظار", variant: "warning" },
+  confirmed: { label: "مؤكد", variant: "success" },
   cancelled: { label: "ملغي", variant: "destructive" },
-  expired: { label: "منتهي", variant: "destructive" },
+  expired: { label: "منتهي", variant: "muted" },
   /** @deprecated DB may still contain legacy value */
-  rejected: { label: "منتهي", variant: "destructive" },
+  rejected: { label: "منتهي", variant: "muted" },
 };
 
 export default function ReservationsPage() {
@@ -43,61 +43,74 @@ export default function ReservationsPage() {
   return (
     <>
       <Helmet><title>حجوزاتي</title></Helmet>
-      <SaaSPageShell title="حجوزاتي" description="تابع كل حجوزاتك وحالتها من مكان واحد.">
-        <SaaSListToolbar
+      <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">حجوزاتي</h1>
+          <p className="text-sm text-muted-foreground">تابع كل حجوزاتك وحالتها من مكان واحد.</p>
+        </div>
+        <DataTableShell
+          columns={[
+            {
+              header: "رقم الحجز",
+              cell: ({ row }) => (
+                <span className="font-mono text-xs">
+                  #{row.original.id.slice(0, 8).toUpperCase()}
+                </span>
+              ),
+            },
+            {
+              header: "الحالة",
+              cell: ({ row }) => {
+                const status = STATUS_MAP[row.original.status] ?? {
+                  label: getReservationStatusLabel(row.original.status),
+                  variant: getReservationStatusVariant(row.original.status),
+                };
+                return <Badge variant={status.variant}>{status.label}</Badge>;
+              },
+            },
+            {
+              header: "تاريخ الإنشاء",
+              cell: ({ row }) => (
+                <span className="text-xs text-muted-foreground">
+                  {new Date(row.original.created_at).toLocaleDateString("ar-EG")}
+                </span>
+              ),
+            },
+            {
+              header: "المبلغ",
+              cell: ({ row }) => (
+                <span className="font-medium">
+                  {row.original.total_price.toLocaleString("ar-EG")} ج.م
+                </span>
+              ),
+            },
+          ] satisfies ColumnDef<(typeof reservations)[number]>[]}
+          data={isLoading ? [] : filtered}
           searchValue={searchValue}
           onSearchChange={setSearchValue}
           searchPlaceholder="ابحث برقم الحجز أو المبلغ..."
-          filterLabel="الحالة"
-          filterValue={statusFilter}
-          onFilterChange={setStatusFilter}
-          filterOptions={RESERVATION_STATUS_OPTIONS.map((s) => ({
-            value: s.value,
-            label: s.label,
-          }))}
+          filters={[
+            {
+              key: "status",
+              label: "الحالة",
+              value: statusFilter,
+              onChange: setStatusFilter,
+              options: RESERVATION_STATUS_OPTIONS.map((s) => ({
+                value: s.value,
+                label: s.label,
+              })),
+            },
+          ]}
         />
-        <SaaSTableShell
-          isLoading={isLoading}
-          isEmpty={filtered.length === 0}
-          empty={
-            <div className="py-8 text-center text-muted-foreground">
-              لا توجد حجوزات مطابقة.{" "}
-              <Link to={withTenant("/browse")} className="text-primary underline">
-                تصفح الوحدات
-              </Link>
-            </div>
-          }
-        >
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>رقم الحجز</TableHead>
-                  <TableHead>الحالة</TableHead>
-                  <TableHead>تاريخ الإنشاء</TableHead>
-                  <TableHead>المبلغ</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((r) => {
-                  const status = STATUS_MAP[r.status] ?? {
-                    label: getReservationStatusLabel(r.status),
-                    variant: getReservationStatusVariant(r.status),
-                  };
-                  return (
-                    <TableRow key={r.id}>
-                      <TableCell className="font-mono text-xs">#{r.id.slice(0, 8).toUpperCase()}</TableCell>
-                      <TableCell><Badge variant={status.variant}>{status.label}</Badge></TableCell>
-                      <TableCell className="text-muted-foreground text-xs">
-                        {new Date(r.created_at).toLocaleDateString("ar-EG")}
-                      </TableCell>
-                      <TableCell className="font-medium">{r.total_price.toLocaleString("ar-EG")} ج.م</TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-        </SaaSTableShell>
-      </SaaSPageShell>
+        {!isLoading && filtered.length === 0 ? (
+          <div className="py-2 text-center text-sm text-muted-foreground">
+            لا توجد حجوزات مطابقة.{" "}
+            <Link to={withTenant("/browse")} className="text-primary underline">
+              تصفح الوحدات
+            </Link>
+          </div>
+        ) : null}
+      </div>
     </>
   );
 }

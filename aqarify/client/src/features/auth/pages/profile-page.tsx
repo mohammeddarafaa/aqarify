@@ -115,11 +115,11 @@ export default function ProfilePage() {
             </Avatar>
             <label
               htmlFor="avatar-input"
-              className="absolute -bottom-1 -end-1 h-6 w-6 rounded-full border-2 border-background bg-primary text-white flex items-center justify-center cursor-pointer hover:bg-primary/80 transition-colors"
+              className="absolute -bottom-1 -end-1 h-6 w-6 rounded-full border-2 border-background bg-primary text-primary-foreground flex items-center justify-center cursor-pointer hover:bg-primary/80 transition-colors"
               title="تغيير الصورة"
             >
               {avatarUploading ? (
-                <div className="h-3 w-3 rounded-full border border-white border-t-transparent animate-spin" />
+                <div className="h-3 w-3 rounded-full border border-primary-foreground border-t-transparent animate-spin" />
               ) : (
                 <UserCircle2 className="h-3 w-3" />
               )}

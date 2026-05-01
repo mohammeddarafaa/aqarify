@@ -19,7 +19,7 @@ export type AppToastOptions = Omit<ToastOptions, "duration"> & {
 
 const shell: ToastOptions["style"] = {
   boxShadow:
-    "0 10px 40px -10px rgb(0 0 0 / 0.12), 0 4px 12px rgb(0 0 0 / 0.06)",
+    "0 10px 40px -10px color-mix(in oklch, var(--color-foreground) 12%, transparent), 0 4px 12px color-mix(in oklch, var(--color-foreground) 6%, transparent)",
 };
 
 const baseToastClass = cn(
@@ -34,16 +34,16 @@ const baseToastClass = cn(
 );
 
 const variantClass = {
-  success: "!border-l-[3px] !border-l-emerald-500 !pl-3.5",
-  error: "!border-l-[3px] !border-l-red-500 !pl-3.5",
-  info: "!border-l-[3px] !border-l-sky-500 !pl-3.5",
-  warning: "!border-l-[3px] !border-l-amber-500 !pl-3.5",
+  success: "!border-l-[3px] !border-l-[var(--status-success)] !pl-3.5",
+  error: "!border-l-[3px] !border-l-[var(--status-error)] !pl-3.5",
+  info: "!border-l-[3px] !border-l-[var(--status-info)] !pl-3.5",
+  warning: "!border-l-[3px] !border-l-[var(--status-warning)] !pl-3.5",
   loading: "!border-l-[3px] !border-l-[var(--color-foreground)] !pl-3.5",
   neutral: "!border-l-[3px] !border-l-[var(--color-border)] !pl-3.5",
 } as const;
 
 function renderBody(title: ReactNode, description?: string): Renderable {
-  if (!description) return title;
+  if (!description) return title === undefined ? "" : (title as Renderable);
   return (
     <div className="flex flex-col gap-1">
       <span className="font-semibold tracking-tight text-[var(--color-foreground)]">{title}</span>
@@ -77,7 +77,7 @@ export const toast = {
       ...hotOpts("success", 4200, rest),
       icon: (
         <CircleCheckIcon
-          className="size-5 shrink-0 text-emerald-600 dark:text-emerald-400"
+          className="size-5 shrink-0 text-[var(--status-success)]"
           aria-hidden
         />
       ),
@@ -89,7 +89,7 @@ export const toast = {
     return hotToast.error(renderBody(message, description), {
       ...hotOpts("error", 7200, rest),
       icon: (
-        <CircleXIcon className="size-5 shrink-0 text-red-600 dark:text-red-400" aria-hidden />
+        <CircleXIcon className="size-5 shrink-0 text-[var(--status-error)]" aria-hidden />
       ),
     });
   },
@@ -98,7 +98,7 @@ export const toast = {
     const { description, ...rest } = extra ?? {};
     return hotToast(renderBody(message, description), {
       ...hotOpts("info", 5200, rest),
-      icon: <InfoIcon className="size-5 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden />,
+      icon: <InfoIcon className="size-5 shrink-0 text-[var(--status-info)]" aria-hidden />,
     });
   },
 
@@ -107,7 +107,7 @@ export const toast = {
     return hotToast(renderBody(message, description), {
       ...hotOpts("warning", 8200, rest),
       icon: (
-        <AlertTriangleIcon className="size-5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
+        <AlertTriangleIcon className="size-5 shrink-0 text-[var(--status-warning)]" aria-hidden />
       ),
     });
   },

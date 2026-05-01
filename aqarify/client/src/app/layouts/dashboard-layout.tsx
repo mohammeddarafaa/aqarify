@@ -30,13 +30,12 @@ export default function DashboardLayout() {
   }
 
   return (
-    <div className="flex min-h-screen bg-muted/30">
+    <div className="flex h-screen bg-background text-foreground">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar onMenuClick={() => setSidebarOpen(true)} />
         <ReadOnlyBanner />
-        {/* pb-20 on mobile to avoid content hidden behind bottom nav */}
-        <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">
+        <main className="flex-1 overflow-y-auto p-4 pb-24 sm:p-6 lg:pb-6">
           <Outlet />
         </main>
         <MobileBottomNav />

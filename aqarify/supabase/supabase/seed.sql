@@ -48,7 +48,7 @@ VALUES (
 );
 
 -- Demo project
-INSERT INTO projects (id, tenant_id, name, description, location_lat, location_lng, address, total_units, cover_image_url, status)
+INSERT INTO projects (id, tenant_id, name, description, location_lat, location_lng, address, total_units, cover_image_url, gallery, status)
 VALUES (
   '00000000-0000-0000-0000-000000000010',
   '00000000-0000-0000-0000-000000000001',
@@ -58,7 +58,11 @@ VALUES (
   31.4997,
   'القاهرة الجديدة، التجمع الخامس',
   20,
-  'https://placehold.co/800x400?text=Al+Nakheel',
+  'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1400&q=80',
+  '[
+    "https://images.unsplash.com/photo-1545324418-cc1a3faf10e4?auto=format&fit=crop&w=1400&q=80",
+    "https://images.unsplash.com/photo-1564013799919-def615e8751b?auto=format&fit=crop&w=1400&q=80"
+  ]'::jsonb,
   'active'
 );
 
@@ -88,6 +92,21 @@ UPDATE units SET location_lat = 30.0626, location_lng = 31.2497 WHERE tenant_id 
 UPDATE units SET location_lat = 30.0628, location_lng = 31.2501 WHERE tenant_id = '00000000-0000-0000-0000-000000000001' AND unit_number = 'B-101';
 UPDATE units SET location_lat = 30.0630, location_lng = 31.2495 WHERE tenant_id = '00000000-0000-0000-0000-000000000001' AND unit_number = 'C-101';
 
+UPDATE units SET gallery = CASE unit_number
+  WHEN 'A-101' THEN '["https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&w=1200&q=80"]'::jsonb
+  WHEN 'A-201' THEN '["https://images.unsplash.com/photo-1600566753376-12c08abfdd18?auto=format&fit=crop&w=1200&q=80"]'::jsonb
+  WHEN 'A-301' THEN '["https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80"]'::jsonb
+  WHEN 'A-401' THEN '["https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1200&q=80"]'::jsonb
+  WHEN 'B-101' THEN '["https://images.unsplash.com/photo-1616594039964-ae9021a400a0?auto=format&fit=crop&w=1200&q=80"]'::jsonb
+  WHEN 'B-201' THEN '["https://images.unsplash.com/photo-1600210492486-724fe5c4f653?auto=format&fit=crop&w=1200&q=80"]'::jsonb
+  WHEN 'B-501' THEN '["https://images.unsplash.com/photo-1554995207-c18c203602cb?auto=format&fit=crop&w=1200&q=80"]'::jsonb
+  WHEN 'B-801' THEN '["https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1200&q=80"]'::jsonb
+  WHEN 'C-101' THEN '["https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1200&q=80"]'::jsonb
+  WHEN 'C-201' THEN '["https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80"]'::jsonb
+  ELSE gallery
+END
+WHERE tenant_id = '00000000-0000-0000-0000-000000000001';
+
 -- Active subscription for K-Developments
 INSERT INTO tenant_subscriptions (id, tenant_id, plan_id, status, billing_cycle, amount_egp, current_period_start, current_period_end)
 VALUES (
@@ -115,7 +134,7 @@ VALUES (
   '+201000000002', 'hello@roya.eg', 'Sheikh Zayed, Egypt', 'active'
 );
 
-INSERT INTO projects (id, tenant_id, name, description, location_lat, location_lng, address, total_units, cover_image_url, status)
+INSERT INTO projects (id, tenant_id, name, description, location_lat, location_lng, address, total_units, cover_image_url, gallery, status)
 VALUES (
   '00000000-0000-0000-0000-000000000030',
   '00000000-0000-0000-0000-000000000002',
@@ -124,7 +143,11 @@ VALUES (
   30.0720, 30.9710,
   'Sheikh Zayed City',
   10,
-  'https://placehold.co/800x400?text=Palm+Residences',
+  'https://images.unsplash.com/photo-1600210492486-724fe5c4f653?auto=format&fit=crop&w=1400&q=80',
+  '[
+    "https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1400&q=80",
+    "https://images.unsplash.com/photo-1616594039964-ae9021a400a0?auto=format&fit=crop&w=1400&q=80"
+  ]'::jsonb,
   'active'
 );
 
@@ -140,6 +163,16 @@ VALUES
   ('00000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000030','00000000-0000-0000-0000-000000000040','1-301',3,'Apartment',3,3,2,175,'Pool','Fully-finished',5100000,100000,15,84,'available'),
   ('00000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000030','00000000-0000-0000-0000-000000000041','2-101',1,'Apartment',2,2,1,118,'Garden','Semi-finished',3000000,60000,10,60,'available'),
   ('00000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000030','00000000-0000-0000-0000-000000000041','2-201',2,'Townhouse',3,3,2,190,'Landscape','Fully-finished',5600000,110000,15,84,'reserved');
+
+UPDATE units SET gallery = CASE unit_number
+  WHEN '1-101' THEN '["https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80"]'::jsonb
+  WHEN '1-201' THEN '["https://images.unsplash.com/photo-1600566753376-12c08abfdd18?auto=format&fit=crop&w=1200&q=80"]'::jsonb
+  WHEN '1-301' THEN '["https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&w=1200&q=80"]'::jsonb
+  WHEN '2-101' THEN '["https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1200&q=80"]'::jsonb
+  WHEN '2-201' THEN '["https://images.unsplash.com/photo-1600607687644-aac4c3eabc7f?auto=format&fit=crop&w=1200&q=80"]'::jsonb
+  ELSE gallery
+END
+WHERE tenant_id = '00000000-0000-0000-0000-000000000002';
 
 INSERT INTO tenant_subscriptions (id, tenant_id, plan_id, status, billing_cycle, amount_egp, current_period_start, current_period_end)
 VALUES (
@@ -173,7 +206,7 @@ VALUES (
   now() - INTERVAL '60 days', now() - INTERVAL '10 days'
 );
 
-INSERT INTO projects (id, tenant_id, name, description, location_lat, location_lng, address, total_units, cover_image_url, status)
+INSERT INTO projects (id, tenant_id, name, description, location_lat, location_lng, address, total_units, cover_image_url, gallery, status)
 VALUES (
   '00000000-0000-0000-0000-000000000050',
   '00000000-0000-0000-0000-000000000003',
@@ -182,7 +215,8 @@ VALUES (
   30.0400, 31.2400,
   'Nasr City, Cairo',
   2,
-  'https://placehold.co/800x400?text=Paused+Heights',
+  'https://images.unsplash.com/photo-1582268611958-ebfd161ef9cf?auto=format&fit=crop&w=1400&q=80',
+  '["https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1400&q=80"]'::jsonb,
   'active'
 );
 
@@ -194,6 +228,13 @@ INSERT INTO units (tenant_id, project_id, building_id, unit_number, floor, type,
 VALUES
   ('00000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000050','00000000-0000-0000-0000-000000000051','E-101',1,'Apartment',2,1,1,105,'Street','Semi-finished',2400000,50000,10,60,'available'),
   ('00000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000050','00000000-0000-0000-0000-000000000051','E-201',2,'Apartment',3,2,1,138,'Street','Semi-finished',3200000,64000,10,60,'available');
+
+UPDATE units SET gallery = CASE unit_number
+  WHEN 'E-101' THEN '["https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&w=1200&q=80"]'::jsonb
+  WHEN 'E-201' THEN '["https://images.unsplash.com/photo-1600047509358-9dc755e1e0d0?auto=format&fit=crop&w=1200&q=80"]'::jsonb
+  ELSE gallery
+END
+WHERE tenant_id = '00000000-0000-0000-0000-000000000003';
 
 -- NOTE: auth.users cannot be safely seeded with deterministic passwords in SQL-only
 -- bootstrap. Wave 5 E2E setup provisions role users through Supabase Admin API.

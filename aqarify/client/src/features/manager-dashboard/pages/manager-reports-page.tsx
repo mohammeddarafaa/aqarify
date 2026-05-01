@@ -17,9 +17,8 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { Button } from "@/components/ui-kit";
-import { SaaSPageShell } from "@/components/shared/saas-page-shell";
-import { SaaSListToolbar } from "@/components/shared/saas-list-toolbar";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type SalesReport = {
   confirmed: number;
@@ -39,7 +38,13 @@ type InventoryReport = {
 };
 type AgentReport = { agent_id: string; agent_name: string; count: number; revenue: number }[];
 
-const COLORS = ["#10b981", "#f59e0b", "#3b82f6", "#ef4444", "#8b5cf6"];
+const COLORS = [
+  "var(--status-success)",
+  "var(--status-warning)",
+  "var(--status-info)",
+  "var(--status-error)",
+  "var(--color-accent)",
+];
 const PERIODS = [
   { label: "آخر 30 يوم", days: 30 },
   { label: "آخر 90 يوم", days: 90 },
@@ -94,18 +99,20 @@ export default function ManagerReportsPage() {
       <Helmet>
         <title>التقارير</title>
       </Helmet>
-      <SaaSPageShell title="التقارير" description="رؤية موحدة للأداء التشغيلي والمالي والمخزون.">
-        <SaaSListToolbar
-          filterLabel="الفترة"
-          filterValue={String(period)}
-          onFilterChange={(v) => setPeriod(Number(v))}
-          filterOptions={PERIODS.map((p) => ({ value: String(p.days), label: p.label }))}
-          customAction={
-            <Button size="sm" variant="outline" onClick={() => setPeriod(30)}>
-              إعادة ضبط
-            </Button>
-          }
-        />
+      <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">التقارير</h1>
+          <p className="text-sm text-muted-foreground">رؤية موحدة للأداء التشغيلي والمالي والمخزون.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Select value={String(period)} onValueChange={(v) => setPeriod(Number(v))}>
+            <SelectTrigger className="h-10 w-[180px] rounded-full"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {PERIODS.map((p) => <SelectItem key={p.days} value={String(p.days)}>{p.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={() => setPeriod(30)}>إعادة ضبط</Button>
+        </div>
 
         {isLoading ? (
           <div className="py-20 text-center text-muted-foreground">جاري تحميل التقارير...</div>
@@ -137,7 +144,7 @@ export default function ManagerReportsPage() {
                     type="monotone"
                     dataKey="count"
                     name="حجوزات"
-                    stroke="#141414"
+                    stroke="var(--color-foreground)"
                     strokeWidth={2}
                     dot={false}
                   />
@@ -146,7 +153,7 @@ export default function ManagerReportsPage() {
                     type="monotone"
                     dataKey="revenue"
                     name="إيرادات"
-                    stroke="#22c55e"
+                    stroke="var(--status-success)"
                     strokeWidth={2}
                     dot={false}
                   />
@@ -186,7 +193,7 @@ export default function ManagerReportsPage() {
                   <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                   <YAxis tickFormatter={formatEGP} tick={{ fontSize: 11 }} />
                   <Tooltip formatter={(v) => `${Number(v).toLocaleString("ar-EG")} ج.م`} />
-                  <Bar dataKey="value" name="المبلغ" fill="#141414" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="value" name="المبلغ" fill="var(--color-foreground)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -200,14 +207,14 @@ export default function ManagerReportsPage() {
                     <XAxis dataKey="agent_name" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} />
                     <Tooltip />
-                    <Bar dataKey="count" name="حجوزات" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="count" name="حجوزات" fill="var(--status-info)" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             )}
           </div>
         )}
-      </SaaSPageShell>
+      </div>
     </>
   );
 }

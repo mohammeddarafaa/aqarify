@@ -8,23 +8,26 @@ export const RESERVATION_STATUS_OPTIONS: Array<{ value: "all" | ReservationStatu
   { value: "expired", label: "منتهي" },
 ];
 
-export const RESERVATION_STATUS_VARIANT: Record<
-  ReservationStatus,
-  "default" | "secondary" | "destructive" | "outline"
-> = {
-  pending: "secondary",
-  confirmed: "default",
+/** Badge variants tuned for readability in tables (avoids tenant `secondary` + dark fg clash). */
+export type ReservationStatusBadgeVariant =
+  | "success"
+  | "warning"
+  | "destructive"
+  | "muted"
+  | "outline";
+
+export const RESERVATION_STATUS_VARIANT: Record<ReservationStatus, ReservationStatusBadgeVariant> = {
+  pending: "warning",
+  confirmed: "success",
   cancelled: "destructive",
-  expired: "outline",
+  expired: "muted",
 };
 
 export function getReservationStatusLabel(status: string) {
   return RESERVATION_STATUS_OPTIONS.find((s) => s.value === status)?.label ?? status;
 }
 
-export function getReservationStatusVariant(
-  status: string,
-): "default" | "secondary" | "destructive" | "outline" {
+export function getReservationStatusVariant(status: string): ReservationStatusBadgeVariant {
   if (status === "pending") return RESERVATION_STATUS_VARIANT.pending;
   if (status === "confirmed") return RESERVATION_STATUS_VARIANT.confirmed;
   if (status === "cancelled") return RESERVATION_STATUS_VARIANT.cancelled;

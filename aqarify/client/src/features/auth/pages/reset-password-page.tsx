@@ -5,7 +5,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "@/lib/app-toast";
 import { supabase } from "@/lib/supabase";
-import { Button, Input, Label } from "@/components/ui-kit";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { appendTenantSearch } from "@/lib/tenant-path";
 
 const schema = z.object({

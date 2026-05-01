@@ -1,6 +1,6 @@
 import { MailIcon, PhoneIcon, MapPinIcon } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Button } from "@/components/ui-kit";
+import { Button } from "@/components/ui/button";
 
 const channels = [
   {

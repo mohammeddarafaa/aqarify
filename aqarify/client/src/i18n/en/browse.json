@@ -5,13 +5,22 @@
     "all": "All",
     "type": "Unit Type",
     "bedrooms": "Bedrooms",
+    "bathrooms": "Bathrooms",
+    "bedrooms_bathrooms": "Beds & Baths",
+    "amenities": "Amenities",
     "price_range": "Price Range",
+    "prices_egp": "Prices in Egyptian Pounds (EGP)",
+    "minimum": "Minimum",
+    "maximum": "Maximum",
+    "select_one_or_more": "Select one or more",
     "area": "Area",
     "floor": "Floor",
     "finishing": "Finishing",
     "view": "View",
     "clear_all": "Clear All",
-    "apply": "Apply"
+    "apply": "Apply",
+    "show_results": "Show results",
+    "reset": "Reset"
   },
   "view": {
     "grid": "Grid View",

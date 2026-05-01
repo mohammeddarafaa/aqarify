@@ -2,15 +2,12 @@ import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import {
-  Button,
-  Input,
-  Label,
-  RadioGroup,
-  RadioGroupItem,
-  Textarea,
-  cn,
-} from "@/components/ui-kit";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import type { CheckoutFormData } from "../types";
 import { useTenantStore } from "@/stores/tenant.store";
 import { useAuthStore } from "@/stores/auth.store";

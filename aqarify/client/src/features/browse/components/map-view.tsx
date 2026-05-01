@@ -117,7 +117,7 @@ export function MapView({ units, projectLocation }: MapViewProps) {
                   className="w-full h-24 object-cover rounded"
                 />
                 <p className="font-semibold text-sm">وحدة {selected.unit_number}</p>
-                <p className="text-xs text-gray-600">
+                <p className="text-xs text-muted-foreground">
                   {selected.bedrooms} غرف • {selected.size_sqm} م²
                 </p>
                 <Link

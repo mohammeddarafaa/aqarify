@@ -1,7 +1,9 @@
 import { useNavigate, useSearchParams, Link, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { AlertCircleIcon, RefreshCwIcon, CreditCardIcon } from "lucide-react";
-import { Alert, AlertDescription, Button, Card, CardContent } from "@/components/ui-kit";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { useTenantStore } from "@/stores/tenant.store";
 import { useTenantUi } from "@/hooks/use-tenant-ui";
 import { appendTenantSearch } from "@/lib/tenant-path";

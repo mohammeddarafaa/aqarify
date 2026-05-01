@@ -14,6 +14,13 @@ const badgeVariants = cva(
           "bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80",
         destructive:
           "bg-destructive/10 text-destructive focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:focus-visible:ring-destructive/40 [a]:hover:bg-destructive/20",
+        /** Table / workflow status — contrast-safe even when tenant `--secondary` is dark */
+        success:
+          "border border-[color-mix(in_oklch,var(--status-success)_35%,transparent)] bg-[color-mix(in_oklch,var(--status-success)_16%,var(--card))] font-medium text-[var(--status-success)] dark:bg-[color-mix(in_oklch,var(--status-success)_14%,var(--card))] [a]:hover:bg-[color-mix(in_oklch,var(--status-success)_24%,var(--card))]",
+        warning:
+          "border border-[color-mix(in_oklch,var(--status-warning)_38%,transparent)] bg-[color-mix(in_oklch,var(--status-warning)_14%,var(--card))] font-medium text-[color-mix(in_oklch,var(--status-warning)_92%,var(--foreground))] dark:bg-[color-mix(in_oklch,var(--status-warning)_12%,var(--card))] [a]:hover:bg-[color-mix(in_oklch,var(--status-warning)_22%,var(--card))]",
+        muted:
+          "border border-border bg-muted font-medium text-muted-foreground [a]:hover:bg-muted/80",
         outline:
           "border-border text-foreground [a]:hover:bg-muted [a]:hover:text-muted-foreground",
         ghost:

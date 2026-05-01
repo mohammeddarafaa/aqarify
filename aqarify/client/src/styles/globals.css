@@ -4,32 +4,60 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* ─── Luxury Minimal Design System (Hassan Allam / Maison Neue) ─── */
+/* Base design tokens (tenant-overridable) */
 
 @layer base {
   :root {
-    /* Tenant-injected branding tokens (overridden per-tenant via JS) */
-    --color-primary: #141414;
-    --color-primary-foreground: #ffffff;
-    --color-secondary: #141414;
-    --color-secondary-foreground: #ffffff;
-    --color-gold: #B8892E;
-    --color-gold-light: #D4A84B;
-    --color-background: #ffffff;
-    --color-foreground: #141414;
-    --color-muted: #f5f5f5;
-    --color-muted-foreground: #888888;
-    --color-border: #e8e8e8;
-    --color-border-dark: #141414;
-    --color-card: #ffffff;
-    --color-card-foreground: #141414;
-    --radius: 0px;
+    /* Neutral defaults used only when tenant theme is absent */
+    --lime: #C8FF00;
+    --lime-foreground: #141414;
+    --cream: #F5F2E8;
+    --ink: #141414;
+    --ink-soft: #3D3D3D;
+    --ink-muted: #888888;
+
+    /* shadcn tokens */
+    --background: var(--cream);
+    --foreground: var(--ink);
+    --card: #FFFCF4;
+    --card-foreground: var(--ink);
+    --popover: #FFFFFF;
+    --popover-foreground: var(--ink);
+    --primary: var(--ink);
+    --primary-foreground: var(--cream);
+    --secondary: #EDEAE0;
+    --secondary-foreground: var(--ink);
+    --accent: var(--lime);
+    --accent-foreground: var(--ink);
+    --muted: #EDEAE0;
+    --muted-foreground: var(--ink-muted);
+    --border: #E0DDD4;
+    --input: #E0DDD4;
+    --ring: var(--lime);
+    --destructive: #EF4444;
+    --radius: 16px;
+
+    /* Legacy aliases kept for compatibility */
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-gold: var(--lime);
+    --color-gold-light: #E2FF67;
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-border: var(--border);
+    --color-border-dark: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
 
     /* Typography */
-    --font-sans: 'Maison Neue', 'DM Sans', system-ui, sans-serif;
-    --font-arabic: 'Cairo', 'Maison Neue', 'DM Sans', sans-serif;
+    --font-sans: 'Poppins', 'Geist', 'DM Sans', system-ui, sans-serif;
+    --font-arabic: 'Cairo', 'Poppins', 'Geist', sans-serif;
     --font-size-base: 16px;
-    --tenant-gradient: linear-gradient(#141414, #2a2a2a);
+    --tenant-gradient: linear-gradient(#0f172a, #334155);
     --sold-badge: none;
 
     /* Spacing scale for luxury feel */
@@ -45,18 +73,63 @@
     --space-12: 3rem;
     --label-size: 0.6875rem;
     --label-track: 0.14em;
-    --elevation-1: 0 2px 8px -2px rgb(15 23 42 / 0.08);
-    --elevation-2: 0 16px 34px -14px rgb(15 23 42 / 0.24);
+    --elevation-1: 0 2px 8px -2px rgb(20 20 20 / 0.08);
+    --elevation-2: 0 16px 34px -14px rgb(20 20 20 / 0.24);
+
+    --chart-1: var(--ink);
+    --chart-2: #3D3D3D;
+    --chart-3: #888888;
+    --chart-4: #C8C5BB;
+    --chart-5: var(--lime);
+    --status-success: #10b981;
+    --status-error: #ef4444;
+    --status-info: #0ea5e9;
+    --status-warning: #f59e0b;
+
+    --sidebar: #FBF8EF;
+    --sidebar-foreground: var(--ink);
+    --sidebar-primary: var(--lime);
+    --sidebar-primary-foreground: var(--ink);
+    --sidebar-accent: rgb(20 20 20 / 6%);
+    --sidebar-accent-foreground: var(--ink);
+    --sidebar-border: rgb(20 20 20 / 8%);
+    --sidebar-ring: var(--lime);
   }
 
   .dark {
-    --color-background: #0f0f0f;
-    --color-foreground: #f5f5f5;
-    --color-muted: #1a1a1a;
-    --color-muted-foreground: #888888;
-    --color-border: #2a2a2a;
-    --color-card: #141414;
-    --color-card-foreground: #f5f5f5;
+    --background: #0F0F0F;
+    --foreground: #F5F2E8;
+    --card: #1A1A1A;
+    --card-foreground: #F5F2E8;
+    --popover: #1A1A1A;
+    --popover-foreground: #F5F2E8;
+    --primary: #F5F2E8;
+    --primary-foreground: #141414;
+    --secondary: #1A1A1A;
+    --secondary-foreground: #F5F2E8;
+    --muted: #1A1A1A;
+    --muted-foreground: #888888;
+    --accent: #222222;
+    --accent-foreground: #F5F2E8;
+    --border: #2A2A2A;
+    --input: #2A2A2A;
+    --ring: var(--lime);
+    --sidebar: #111111;
+    --sidebar-foreground: #F5F2E8;
+    --sidebar-primary: var(--lime);
+    --sidebar-primary-foreground: var(--ink);
+    --sidebar-accent: rgb(255 255 255 / 8%);
+    --sidebar-accent-foreground: #F5F2E8;
+    --sidebar-border: rgb(255 255 255 / 10%);
+    --sidebar-ring: var(--lime);
+
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-border: var(--border);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
   }
 
   * {
@@ -92,8 +165,8 @@
 
 /* ─── Shadcn token bridge ─── */
 @theme inline {
-  --font-sans: 'Maison Neue', 'DM Sans', system-ui, sans-serif;
-  --font-heading: 'Maison Neue', 'DM Sans', system-ui, sans-serif;
+  --font-sans: 'Poppins', 'Geist', 'DM Sans', system-ui, sans-serif;
+  --font-heading: 'Poppins', 'Geist', 'DM Sans', system-ui, sans-serif;
 
   /* Shadcn / Radix primitive tokens */
   --color-background: var(--background);
@@ -114,6 +187,12 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-lime: var(--lime);
+  --color-lime-foreground: var(--lime-foreground);
+  --color-cream: var(--cream);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-muted: var(--ink-muted);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -136,69 +215,6 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.09 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.09 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.09 0 0);
-  --primary: oklch(0.09 0 0);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.09 0 0);
-  --muted: oklch(0.96 0 0);
-  --muted-foreground: oklch(0.52 0 0);
-  --accent: oklch(0.96 0 0);
-  --accent-foreground: oklch(0.09 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.91 0 0);
-  --input: oklch(0.91 0 0);
-  --ring: oklch(0.09 0 0);
-  --radius: 0px;
-  --chart-1: oklch(0.72 0.12 85);
-  --chart-2: oklch(0.52 0 0);
-  --chart-3: oklch(0.39 0 0);
-  --chart-4: oklch(0.27 0 0);
-  --chart-5: oklch(0.15 0 0);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.09 0 0);
-  --sidebar-primary: oklch(0.09 0 0);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.96 0 0);
-  --sidebar-accent-foreground: oklch(0.09 0 0);
-  --sidebar-border: oklch(0.91 0 0);
-  --sidebar-ring: oklch(0.09 0 0);
-}
-
-.dark {
-  --background: oklch(0.08 0 0);
-  --foreground: oklch(0.96 0 0);
-  --card: oklch(0.12 0 0);
-  --card-foreground: oklch(0.96 0 0);
-  --popover: oklch(0.12 0 0);
-  --popover-foreground: oklch(0.96 0 0);
-  --primary: oklch(0.96 0 0);
-  --primary-foreground: oklch(0.09 0 0);
-  --secondary: oklch(0.18 0 0);
-  --secondary-foreground: oklch(0.96 0 0);
-  --muted: oklch(0.18 0 0);
-  --muted-foreground: oklch(0.55 0 0);
-  --accent: oklch(0.18 0 0);
-  --accent-foreground: oklch(0.96 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.55 0 0);
-  --sidebar: oklch(0.12 0 0);
-  --sidebar-foreground: oklch(0.96 0 0);
-  --sidebar-primary: oklch(0.96 0 0);
-  --sidebar-primary-foreground: oklch(0.09 0 0);
-  --sidebar-accent: oklch(0.18 0 0);
-  --sidebar-accent-foreground: oklch(0.96 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.55 0 0);
-}
 
 /* ─── Utility classes for luxury design ─── */
 

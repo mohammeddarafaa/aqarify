@@ -1,6 +1,9 @@
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 import { api } from "@/lib/api";
+import { useMemo, useState } from "react";
+import { DataTableShell } from "@/components/shared/data-table-shell";
 
 type LogItem = {
   id: string;
@@ -11,44 +14,49 @@ type LogItem = {
 };
 
 export default function ActivityLogsPage() {
+  const [searchValue, setSearchValue] = useState("");
   const { data = [], isLoading } = useQuery<LogItem[]>({
     queryKey: ["admin-activity-logs"],
     queryFn: async () => (await api.get("/activity-logs?limit=100")).data.data,
   });
+  const filtered = useMemo(() => {
+    const q = searchValue.trim().toLowerCase();
+    if (!q) return data;
+    return data.filter((item) => {
+      return (
+        (item.users?.full_name ?? "").toLowerCase().includes(q) ||
+        (item.users?.email ?? "").toLowerCase().includes(q) ||
+        item.action.toLowerCase().includes(q) ||
+        item.entity_type.toLowerCase().includes(q)
+      );
+    });
+  }, [data, searchValue]);
 
   return (
     <>
       <Helmet><title>سجل النشاط</title></Helmet>
       <div className="mx-auto max-w-6xl px-4 py-8 space-y-4">
         <h1 className="text-2xl font-bold">سجل النشاط</h1>
-        <div className="rounded-xl border bg-card overflow-hidden">
-          {isLoading ? (
-            <div className="py-16 text-center text-muted-foreground">جاري التحميل...</div>
-          ) : data.length === 0 ? (
-            <div className="py-16 text-center text-muted-foreground">لا توجد سجلات نشاط</div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="px-4 py-3 text-right">المستخدم</th>
-                  <th className="px-4 py-3 text-right">الإجراء</th>
-                  <th className="px-4 py-3 text-right">الكيان</th>
-                  <th className="px-4 py-3 text-right">التاريخ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {data.map((l) => (
-                  <tr key={l.id}>
-                    <td className="px-4 py-3">{l.users?.full_name ?? l.users?.email ?? "—"}</td>
-                    <td className="px-4 py-3">{l.action}</td>
-                    <td className="px-4 py-3">{l.entity_type}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{new Date(l.created_at).toLocaleString("ar-EG")}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+        <DataTableShell
+          columns={[
+            {
+              header: "المستخدم",
+              cell: ({ row }) =>
+                row.original.users?.full_name ?? row.original.users?.email ?? "—",
+            },
+            { header: "الإجراء", cell: ({ row }) => row.original.action },
+            { header: "الكيان", cell: ({ row }) => row.original.entity_type },
+            {
+              header: "التاريخ",
+              cell: ({ row }) =>
+                new Date(row.original.created_at).toLocaleString("ar-EG"),
+            },
+          ] satisfies ColumnDef<LogItem>[]}
+          data={isLoading ? [] : filtered}
+          searchValue={searchValue}
+          onSearchChange={setSearchValue}
+          searchPlaceholder="ابحث بالمستخدم أو الإجراء أو الكيان..."
+        />
       </div>
     </>
   );

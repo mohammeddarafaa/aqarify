@@ -1,7 +1,0 @@
-export { Spotlight } from "./spotlight"
-export { BentoGrid, BentoGridItem } from "./bento-grid"
-export { FocusCards, type FocusCard } from "./focus-cards"
-export { InfiniteMovingCards, type InfiniteMovingCard } from "./infinite-moving-cards"
-export { AuroraBackground } from "./aurora-background"
-export { Meteors } from "./meteors"
-export { AppleCardsCarousel, type AppleCard } from "./apple-cards-carousel"

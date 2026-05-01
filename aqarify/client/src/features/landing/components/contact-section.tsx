@@ -2,7 +2,7 @@ import { FadeInView } from "@/components/motion/fade-in-view";
 import { Phone, Mail, MapPin, MessageCircle } from "lucide-react";
 import { useTenantStore } from "@/stores/tenant.store";
 import { useTenantUi } from "@/hooks/use-tenant-ui";
-import { Button } from "@/components/ui-kit";
+import { Button } from "@/components/ui/button";
 
 export function ContactSection() {
   const tenant = useTenantStore((s) => s.tenant);

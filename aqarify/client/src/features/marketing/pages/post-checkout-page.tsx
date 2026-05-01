@@ -9,7 +9,7 @@ import {
   LockIcon,
   CreditCardIcon,
 } from "lucide-react";
-import { Button } from "@/components/ui-kit";
+import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { useSubscriptionStatus } from "../hooks/use-subscription-status";
 
@@ -142,7 +142,7 @@ export default function PostCheckoutPage() {
             </Button>
           </div>
         ) : showIframe ? (
-          <div className="overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-b from-card to-muted/30 shadow-lg ring-1 ring-black/5">
+          <div className="overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-b from-card to-muted/30 shadow-lg ring-1 ring-foreground/5">
             <div className="border-b border-border/60 bg-card/90 px-5 py-4 backdrop-blur-sm">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-3">
@@ -185,7 +185,7 @@ export default function PostCheckoutPage() {
                 src={iframeUrl!}
                 title="Paymob secure checkout"
                 allow="payment *"
-                className="h-[min(72vh,720px)] min-h-[520px] w-full rounded-xl border border-border/50 bg-white shadow-inner"
+                className="h-[min(72vh,720px)] min-h-[520px] w-full rounded-xl border border-border/50 bg-background shadow-inner"
               />
             </div>
             {stuck ? (

@@ -1,15 +1,10 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { UsersIcon, ClockIcon, CheckCircleIcon } from "lucide-react";
-import {
-  Button,
-  Checkbox,
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  Label,
-} from "@/components/ui-kit";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { useJoinWaitlist } from "@/features/waiting-list/hooks/use-waiting-list";
 import { useAuthStore } from "@/stores/auth.store";
 import { appendTenantSearch } from "@/lib/tenant-path";

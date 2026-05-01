@@ -1,15 +1,11 @@
 import { Link, useLocation } from "react-router-dom";
 import { motion, useReducedMotion } from "motion/react";
 import { MapPin, Search, Star } from "lucide-react";
-import {
-  Button,
-  Card,
-  CardContent,
-  Avatar,
-  AvatarFallback,
-  ShimmeringText,
-  motionTransitions,
-} from "@/components/ui-kit";
+import { motionTransitions } from "@/components/motion/presets";
+import { ShimmeringText } from "@/components/motion/shimmering-text";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { useTenantStore } from "@/stores/tenant.store";
 import { useTenantUi } from "@/hooks/use-tenant-ui";
 import { appendTenantSearch } from "@/lib/tenant-path";
@@ -36,7 +32,7 @@ export function DiscoveryHero() {
   const statSecondary = "مصر";
 
   return (
-    <section className="relative overflow-hidden bg-gradient-to-b from-sky-50/80 via-white to-white pt-20">
+    <section className="relative overflow-hidden bg-gradient-to-b from-muted/70 via-background to-background pt-20">
       <div className="relative mx-auto grid max-w-screen-xl gap-10 px-6 pb-16 pt-8 lg:grid-cols-2 lg:items-center lg:gap-14 lg:pb-20 lg:pt-10">
         <div className="order-2 lg:order-1">
           <motion.div
@@ -130,7 +126,7 @@ export function DiscoveryHero() {
               </div>
             </div>
 
-            <Card className="max-w-sm border-[var(--color-border)] bg-white/90 shadow-sm backdrop-blur-sm">
+            <Card className="max-w-sm border-[var(--color-border)] bg-[color-mix(in_oklch,var(--color-background)_90%,transparent)] shadow-sm backdrop-blur-sm">
               <CardContent className="flex items-center gap-3 p-3">
               <Avatar className="size-11 border border-[var(--color-border)]">
                 <AvatarFallback className="bg-foreground text-xs font-semibold text-background">
@@ -166,12 +162,12 @@ export function DiscoveryHero() {
                 <span className="text-sm font-medium tracking-wide text-muted-foreground">{name}</span>
               </div>
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[color-mix(in_oklch,var(--color-foreground)_50%,transparent)] via-transparent to-transparent" />
             <div className="absolute bottom-5 start-5 end-5 sm:bottom-8 sm:start-8 sm:end-8">
               <p className="label-muted text-background/80">
                 مشاريع مختارة
               </p>
-              <p className="mt-1 text-lg font-semibold text-white sm:text-xl">{name}</p>
+              <p className="mt-1 text-lg font-semibold text-[var(--color-background)] sm:text-xl">{name}</p>
             </div>
           </div>
         </motion.div>

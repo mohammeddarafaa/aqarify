@@ -5,13 +5,22 @@
     "all": "الكل",
     "type": "نوع الوحدة",
     "bedrooms": "عدد الغرف",
+    "bathrooms": "الحمامات",
+    "bedrooms_bathrooms": "غرف وحمامات",
+    "amenities": "المزايا",
     "price_range": "نطاق السعر",
+    "prices_egp": "الأسعار بالجنيه المصري",
+    "minimum": "الحد الأدنى",
+    "maximum": "الحد الأقصى",
+    "select_one_or_more": "اختر خيارًا واحدًا أو أكثر",
     "area": "المساحة",
     "floor": "الدور",
     "finishing": "التشطيب",
     "view": "الإطلالة",
     "clear_all": "مسح الكل",
-    "apply": "تطبيق"
+    "apply": "تطبيق",
+    "show_results": "عرض النتائج",
+    "reset": "إعادة ضبط"
   },
   "view": {
     "grid": "عرض الشبكة",

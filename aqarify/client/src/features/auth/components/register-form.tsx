@@ -3,7 +3,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { ShieldCheck, Users } from "lucide-react";
-import { Button, Input, Label, cn } from "@/components/ui-kit";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { appendTenantSearch } from "@/lib/tenant-path";
 

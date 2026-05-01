@@ -1,11 +1,15 @@
+import type React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion } from "motion/react";
-import { HeartIcon, MapPinIcon } from "lucide-react";
-import { cn } from "@/components/ui-kit";
+import { HeartIcon, HomeIcon, Share2Icon } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { CurrencyDisplay } from "@/components/shared/currency-display";
 import { useTenantStore } from "@/stores/tenant.store";
 import { appendTenantSearch } from "@/lib/tenant-path";
 import type { Unit } from "@/features/browse/types";
+import { useFavorites } from "@/features/browse/hooks/use-favorites";
+import { useFavoritesStore } from "@/stores/favorites.store";
+import { toast } from "@/lib/app-toast";
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   available: { label: "متاح", color: "text-emerald-600" },
@@ -22,6 +26,36 @@ export function UnitCard({ unit }: UnitCardProps) {
   const cover = unit.gallery?.[0] ?? tenant?.logo_url ?? null;
   const status = STATUS_MAP[unit.status] ?? STATUS_MAP.available;
   const unitHref = appendTenantSearch(pathname, search, `/units/${unit.id}`);
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const isCompared = useFavoritesStore((s) => s.isCompared(unit.id));
+
+  const onShare = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const url = `${window.location.origin}${unitHref}`;
+    const text = `Check out unit ${unit.unit_number} — ${url}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `Unit ${unit.unit_number}`, text, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        toast.success("Unit link copied");
+      }
+    } catch {
+      // ignore canceled shares
+    }
+  };
+
+  const onCompare = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const result = useFavoritesStore.getState().toggleCompareUnit(unit.id);
+    if (result.blocked) {
+      toast.info("You can compare up to 2 units.");
+    } else if (result.selected) {
+      toast.success("Unit added to compare.");
+    }
+  };
 
   return (
     <motion.article
@@ -31,71 +65,94 @@ export function UnitCard({ unit }: UnitCardProps) {
       className="group relative overflow-hidden bg-transparent"
     >
       <Link to={unitHref} className="block">
-        <div className="relative h-64 overflow-hidden rounded-2xl bg-muted">
+        <div className="relative min-h-[360px] overflow-hidden rounded-[2rem] bg-muted shadow-[0_24px_70px_-52px_rgb(20_20_20/.8)] sm:min-h-[420px]">
           {cover ? (
             <img
               src={cover}
               alt={`${unit.type} ${unit.unit_number}`}
               loading="lazy"
-              className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
+              className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-muted to-accent text-sm text-muted-foreground">
+            <div className="absolute inset-0 flex h-full w-full items-center justify-center bg-gradient-to-br from-muted to-accent text-sm text-muted-foreground">
               Unit {unit.unit_number}
             </div>
           )}
-          <button
-            type="button"
-            className="absolute end-3 top-3 grid size-8 place-items-center rounded-full bg-background/90 text-foreground transition-colors hover:bg-background"
-            aria-label="Save"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-          >
-            <HeartIcon className="size-4" />
-          </button>
-          <div className="absolute bottom-3 start-3">
-            <span
-              className={cn(
-                "label-muted rounded-full bg-background px-2.5 py-1",
-                status.color
-              )}
-            >
+
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
+
+          <div className="absolute start-4 top-4 flex items-center gap-2">
+            <span className={cn("rounded-full bg-white/88 px-3 py-1.5 text-xs font-semibold backdrop-blur", status.color)}>
               {status.label}
             </span>
           </div>
-        </div>
 
-        <div className="pb-5 pt-3">
-          <div className="flex items-start justify-between gap-3">
-            <h3 className="text-base font-semibold leading-snug text-foreground">
-              {unit.type} — وحدة {unit.unit_number}
-            </h3>
-            {unit.view_type ? (
-              <span className="shrink-0 text-xs text-muted-foreground">{unit.view_type}</span>
-            ) : null}
+          <div className="absolute end-4 top-4 flex items-center gap-2">
+            <button
+              type="button"
+              className={cn(
+                "grid size-12 place-items-center rounded-full border border-white/25 bg-white/15 text-white shadow-lg backdrop-blur transition-colors hover:bg-white/25",
+                isFavorite(unit.id) && "bg-white text-rose-500",
+              )}
+              aria-label="Save"
+              onClick={async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                await toggleFavorite(unit.id);
+              }}
+            >
+              <HeartIcon className={cn("size-5", isFavorite(unit.id) && "fill-current")} />
+            </button>
           </div>
-          <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
-            <MapPinIcon className="size-3.5" />
-            {tenant?.address ?? "مصر"}
-          </p>
-          <div className="mt-1.5 flex items-center gap-3 text-sm text-muted-foreground">
-            <span>{unit.bedrooms} غرف</span>
-            <span>·</span>
-            <span>{unit.bathrooms} حمامات</span>
-            <span>·</span>
-            <span>{unit.size_sqm} م²</span>
+
+          <div className="absolute end-4 top-20 flex flex-col gap-2 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+            <button
+              type="button"
+              className="grid size-10 place-items-center rounded-full border border-white/25 bg-white/15 text-white backdrop-blur transition-colors hover:bg-white/25"
+              aria-label="Share"
+              onClick={onShare}
+            >
+              <Share2Icon className="size-4" />
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "grid size-10 place-items-center rounded-full border border-white/25 bg-white/15 text-white backdrop-blur transition-colors hover:bg-white/25",
+                isCompared && "bg-white text-foreground",
+              )}
+              aria-label="Compare"
+              onClick={onCompare}
+            >
+              <HomeIcon className={cn("size-4", isCompared && "fill-current")} />
+            </button>
           </div>
-          <div className="mt-3">
-            <CurrencyDisplay
-              amount={unit.price}
-              size="lg"
-              className="text-2xl font-bold text-foreground"
-            />
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              الدور {unit.floor} · وحدة {unit.unit_number}
-            </p>
+
+          <div className="absolute inset-x-0 bottom-0 p-5 text-white">
+            <div className="flex items-end justify-between gap-4">
+              <div className="min-w-0">
+                <h3 className="truncate text-2xl font-semibold leading-tight drop-shadow">
+                  {unit.type} {unit.unit_number}
+                </h3>
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/82">
+                  <span>{unit.bedrooms} beds</span>
+                  <span>{unit.bathrooms} baths</span>
+                  <span>{unit.size_sqm} m²</span>
+                </div>
+              </div>
+              <div className="shrink-0 text-end">
+                <CurrencyDisplay
+                  amount={unit.price}
+                  size="xl"
+                  className="text-2xl font-semibold leading-none text-white"
+                />
+                <p className="mt-2 text-xs text-white/70">total price</p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/15 pt-3 text-xs text-white/72">
+              <span>Floor {unit.floor}</span>
+              <span>{unit.view_type ?? "Premium view"}</span>
+            </div>
           </div>
         </div>
       </Link>

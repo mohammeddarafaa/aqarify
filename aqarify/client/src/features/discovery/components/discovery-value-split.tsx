@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { motion } from "motion/react";
-import { Button, Separator } from "@/components/ui-kit";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { useTenantStore } from "@/stores/tenant.store";
 import { useTenantUi } from "@/hooks/use-tenant-ui";
 import { appendTenantSearch } from "@/lib/tenant-path";
@@ -20,7 +21,7 @@ export function DiscoveryValueSplit() {
     null;
 
   return (
-    <section className="bg-white py-20">
+    <section className="bg-background py-20">
       <div className="mx-auto grid max-w-screen-xl items-center gap-12 px-6 lg:grid-cols-2 lg:gap-16">
         <motion.div
           initial={{ opacity: 0, x: -12 }}
@@ -29,15 +30,15 @@ export function DiscoveryValueSplit() {
           transition={{ duration: 0.45 }}
         >
           <p className="label-overline mb-4 text-[var(--color-muted-foreground)]">حول المنصة</p>
-          <h2 className="display-lg max-w-lg text-balance text-[#141414]">
+          <h2 className="display-lg max-w-lg text-balance text-foreground">
             {ui?.content.value_statement ?? "أفضل طريقة لتجد وحدة تناسبك"}
           </h2>
-          <p className="mt-5 max-w-md text-[15px] leading-relaxed text-[#666666]">
+          <p className="mt-5 max-w-md text-[15px] leading-relaxed text-muted-foreground">
             شفافية في الأسعار، تفاصيل الوحدات، ومتابعة الحجز من لوحة واحدة — بدون مفاجآت.
             {` ${name} يقدّم عروضه عبر بوابته الرقمية لتجربة حجز موحّدة.`}
           </p>
           <Separator className="my-8 max-w-md bg-[var(--color-border)]" />
-          <ul className="space-y-3 text-sm text-[#444444]">
+          <ul className="space-y-3 text-sm text-foreground/80">
             {[
               "فلاتر ذكية للمشروع والنوع والمساحة",
               "إشعارات وحالة الحجز في الوقت الفعلي",
@@ -61,18 +62,18 @@ export function DiscoveryValueSplit() {
           transition={{ duration: 0.5 }}
           className="relative"
         >
-          <div className="aspect-[4/5] overflow-hidden rounded-[2rem] border border-[var(--color-border)] bg-[#f5f5f5] shadow-lg lg:aspect-square">
+          <div className="aspect-[4/5] overflow-hidden rounded-[2rem] border border-[var(--color-border)] bg-muted shadow-lg lg:aspect-square">
             {splitImage ? (
               <img src={splitImage} alt={name} className="h-full w-full object-cover" />
             ) : (
-              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#f9fafb] to-[#e5e7eb]">
-                <span className="text-sm font-medium tracking-wide text-[#6b7280]">{name}</span>
+              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-background to-muted">
+                <span className="text-sm font-medium tracking-wide text-muted-foreground">{name}</span>
               </div>
             )}
           </div>
-          <div className="absolute -bottom-6 -start-6 hidden max-w-xs rounded-2xl border border-[var(--color-border)] bg-white p-5 shadow-xl sm:block">
-            <p className="text-2xl font-bold text-[#141414]">100%</p>
-            <p className="mt-1 text-xs text-[#888888]">شفافية في البيانات المعروضة للوحدة</p>
+          <div className="absolute -bottom-6 -start-6 hidden max-w-xs rounded-2xl border border-[var(--color-border)] bg-background p-5 shadow-xl sm:block">
+            <p className="text-2xl font-bold text-foreground">100%</p>
+            <p className="mt-1 text-xs text-muted-foreground">شفافية في البيانات المعروضة للوحدة</p>
           </div>
         </motion.div>
       </div>

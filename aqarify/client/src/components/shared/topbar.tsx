@@ -1,4 +1,4 @@
-import { Menu, Bell, LogOut } from "lucide-react";
+import { Menu, Bell, LogOut, Search } from "lucide-react";
 import { useAuthStore } from "@/stores/auth.store";
 import { useTenantStore } from "@/stores/tenant.store";
 import { supabase } from "@/lib/supabase";
@@ -6,9 +6,14 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { appendTenantSearch } from "@/lib/tenant-path";
 import { useNotificationBell } from "@/features/notifications/hooks/use-notification-bell";
 import { cn } from "@/lib/utils";
-import { isStaffRole, roleLabel } from "@/lib/rbac";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface Props { onMenuClick: () => void }
+
+function initials(name?: string | null) {
+  if (!name) return "U";
+  return name.trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase();
+}
 
 export function Topbar({ onMenuClick }: Props) {
   const clearSession = useAuthStore((s) => s.clearSession);
@@ -28,46 +33,30 @@ export function Topbar({ onMenuClick }: Props) {
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-[var(--color-border)] bg-white px-5">
-      {/* Mobile menu toggle */}
-      <button onClick={onMenuClick} className="lg:hidden text-[#888888] hover:text-[#141414] transition-colors">
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/50 bg-background/85 px-4 backdrop-blur lg:px-6">
+      <button onClick={onMenuClick} className="text-muted-foreground transition-colors hover:text-foreground lg:hidden">
         <Menu className="h-4 w-4" />
       </button>
 
-      {/* Page context */}
-      <div className="hidden min-w-0 flex-1 lg:flex lg:items-center lg:gap-3 pe-4">
-        <div className="min-w-0">
-          <p className="text-[10px] font-medium tracking-[0.15em] uppercase text-[#888888] truncate">
-            {tenant?.name ? `${tenant.name}` : "البوابة"}
-          </p>
-          <p className="text-[11px] font-medium text-[#141414] truncate mt-0.5">
-            {user?.full_name ?? "لوحة التحكم"}
-          </p>
+      <div className="hidden min-w-0 flex-1 items-center gap-3 lg:flex">
+        <div className="flex h-11 w-full max-w-md items-center gap-2 rounded-full border border-transparent bg-card/75 px-4 shadow-sm">
+          <Search className="h-4 w-4 text-muted-foreground" />
+          <input
+            type="search"
+            placeholder={tenant?.name ? `Search in ${tenant.name}` : "Search"}
+            className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          />
         </div>
-        {user?.role ? (
-          <span
-            className={cn(
-              "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium tracking-widest uppercase",
-              isStaffRole(user.role)
-                ? "border-[#141414] bg-[#141414] text-white"
-                : "border-[var(--color-border)] text-[#666]"
-            )}
-            title={isStaffRole(user.role) ? "بوابة الفريق" : "بوابة العملاء"}
-          >
-            {roleLabel(user.role)}
-          </span>
-        ) : null}
       </div>
 
-      <div className="flex items-center gap-4 ms-auto">
-        {/* Bell */}
+      <div className="ms-auto flex items-center gap-2">
         <button
           onClick={() => navigate(tenantAware("/notifications"))}
-          className="relative text-[#888888] hover:text-[#141414] transition-colors">
+          className="relative rounded-full p-2 text-muted-foreground transition-colors hover:text-foreground">
           <Bell className="h-4 w-4" />
           {count > 0 && (
             <span className={cn(
-              "absolute -top-1.5 -right-1.5 h-3.5 w-3.5 rounded-full bg-[#141414] text-[8px] text-white",
+              "absolute -end-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground px-1 text-[9px] text-background",
               "flex items-center justify-center font-bold"
             )}>
               {count > 9 ? "9+" : count}
@@ -75,15 +64,23 @@ export function Topbar({ onMenuClick }: Props) {
           )}
         </button>
 
-        {/* Divider */}
-        <div className="h-4 w-px bg-[var(--color-border)]" />
+        <button
+          type="button"
+          onClick={() => navigate(tenantAware("/profile"))}
+          title="الملف الشخصي"
+          className="flex items-center rounded-full ps-1 outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Avatar className="h-8 w-8 border-2 border-background">
+            <AvatarImage src={user?.avatar_url ?? undefined} />
+            <AvatarFallback>{initials(user?.full_name)}</AvatarFallback>
+          </Avatar>
+        </button>
 
-        {/* Logout */}
         <button
           onClick={handleLogout}
-          className="flex items-center gap-1.5 text-[10px] font-medium tracking-widest uppercase text-[#888888] hover:text-[#141414] transition-colors">
+          className="flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-medium tracking-widest uppercase text-muted-foreground transition-colors hover:text-foreground">
           <LogOut className="h-3.5 w-3.5" />
-          خروج
+          Logout
         </button>
       </div>
     </header>

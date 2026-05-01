@@ -6,7 +6,7 @@ import {
   GlobeIcon,
   BarChart3Icon,
 } from "lucide-react";
-import { BentoGrid, BentoGridItem } from "@/components/ui-kit";
+import { Card, CardContent } from "@/components/ui/card";
 
 const features = [
   {
@@ -66,17 +66,17 @@ export function FeatureBento() {
         </p>
       </div>
 
-      <BentoGrid className="mt-12">
+      <div className="mt-12 grid gap-4 md:grid-cols-3">
         {features.map((f) => (
-          <BentoGridItem
-            key={f.title}
-            title={f.title}
-            description={f.description}
-            icon={f.icon}
-            className={f.className}
-          />
+          <Card key={f.title} className={f.className}>
+            <CardContent className="space-y-3 p-5">
+              <div className="text-lime">{f.icon}</div>
+              <h3 className="text-lg font-semibold">{f.title}</h3>
+              <p className="text-sm text-muted-foreground">{f.description}</p>
+            </CardContent>
+          </Card>
         ))}
-      </BentoGrid>
+      </div>
     </section>
   );
 }

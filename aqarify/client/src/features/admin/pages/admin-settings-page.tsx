@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Settings, CreditCard, Users, ReceiptText } from "lucide-react";
 
 const TABS = [
@@ -106,10 +107,10 @@ export default function AdminSettingsPage() {
           contact_phone: tenant.contact_phone ?? "",
           primary_color:
             (tenant.theme_config as { primary_color?: string } | undefined)?.primary_color ??
-            "#2563eb",
+            "",
           secondary_color:
             (tenant.theme_config as { secondary_color?: string } | undefined)?.secondary_color ??
-            "#64748b",
+            "",
           address: tenant.address ?? "",
           bank_name: tenant.bank_name ?? "",
           bank_account_number: tenant.bank_account_number ?? "",
@@ -198,16 +199,15 @@ export default function AdminSettingsPage() {
       <Helmet><title>إعدادات المنصة</title></Helmet>
       <div className="mx-auto max-w-3xl px-4 py-8">
         <h1 className="text-2xl font-bold mb-6">إعدادات المنصة</h1>
-        <div className="flex gap-2 mb-8 border-b">
-          {TABS.map(({ id, label, icon: Icon }) => (
-            <button key={id} onClick={() => setTab(id as typeof tab)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                tab === id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}>
-              <Icon className="h-4 w-4" />{label}
-            </button>
-          ))}
-        </div>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="mb-8">
+          <TabsList className="h-auto w-full flex-wrap justify-start gap-2 rounded-2xl bg-muted/60 p-1">
+            {TABS.map(({ id, label, icon: Icon }) => (
+              <TabsTrigger key={id} value={id} className="gap-2 rounded-xl">
+                <Icon className="h-4 w-4" />{label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
 
         {tab === "general" && (
           <form onSubmit={tenantForm.handleSubmit((d) => saveTenant.mutate(d))} className="space-y-4">
@@ -221,13 +221,13 @@ export default function AdminSettingsPage() {
               <div className="space-y-1"><Label>اللون الرئيسي</Label>
                 <div className="flex gap-2">
                   <Input type="color" {...tenantForm.register("primary_color")} className="w-12 p-1 h-10" />
-                  <Input {...tenantForm.register("primary_color")} placeholder="#2563eb" />
+                  <Input {...tenantForm.register("primary_color")} placeholder="Primary color (HEX)" />
                 </div>
               </div>
               <div className="space-y-1"><Label>اللون الثانوي</Label>
                 <div className="flex gap-2">
                   <Input type="color" {...tenantForm.register("secondary_color")} className="w-12 p-1 h-10" />
-                  <Input {...tenantForm.register("secondary_color")} placeholder="#7c3aed" />
+                  <Input {...tenantForm.register("secondary_color")} placeholder="Secondary color (HEX)" />
                 </div>
               </div>
               <div className="space-y-1 col-span-2"><Label>العنوان</Label>

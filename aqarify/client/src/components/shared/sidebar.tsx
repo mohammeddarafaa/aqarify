@@ -2,12 +2,22 @@ import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useTenantStore } from "@/stores/tenant.store";
 import { useAuthStore } from "@/stores/auth.store";
-import { useTenantUi } from "@/hooks/use-tenant-ui";
 import { appendTenantSearch } from "@/lib/tenant-path";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  Home, Search, FileText, CreditCard, Users, BarChart3,
-  Settings, Bell, Building2, ClipboardList, X, PhoneCall, UserCircle2,
+  Home,
+  Search,
+  FileText,
+  CreditCard,
+  Users,
+  BarChart3,
+  Settings,
+  Bell,
+  Building2,
+  ClipboardList,
+  X,
+  PhoneCall,
+  Sparkles,
 } from "lucide-react";
 
 type NavItem = { to: string; label: string; icon: React.ElementType; roles: string[] }
@@ -46,81 +56,70 @@ interface Props { isOpen: boolean; onClose: () => void }
 
 export function Sidebar({ isOpen, onClose }: Props) {
   const tenant = useTenantStore((s) => s.tenant);
-  const { appName } = useTenantUi();
   const user = useAuthStore((s) => s.user);
   const { pathname, search } = useLocation();
   const role = user?.role ?? "customer";
   const items = NAV.filter((n) => n.roles.includes(role));
   const withTenant = (path: string) => appendTenantSearch(pathname, search, path);
+  const isRtl = typeof document !== "undefined" && document.documentElement.dir === "rtl";
 
   return (
     <>
       {isOpen && (
-        <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={onClose} />
+        <div className="fixed inset-0 z-40 bg-[color-mix(in_oklch,var(--color-foreground)_60%,transparent)] lg:hidden" onClick={onClose} />
       )}
       <aside className={cn(
-        "fixed inset-y-0 right-0 z-50 flex w-64 flex-col bg-[#141414] transition-transform duration-300 lg:static lg:translate-x-0",
-        isOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0"
+        "fixed inset-y-0 start-0 z-50 flex w-20 flex-col border-e border-sidebar-border bg-sidebar/95 text-sidebar-foreground shadow-2xl shadow-ink/10 backdrop-blur transition-transform duration-300 lg:static lg:translate-x-0 lg:shadow-none",
+        isOpen ? "translate-x-0" : isRtl ? "translate-x-full lg:translate-x-0" : "-translate-x-full lg:translate-x-0"
       )}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-5 border-b border-white/10">
+        <div className="flex items-center justify-between px-4 py-5">
           {tenant?.logo_url ? (
-            <img src={tenant.logo_url} alt={tenant.name} className="h-7 object-contain brightness-0 invert" />
+            <img src={tenant.logo_url} alt={tenant.name} className="h-8 w-8 rounded-full object-contain" />
           ) : (
-            <div className="flex flex-col leading-none">
-              <span className="text-[13px] font-bold tracking-widest text-white uppercase">
-                {appName}
-              </span>
-              <span className="text-[8px] font-medium tracking-[0.2em] text-white/40 uppercase mt-0.5">
-                {tenant?.tenant_ui_config?.branding.tagline || "Real Estate"}
-              </span>
+            <div className="grid h-9 w-9 place-items-center rounded-full bg-background text-foreground ring-1 ring-sidebar-border">
+              <Sparkles className="h-5 w-5" />
             </div>
           )}
-          <button onClick={onClose} className="lg:hidden text-white/40 hover:text-white transition-colors">
+          <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full bg-background/80 text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground lg:hidden">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-4">
+        <nav className="flex flex-1 flex-col items-center gap-2 overflow-y-auto px-3 py-2">
           {items.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={withTenant(to)}
               onClick={onClose}
+              title={label}
               className={({ isActive }) => cn(
-                "flex items-center gap-3 px-5 py-3 text-[11px] font-medium tracking-[0.1em] uppercase transition-all",
+                "grid h-12 w-12 place-items-center rounded-full text-sidebar-foreground/65 transition-all",
                 isActive
-                  ? "text-white border-e-2 border-[var(--color-gold)] bg-white/5"
-                  : "text-white/40 hover:text-white hover:bg-white/5"
+                  ? "bg-foreground text-background shadow-lg shadow-ink/15"
+                  : "bg-background/60 hover:bg-background hover:text-sidebar-foreground"
               )}>
               <Icon className="h-3.5 w-3.5 shrink-0" />
-              {label}
+              <span className="sr-only">{label}</span>
             </NavLink>
           ))}
         </nav>
 
-        {/* Footer — profile link */}
-        <div className="border-t border-white/10">
+        <div className="flex flex-col items-center gap-2 px-3 pb-5 pt-3">
           <NavLink
             to={withTenant("/profile")}
             onClick={onClose}
+            title={user?.full_name ?? "Profile"}
             className={({ isActive }) => cn(
-              "flex items-center gap-3 px-5 py-4 transition-all w-full",
-              isActive ? "bg-white/5" : "hover:bg-white/5"
+              "grid h-12 w-12 place-items-center rounded-full transition-all",
+              isActive ? "bg-foreground" : "bg-background/70 hover:bg-background"
             )}
           >
-            <Avatar className="h-8 w-8 shrink-0">
+            <Avatar className="h-7 w-7 shrink-0">
               <AvatarImage src={user?.avatar_url ?? undefined} />
-              <AvatarFallback className="bg-white/10 text-white text-xs">
+              <AvatarFallback className="bg-lime text-xs font-semibold text-lime-foreground">
                 {initials(user?.full_name)}
               </AvatarFallback>
             </Avatar>
-            <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-medium text-white truncate">{user?.full_name}</p>
-              <p className="text-[9px] text-white/30 truncate mt-0.5">{user?.email}</p>
-            </div>
-            <UserCircle2 className="h-3.5 w-3.5 text-white/30 shrink-0" />
           </NavLink>
         </div>
       </aside>

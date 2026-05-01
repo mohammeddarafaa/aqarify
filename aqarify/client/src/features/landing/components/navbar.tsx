@@ -1,15 +1,17 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
-import { X, Search, Menu, CircleUserRound } from "lucide-react";
+import { X, Search, Menu, CircleUserRound, Languages } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useTenantStore } from "@/stores/tenant.store";
 import { useAuthStore } from "@/stores/auth.store";
 import { useUIStore } from "@/stores/ui.store";
 import { cn } from "@/lib/utils";
 import { appendTenantSearch } from "@/lib/tenant-path";
-import { motionTransitions } from "@/components/ui-kit";
+import { motionTransitions } from "@/components/motion/presets";
 
 export function Navbar() {
+  const { t } = useTranslation("common");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const shouldReduceMotion = useReducedMotion();
@@ -32,9 +34,9 @@ export function Navbar() {
   }, [mobileOpen]);
 
   const links = [
-    { label: "المشاريع", to: "/browse" },
-    { label: "المزايا", to: "/#amenities" },
-    { label: "تواصل", to: "/#contact" },
+    { label: t("nav.projects"), to: "/browse" },
+    { label: t("nav.features"), to: "/#amenities" },
+    { label: t("nav.contact"), to: "/#contact" },
   ];
 
   return (
@@ -53,7 +55,7 @@ export function Navbar() {
             ) : (
               <div className="flex flex-col leading-none">
                 <span className="text-base font-bold tracking-widest text-foreground uppercase">
-                  {tenant?.name ?? "المطور"}
+                  {tenant?.name ?? t("app_name")}
                 </span>
                 <span className="text-[9px] font-medium tracking-[0.22em] text-muted-foreground uppercase mt-0.5">
                   Real Estate
@@ -72,11 +74,31 @@ export function Navbar() {
           </nav>
 
           <div className="hidden lg:flex items-center gap-5 shrink-0">
-            <button
-              onClick={() => setLanguage(language === "ar" ? "en" : "ar")}
-              className="text-[11px] font-medium tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors">
-              {language === "ar" ? "EN" : "عر"}
-            </button>
+            <div className="inline-flex items-center rounded-full border border-border bg-background p-0.5">
+              <button
+                type="button"
+                onClick={() => setLanguage("ar")}
+                className={cn(
+                  "inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-[10px] font-semibold tracking-wide transition-colors",
+                  language === "ar" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
+                )}
+                aria-label="Switch language to Arabic"
+              >
+                <Languages className="h-3.5 w-3.5" />
+                AR
+              </button>
+              <button
+                type="button"
+                onClick={() => setLanguage("en")}
+                className={cn(
+                  "inline-flex h-7 items-center rounded-full px-2.5 text-[10px] font-semibold tracking-wide transition-colors",
+                  language === "en" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
+                )}
+                aria-label="Switch language to English"
+              >
+                EN
+              </button>
+            </div>
             <Link to={withTenant("/browse")}
               className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-foreground hover:bg-foreground hover:text-background transition-colors">
               <Search className="h-4 w-4" />
@@ -87,7 +109,7 @@ export function Navbar() {
                 className="hidden xl:inline-flex items-center gap-1.5 text-[11px] font-medium tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors"
                 title="بوابة الموظفين"
               >
-                دخول الفريق
+                {t("nav.team_login")}
               </Link>
             ) : null}
             <button
@@ -105,7 +127,7 @@ export function Navbar() {
           <button
             onClick={() => setMobileOpen(true)}
             className="lg:hidden flex h-10 w-10 items-center justify-center rounded-full border border-foreground"
-            aria-label="فتح القائمة">
+            aria-label={t("actions.open_menu", { defaultValue: "Open menu" })}>
             <div className="flex flex-col gap-1.5">
               <span className="block h-px w-4 bg-foreground" />
               <span className="block h-px w-4 bg-foreground" />
@@ -122,22 +144,22 @@ export function Navbar() {
             animate={shouldReduceMotion ? undefined : { opacity: 1 }}
             exit={shouldReduceMotion ? undefined : { opacity: 0 }}
             transition={motionTransitions.overlay}
-            className="fixed inset-0 z-[100] bg-[#141414] text-white flex flex-col px-6 pt-8 pb-10 overflow-y-auto"
+            className="fixed inset-0 z-[100] bg-foreground text-background flex flex-col px-6 pt-8 pb-10 overflow-y-auto"
           >
             {/* Close */}
             <div className="flex items-center justify-between mb-12">
               <div className="flex flex-col leading-none">
-                <span className="text-base font-bold tracking-widest text-white uppercase">
-                  {tenant?.name ?? "المطور"}
+                <span className="text-base font-bold tracking-widest text-background uppercase">
+                  {tenant?.name ?? t("app_name")}
                 </span>
-                <span className="text-[9px] font-medium tracking-[0.22em] text-white/50 uppercase mt-0.5">
+                <span className="text-[9px] font-medium tracking-[0.22em] text-[color-mix(in_oklch,var(--color-background)_50%,transparent)] uppercase mt-0.5">
                   Real Estate
                 </span>
               </div>
               <button
                 onClick={() => setMobileOpen(false)}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20">
-                <X className="h-4 w-4 text-white" />
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-[color-mix(in_oklch,var(--color-background)_20%,transparent)]">
+                <X className="h-4 w-4 text-background" />
               </button>
             </div>
 
@@ -152,30 +174,33 @@ export function Navbar() {
                   <Link
                     to={withTenant(l.to)}
                     onClick={() => setMobileOpen(false)}
-                    className="flex items-center justify-between border-b border-white/10 py-5 text-lg font-medium text-white hover:text-white/60 transition-colors">
+                    className="flex items-center justify-between border-b border-[color-mix(in_oklch,var(--color-background)_10%,transparent)] py-5 text-lg font-medium text-background hover:text-[color-mix(in_oklch,var(--color-background)_60%,transparent)] transition-colors">
                     {l.label}
-                    <span className="text-white/30 text-sm">→</span>
+                <span className="text-[color-mix(in_oklch,var(--color-background)_30%,transparent)] text-sm">→</span>
                   </Link>
                 </motion.div>
               ))}
             </nav>
 
             {/* Bottom actions */}
-            <div className="flex flex-wrap items-center gap-6 pt-8 border-t border-white/10">
+            <div className="flex flex-wrap items-center gap-6 pt-8 border-t border-[color-mix(in_oklch,var(--color-background)_10%,transparent)]">
               <button
                 onClick={() => { setMobileOpen(false); navigate(withTenant("/login")); }}
-                className="text-[11px] font-medium tracking-widest uppercase text-white/70 hover:text-white transition-colors">
-                دخول العملاء
+                className="text-[11px] font-medium tracking-widest uppercase text-[color-mix(in_oklch,var(--color-background)_70%,transparent)] hover:text-background transition-colors">
+                {t("nav.login")}
               </button>
               <button
                 onClick={() => { setMobileOpen(false); navigate(withTenant("/login?as=team")); }}
-                className="text-[11px] font-medium tracking-widest uppercase text-white/70 hover:text-white transition-colors">
-                دخول الفريق
+                className="text-[11px] font-medium tracking-widest uppercase text-[color-mix(in_oklch,var(--color-background)_70%,transparent)] hover:text-background transition-colors">
+                {t("nav.team_login")}
               </button>
               <button
+                type="button"
                 onClick={() => setLanguage(language === "ar" ? "en" : "ar")}
-                className="text-[11px] font-medium tracking-widest uppercase text-white/70 hover:text-white transition-colors ms-auto">
-                {language === "ar" ? "EN" : "عر"}
+                className="ms-auto inline-flex items-center gap-1 rounded-full border border-[color-mix(in_oklch,var(--color-background)_20%,transparent)] px-3 py-1.5 text-[11px] font-semibold tracking-wide text-[color-mix(in_oklch,var(--color-background)_70%,transparent)] hover:text-background transition-colors"
+              >
+                <Languages className="h-3.5 w-3.5" />
+                {language === "ar" ? "EN" : "AR"}
               </button>
             </div>
           </motion.div>

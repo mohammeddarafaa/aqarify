@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { ArrowRightIcon, SparklesIcon } from "lucide-react";
-import { Button, Spotlight } from "@/components/ui-kit";
+import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
 
 const LOGO_ROW = [
   "K-Developments",
@@ -13,19 +14,22 @@ const LOGO_ROW = [
 export function MarketingHero() {
   return (
     <section className="relative isolate overflow-hidden border-b border-border">
-      <Spotlight />
-
       <div className="relative mx-auto max-w-6xl px-6 py-24 text-center md:py-32">
         <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background/70 px-3 py-1 text-[11px] font-medium text-muted-foreground backdrop-blur">
           <SparklesIcon className="size-3.5 text-foreground" />
           <span>New · Paymob-powered subscriptions are live</span>
         </div>
 
-        <h1 className="mx-auto mt-6 max-w-4xl text-balance text-5xl font-semibold tracking-[-0.03em] md:text-7xl">
+        <motion.h1
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.45 }}
+          className="mx-auto mt-6 max-w-4xl text-balance text-5xl font-semibold tracking-[-0.03em] md:text-7xl">
           Sell real estate online,
           <br className="hidden md:inline" />
           <span className="text-muted-foreground"> under your own brand.</span>
-        </h1>
+        </motion.h1>
 
         <p className="mx-auto mt-6 max-w-2xl text-pretty text-base text-muted-foreground md:text-lg">
           Aqarify is the multi-tenant SaaS Egyptian developers use to launch a

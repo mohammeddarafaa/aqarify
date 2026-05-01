@@ -1,4 +1,4 @@
-import { InfiniteMovingCards } from "@/components/ui-kit";
+import { Card, CardContent } from "@/components/ui/card";
 
 const testimonials = [
   {
@@ -45,8 +45,18 @@ export function TestimonialStrip() {
         </h2>
       </div>
 
-      <div className="mt-12">
-        <InfiniteMovingCards items={testimonials} speed="slow" />
+      <div className="mx-auto mt-12 grid max-w-6xl gap-4 px-6 md:grid-cols-3">
+        {testimonials.slice(0, 3).map((item) => (
+          <Card key={item.name} className="border-border bg-card">
+            <CardContent className="space-y-3 p-5">
+              <p className="text-sm text-muted-foreground">"{item.quote}"</p>
+              <div>
+                <p className="text-sm font-semibold">{item.name}</p>
+                <p className="text-xs text-muted-foreground">{item.title}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
     </section>
   );

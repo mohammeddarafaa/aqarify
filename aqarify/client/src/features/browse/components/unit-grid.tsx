@@ -17,7 +17,7 @@ export function UnitGrid({ units, isLoading, isFetchingNextPage, hasNextPage, on
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-0 border-t border-[var(--color-border)]">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => <UnitCardSkeleton key={i} />)}
       </div>
     );
@@ -27,7 +27,7 @@ export function UnitGrid({ units, isLoading, isFetchingNextPage, hasNextPage, on
     return (
       <div className="border-t border-[var(--color-border)] py-24 text-center">
         <p className="label-overline mb-4">لا توجد نتائج</p>
-        <p className="text-[#888888] text-sm mb-8">لم يتم العثور على وحدات تطابق الفلاتر المحددة.</p>
+        <p className="text-muted-foreground text-sm mb-8">لم يتم العثور على وحدات تطابق الفلاتر المحددة.</p>
         <button
           onClick={onClearFilters}
           className="btn-luxury text-[11px] inline-flex">
@@ -39,7 +39,7 @@ export function UnitGrid({ units, isLoading, isFetchingNextPage, hasNextPage, on
 
   return (
     <div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 border-t border-[var(--color-border)]">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {units.map((unit) => <UnitCard key={unit.id} unit={unit} />)}
         {isFetchingNextPage && Array.from({ length: 3 }).map((_, i) => <UnitCardSkeleton key={`sk-${i}`} />)}
       </div>

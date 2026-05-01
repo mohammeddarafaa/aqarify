@@ -1,11 +1,10 @@
 import { Link } from "react-router-dom";
-import { Button, Meteors } from "@/components/ui-kit";
+import { Button } from "@/components/ui/button";
 
 export function MarketingCTA() {
   return (
     <section className="mx-auto max-w-6xl px-6 py-24">
       <div className="relative overflow-hidden rounded-3xl border border-border bg-foreground px-8 py-16 text-background shadow-xl md:px-16 md:py-20">
-        <Meteors number={16} />
         <div className="relative mx-auto max-w-2xl text-center">
           <div className="text-[11px] font-medium uppercase tracking-[0.2em] text-background/60">
             Launch in a weekend

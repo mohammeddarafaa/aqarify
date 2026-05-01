@@ -7,7 +7,9 @@ import { useAuthStore } from "@/stores/auth.store";
 import { useTenantStore } from "@/stores/tenant.store";
 import { useTenantUi } from "@/hooks/use-tenant-ui";
 import { appendTenantSearch } from "@/lib/tenant-path";
-import { Badge, Button, Skeleton } from "@/components/ui-kit";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Payment = { id: string; amount: number; due_date: string; status: string };
 
@@ -100,7 +102,7 @@ export default function CustomerOverviewPage() {
                     : ""}
                 </p>
                 <div className="flex items-center gap-2">
-                  <Badge variant={activeRes.status === "confirmed" ? "default" : "secondary"}>
+                  <Badge variant={activeRes.status === "confirmed" ? "success" : "warning"}>
                     {activeRes.status === "confirmed" ? "مؤكد" : "في الانتظار"}
                   </Badge>
                   <span className="text-xs text-muted-foreground">

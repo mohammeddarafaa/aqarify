@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, useReducedMotion } from "motion/react";
 import { MapPin, Navigation } from "lucide-react";
-import { Button, motionTransitions, revealUpVariants } from "@/components/ui-kit";
+import { motionTransitions, revealUpVariants } from "@/components/motion/presets";
+import { Button } from "@/components/ui/button";
 import { appendTenantSearch } from "@/lib/tenant-path";
 import type { PublicProject } from "@/features/browse/hooks/use-public-projects";
 

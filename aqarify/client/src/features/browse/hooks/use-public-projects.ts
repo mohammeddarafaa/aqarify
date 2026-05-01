@@ -11,6 +11,7 @@ export interface PublicProject {
   cover_image_url: string | null;
   gallery: string[] | null;
   status: string;
+  starting_price?: number | null;
   location_lat?: number | null;
   location_lng?: number | null;
 }

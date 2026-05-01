@@ -19,15 +19,15 @@ export default function PublicLayout() {
 
   if (isTenantNotFound) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-white px-6 text-center">
-        <h1 className="text-2xl font-semibold text-[#141414]">البوابة غير موجودة</h1>
-        <p className="mt-3 max-w-md text-sm text-[#666666]">
-          لا يوجد مطور مرتبط بالرابط <span className="font-mono text-[#141414]">{slug}</span>.
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6 text-center">
+        <h1 className="text-2xl font-semibold text-foreground">البوابة غير موجودة</h1>
+        <p className="mt-3 max-w-md text-sm text-muted-foreground">
+          لا يوجد مطور مرتبط بالرابط <span className="font-mono text-foreground">{slug}</span>.
           تحقق من العنوان أو جرّب الرابط الذي أرسله لك المطوّر.
         </p>
         <Link
           to="/discover"
-          className="mt-8 text-sm font-medium tracking-widest uppercase text-[#141414] underline underline-offset-4"
+          className="mt-8 text-sm font-medium tracking-widest uppercase text-foreground underline underline-offset-4"
         >
           تصفّح بوابات أخرى
         </Link>
@@ -36,7 +36,7 @@ export default function PublicLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-foreground)]">
+    <div className="min-h-screen bg-background text-foreground">
       <ReadOnlyBanner />
       <Outlet />
     </div>

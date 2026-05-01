@@ -1,38 +1,17 @@
 import { Helmet } from "react-helmet-async";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 import { api } from "@/lib/api";
 import { toast } from "@/lib/app-toast";
-import {
-  CheckCircle2,
-  XCircle,
-  MoreHorizontal,
-  Phone,
-  Building2,
-  FileText,
-} from "lucide-react";
-import {
-  Avatar,
-  AvatarFallback,
-  Badge,
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui-kit";
+import { CheckCircle2, XCircle, MoreHorizontal, Phone, Building2 } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useIsReadOnly } from "@/hooks/use-is-read-only";
 import { useAuthStore } from "@/stores/auth.store";
-import { useState } from "react";
-import { SaaSPageShell } from "@/components/shared/saas-page-shell";
-import { SaaSListToolbar } from "@/components/shared/saas-list-toolbar";
-import { SaaSTableShell } from "@/components/shared/saas-table-shell";
+import { DataTableShell } from "@/components/shared/data-table-shell";
 import {
   RESERVATION_STATUS_OPTIONS,
   getReservationStatusLabel,
@@ -110,160 +89,132 @@ export default function AgentReservationsPage() {
     return acc;
   }, {});
 
+  const columns = useMemo<ColumnDef<ReservationItem>[]>(
+    () => [
+      {
+        header: "العميل",
+        cell: ({ row }) => {
+          const r = row.original;
+          return (
+            <div className="flex items-center gap-3">
+              <Avatar size="sm">
+                <AvatarFallback className="bg-primary/10 text-[10px] font-semibold text-primary">
+                  {initials(r.users?.full_name)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <p className="truncate font-medium">{r.users?.full_name ?? "—"}</p>
+                <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+                  <Phone className="h-3 w-3" />
+                  {r.users?.phone ?? "—"}
+                </p>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        header: "الوحدة",
+        cell: ({ row }) => {
+          const r = row.original;
+          return (
+            <div className="flex items-center gap-2 text-sm">
+              <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+              <div className="min-w-0">
+                <p className="truncate font-medium">{r.units?.unit_number ?? "—"}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {r.units?.project?.name ?? r.units?.type ?? ""}
+                </p>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        header: "الحالة",
+        cell: ({ row }) => (
+          <Badge variant={getReservationStatusVariant(row.original.status)}>
+            {getReservationStatusLabel(row.original.status)}
+          </Badge>
+        ),
+      },
+      {
+        header: "التاريخ",
+        cell: ({ row }) => new Date(row.original.created_at).toLocaleDateString("ar-EG"),
+      },
+      {
+        header: "المبلغ",
+        cell: ({ row }) => `${row.original.total_price?.toLocaleString("ar-EG")} ج.م`,
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => {
+          const r = row.original;
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" disabled={readOnly || r.status !== "pending"}>
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {canConfirmOrExpire ? (
+                  <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, newStatus: "confirmed" })}>
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    تأكيد الحجز
+                  </DropdownMenuItem>
+                ) : null}
+                {canConfirmOrExpire ? <DropdownMenuSeparator /> : null}
+                {canConfirmOrExpire ? (
+                  <DropdownMenuItem variant="destructive" onClick={() => updateStatus.mutate({ id: r.id, newStatus: "expired" })}>
+                    <XCircle className="h-4 w-4" />
+                    إنهاء الحجز
+                  </DropdownMenuItem>
+                ) : null}
+                {canConfirmOrExpire ? <DropdownMenuSeparator /> : null}
+                <DropdownMenuItem variant="destructive" onClick={() => updateStatus.mutate({ id: r.id, newStatus: "cancelled" })}>
+                  <XCircle className="h-4 w-4" />
+                  إلغاء الحجز
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+        },
+      },
+    ],
+    [canConfirmOrExpire, readOnly, updateStatus],
+  );
+
   return (
     <>
       <Helmet>
         <title>الحجوزات</title>
       </Helmet>
-      <SaaSPageShell title="إدارة الحجوزات" description="راجع الحجوزات وأدر الحالات بسرعة ودقة.">
+      <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">إدارة الحجوزات</h1>
+          <p className="text-sm text-muted-foreground">راجع الحجوزات وأدر الحالات بسرعة ودقة.</p>
+        </div>
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
           <span>المعلقة: <strong className="text-foreground">{counts.pending ?? 0}</strong></span>
           <span>المؤكدة: <strong className="text-foreground">{counts.confirmed ?? 0}</strong></span>
         </div>
-
-        <SaaSListToolbar
+        <DataTableShell
+          columns={columns}
+          data={isLoading ? [] : visibleItems}
           searchValue={searchValue}
           onSearchChange={setSearchValue}
           searchPlaceholder="ابحث باسم العميل أو الهاتف أو الوحدة..."
-          filterLabel="الحالة"
-          filterValue={status}
-          onFilterChange={setStatus}
-          filterOptions={RESERVATION_STATUS_OPTIONS.map((s) => ({ value: s.value, label: s.label }))}
+          filters={[{
+            key: "status",
+            label: "الحالة",
+            value: status,
+            onChange: setStatus,
+            options: RESERVATION_STATUS_OPTIONS.map((s) => ({ value: s.value, label: s.label })),
+          }]}
         />
-
-        <SaaSTableShell
-          isLoading={isLoading}
-          isEmpty={visibleItems.length === 0}
-          empty={
-            <div className="flex flex-col items-center gap-2 py-8 text-center">
-              <FileText className="h-10 w-10 text-muted-foreground/40" />
-              <p className="text-muted-foreground">لا توجد حجوزات لعرضها</p>
-            </div>
-          }
-        >
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/30">
-                  <TableHead className="text-start">العميل</TableHead>
-                  <TableHead className="text-start hidden md:table-cell">
-                    الوحدة
-                  </TableHead>
-                  <TableHead className="text-start">الحالة</TableHead>
-                  <TableHead className="text-start hidden sm:table-cell">
-                    التاريخ
-                  </TableHead>
-                  <TableHead className="text-start">المبلغ</TableHead>
-                  <TableHead className="w-10" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {visibleItems.map((r) => (
-                  <TableRow key={r.id} className="group">
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar size="sm">
-                          <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-semibold">
-                            {initials(r.users?.full_name)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0">
-                          <p className="font-medium truncate">
-                            {r.users?.full_name ?? "—"}
-                          </p>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">
-                            <Phone className="h-3 w-3" />
-                            {r.users?.phone ?? "—"}
-                          </p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <div className="flex items-center gap-2 text-sm">
-                        <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                        <div className="min-w-0">
-                          <p className="font-medium truncate">
-                            {r.units?.unit_number ?? "—"}
-                          </p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {r.units?.project?.name ?? r.units?.type ?? ""}
-                          </p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={getReservationStatusVariant(r.status)}>
-                        {getReservationStatusLabel(r.status)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
-                      {new Date(r.created_at).toLocaleDateString("ar-EG")}
-                    </TableCell>
-                    <TableCell className="font-semibold text-primary">
-                      {r.total_price?.toLocaleString("ar-EG")} ج.م
-                    </TableCell>
-                    <TableCell className="text-end">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            disabled={readOnly || r.status !== "pending"}
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {canConfirmOrExpire ? (
-                            <DropdownMenuItem
-                              onClick={() =>
-                                updateStatus.mutate({
-                                  id: r.id,
-                                  newStatus: "confirmed",
-                                })
-                              }
-                            >
-                              <CheckCircle2 className="h-4 w-4 text-green-600" />
-                              تأكيد الحجز
-                            </DropdownMenuItem>
-                          ) : null}
-                          {canConfirmOrExpire ? <DropdownMenuSeparator /> : null}
-                          {canConfirmOrExpire ? (
-                            <DropdownMenuItem
-                              variant="destructive"
-                              onClick={() =>
-                                updateStatus.mutate({
-                                  id: r.id,
-                                  newStatus: "expired",
-                                })
-                              }
-                            >
-                              <XCircle className="h-4 w-4" />
-                              إنهاء الحجز
-                            </DropdownMenuItem>
-                          ) : null}
-                          {canConfirmOrExpire ? <DropdownMenuSeparator /> : null}
-                          <DropdownMenuItem
-                            variant="destructive"
-                            onClick={() =>
-                              updateStatus.mutate({
-                                id: r.id,
-                                newStatus: "cancelled",
-                              })
-                            }
-                          >
-                            <XCircle className="h-4 w-4" />
-                            إلغاء الحجز
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-        </SaaSTableShell>
-      </SaaSPageShell>
+      </div>
     </>
   );
 }

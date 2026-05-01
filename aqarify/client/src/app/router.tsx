@@ -6,6 +6,7 @@ import { useAuthStore } from "@/stores/auth.store";
 import { roleHomePath } from "@/lib/rbac";
 import { RouteErrorBoundary } from "@/components/shared/route-error-boundary";
 import { appendTenantForSlug, appendTenantSearch, resolveTenantSlugForLinks } from "@/lib/tenant-path";
+import { RouteTransitionOutlet } from "@/components/shared/route-transition-outlet";
 
 function tenantPreserveTarget(pathname: string, search: string, target: string): string {
   const slug = resolveTenantSlugForLinks(pathname, search);
@@ -31,6 +32,8 @@ const DashboardLayout = lazy(() => import("@/app/layouts/dashboard-layout"));
 const LandingPage = lazy(() => import("@/features/landing/pages/landing-page"));
 const BrowseProjectsPage = lazy(() => import("@/features/browse/pages/browse-projects-page"));
 const BrowseUnitsPage = lazy(() => import("@/features/browse/pages/browse-units-page"));
+const CompareUnitsPage = lazy(() => import("@/features/browse/pages/compare-units-page"));
+const FavoritesPage = lazy(() => import("@/features/browse/pages/favorites-page"));
 const UnitDetailPage = lazy(() => import("@/features/unit-details/pages/unit-detail-page"));
 
 const LoginPage = lazy(() => import("@/features/auth/pages/login-page"));
@@ -263,7 +266,7 @@ function NotFoundPage() {
   );
 }
 
-const routes = [
+const appRoutes = [
   {
     path: "/",
     element: <IndexLayout />,
@@ -337,6 +340,16 @@ const routes = [
         ],
       },
       {
+        path: "compare",
+        element: <S><PublicLayout /></S>,
+        children: [{ index: true, element: <S><CompareUnitsPage /></S> }],
+      },
+      {
+        path: "favorites",
+        element: <S><PublicLayout /></S>,
+        children: [{ index: true, element: <S><FavoritesPage /></S> }],
+      },
+      {
         path: "discover",
         element: <S><PublicLayout /></S>,
         children: [{ index: true, element: <S><DiscoveryPage /></S> }],
@@ -367,6 +380,18 @@ const routes = [
       { index: true, element: <S><BrowseProjectsPage /></S> },
       { path: "projects/:projectId", element: <S><BrowseUnitsPage /></S> },
     ],
+  },
+  {
+    path: "/compare",
+    element: <TenantPublicBranch />,
+    errorElement: <RouteErrorBoundary />,
+    children: [{ index: true, element: <S><CompareUnitsPage /></S> }],
+  },
+  {
+    path: "/favorites",
+    element: <TenantPublicBranch />,
+    errorElement: <RouteErrorBoundary />,
+    children: [{ index: true, element: <S><FavoritesPage /></S> }],
   },
   {
     path: "/discover",
@@ -423,6 +448,18 @@ const routes = [
   { path: "/dashboard/*", element: <DashboardWildcardGate /> },
   { path: "/unauthorized", element: <UnauthorizedPage /> },
   { path: "*", element: <NotFoundPage /> },
+];
+
+const routes = [
+  {
+    element: (
+      <S>
+        <RouteTransitionOutlet />
+      </S>
+    ),
+    errorElement: <RouteErrorBoundary />,
+    children: appRoutes,
+  },
 ];
 
 const router = createBrowserRouter(routes);

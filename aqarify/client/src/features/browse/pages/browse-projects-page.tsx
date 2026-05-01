@@ -5,7 +5,7 @@ import { BrowseHero } from "@/features/browse/components/browse-hero";
 import { usePublicProjects } from "@/features/browse/hooks/use-public-projects";
 import { useTenantStore } from "@/stores/tenant.store";
 import { appendTenantSearch } from "@/lib/tenant-path";
-import { Skeleton } from "@/components/ui-kit";
+import { Skeleton } from "@/components/ui/skeleton";
 import { MapPin } from "lucide-react";
 import { LocationDiscoveryOnboarding } from "@/features/browse/components/location-discovery-onboarding";
 
@@ -30,7 +30,7 @@ export default function BrowseProjectsPage() {
       </Helmet>
       <Navbar />
 
-      <main className="min-h-screen bg-white pt-20">
+      <main className="min-h-screen bg-background pt-20">
         <BrowseHero mode="projects" total={list.length} isLoading={isLoading} />
 
         <div className="mx-auto max-w-screen-xl px-6 py-10">
@@ -57,7 +57,7 @@ export default function BrowseProjectsPage() {
                   <Link
                     key={p.id}
                     to={projectHref(pathname, search, p.id)}
-                    className="group block overflow-hidden rounded-2xl border border-[var(--color-border)] bg-white transition-shadow hover:shadow-lg"
+                    className="group block overflow-hidden rounded-2xl border border-[var(--color-border)] bg-background transition-shadow hover:shadow-lg"
                   >
                     <div className="relative aspect-[16/10] overflow-hidden bg-muted">
                       {cover ? (

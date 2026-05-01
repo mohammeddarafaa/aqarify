@@ -1,20 +1,13 @@
 export function UnitCardSkeleton() {
   return (
-    <div className="animate-pulse border-b border-[var(--color-border)] pb-5 pt-0">
-      <div className="h-56 bg-[#f0f0f0] mb-4" />
-      <div className="h-2.5 w-20 bg-[#f0f0f0] mb-3" />
-      <div className="flex justify-between mb-3">
-        <div className="h-4 w-28 bg-[#f0f0f0]" />
-        <div className="h-4 w-24 bg-[#f0f0f0]" />
-      </div>
-      <div className="flex gap-4 mb-4">
-        <div className="h-3 w-14 bg-[#f0f0f0]" />
-        <div className="h-3 w-14 bg-[#f0f0f0]" />
-        <div className="h-3 w-14 bg-[#f0f0f0] ms-auto" />
-      </div>
-      <div className="border-t border-[var(--color-border)] pt-4 flex justify-between">
-        <div className="h-3 w-24 bg-[#f0f0f0]" />
-        <div className="h-3 w-4 bg-[#f0f0f0]" />
+    <div className="relative min-h-[360px] animate-pulse overflow-hidden rounded-[2rem] bg-muted shadow-[0_24px_70px_-52px_rgb(20_20_20/.35)] sm:min-h-[420px]">
+      <div className="absolute inset-x-5 bottom-5 space-y-4">
+        <div className="h-7 w-2/3 rounded-full bg-background/70" />
+        <div className="flex gap-3">
+          <div className="h-4 w-14 rounded-full bg-background/60" />
+          <div className="h-4 w-14 rounded-full bg-background/60" />
+          <div className="h-4 w-16 rounded-full bg-background/60" />
+        </div>
       </div>
     </div>
   );

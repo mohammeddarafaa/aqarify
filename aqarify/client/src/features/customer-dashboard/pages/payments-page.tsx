@@ -1,16 +1,17 @@
 import { useState } from "react";
 import { Helmet } from "react-helmet-async";
+import { Link, useLocation } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 import { api } from "@/lib/api";
 import { toast } from "@/lib/app-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table, TableBody, TableCell, TableHead,
-  TableHeader, TableRow,
-} from "@/components/ui/table";
 import { Download, CreditCard, Receipt } from "lucide-react";
+import { useMemo } from "react";
+import { DataTableShell } from "@/components/shared/data-table-shell";
+import { appendTenantSearch } from "@/lib/tenant-path";
 
 type Payment = {
   id: string;
@@ -28,12 +29,12 @@ const TYPE_LABEL: Record<string, string> = {
   installment: "قسط",
 };
 
-const STATUS_MAP: Record<Payment["status"], {
-  label: string;
-  variant: "default" | "secondary" | "destructive" | "outline";
-}> = {
-  pending: { label: "قادم", variant: "secondary" },
-  paid: { label: "مدفوع", variant: "default" },
+const STATUS_MAP: Record<
+  Payment["status"],
+  { label: string; variant: "success" | "warning" | "destructive" | "muted" | "outline" }
+> = {
+  pending: { label: "قادم", variant: "warning" },
+  paid: { label: "مدفوع", variant: "success" },
   overdue: { label: "متأخر", variant: "destructive" },
   failed: { label: "فشل", variant: "destructive" },
 };
@@ -70,6 +71,10 @@ function ReceiptButton({ reservationId }: { reservationId: string }) {
 }
 
 export default function PaymentsPage() {
+  const [searchValue, setSearchValue] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const { pathname, search } = useLocation();
+  const withTenant = (path: string) => appendTenantSearch(pathname, search, path);
   const { data: payments = [], isLoading } = useQuery<Payment[]>({
     queryKey: ["customer-payments"],
     queryFn: async () => {
@@ -101,6 +106,19 @@ export default function PaymentsPage() {
     .filter((p) => ["pending", "overdue"].includes(p.status))
     .reduce((sum, p) => sum + p.amount, 0);
 
+  const filteredPayments = useMemo(() => {
+    const query = searchValue.trim().toLowerCase();
+    return payments.filter((payment) => {
+      const statusOk = statusFilter === "all" || payment.status === statusFilter;
+      const searchOk =
+        !query ||
+        payment.id.toLowerCase().includes(query) ||
+        (TYPE_LABEL[payment.type] ?? payment.type).toLowerCase().includes(query) ||
+        String(payment.amount).includes(query);
+      return statusOk && searchOk;
+    });
+  }, [payments, searchValue, statusFilter]);
+
   return (
     <>
       <Helmet><title>مدفوعاتي</title></Helmet>
@@ -131,75 +149,125 @@ export default function PaymentsPage() {
           </div>
         )}
 
-        <div className="rounded-xl border bg-card overflow-hidden">
-          {isLoading ? (
-            <div className="p-4 space-y-2">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : payments.length === 0 ? (
-            <div className="py-14 text-center">
-              <CreditCard className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-              <p className="text-muted-foreground">لا توجد مدفوعات بعد</p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>النوع</TableHead>
-                  <TableHead>الحالة</TableHead>
-                  <TableHead>تاريخ الاستحقاق</TableHead>
-                  <TableHead>تاريخ الدفع</TableHead>
-                  <TableHead>المبلغ</TableHead>
-                  <TableHead className="text-center">إجراء</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {payments.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-medium">
-                      {TYPE_LABEL[p.type] ?? p.type}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={STATUS_MAP[p.status].variant}>
-                        {STATUS_MAP[p.status].label}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {new Date(p.due_date).toLocaleDateString("ar-EG")}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {p.paid_at ? new Date(p.paid_at).toLocaleDateString("ar-EG") : "—"}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {p.amount.toLocaleString("ar-EG")} ج.م
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-1 flex-wrap">
-                        {["pending", "overdue"].includes(p.status) && (
-                          <Button
-                            size="sm"
-                            variant={p.status === "overdue" ? "destructive" : "default"}
-                            className="h-7 text-[11px]"
-                            onClick={() => payInstallment.mutate(p.id)}
-                            disabled={payInstallment.isPending}
-                          >
-                            {payInstallment.isPending ? "جاري..." : "ادفع الآن"}
-                          </Button>
-                        )}
-                        {/* Receipt download for reservation fee payments */}
-                        {p.status === "paid" && p.type === "reservation_fee" && p.reservation_id && (
-                          <ReceiptButton reservationId={p.reservation_id} />
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </div>
+        {isLoading ? (
+          <div className="space-y-2 p-4">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+          </div>
+        ) : payments.length === 0 ? (
+          <div className="mx-auto max-w-md py-14 text-center">
+            <CreditCard className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
+            <p className="font-medium text-foreground">لا توجد مدفوعات بعد</p>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              جدول المدفوعات يُنشأ عندما يتحول حجزك إلى{" "}
+              <span className="font-medium text-foreground">مؤكّد</span> (بعد إتمام دفع رسوم الحجز عبر المنصة أو تأكيد
+              الدفع يدوياً من فريق المبيعات). ما دام الحجز{" "}
+              <span className="font-medium text-foreground">في الانتظار</span>، يظهر المبلغ الإجمالي في صفحة
+              الحجوزات فقط وليس كسطر مدفوعات هنا.
+            </p>
+            <Link
+              to={withTenant("/reservations")}
+              className="mt-6 inline-block text-sm font-medium text-primary underline underline-offset-4 hover:opacity-80"
+            >
+              الانتقال إلى حجوزاتي
+            </Link>
+          </div>
+        ) : (
+          <DataTableShell
+            columns={[
+              {
+                header: "النوع",
+                cell: ({ row }) => (
+                  <span className="font-medium">
+                    {TYPE_LABEL[row.original.type] ?? row.original.type}
+                  </span>
+                ),
+              },
+              {
+                header: "الحالة",
+                cell: ({ row }) => (
+                  <Badge variant={STATUS_MAP[row.original.status].variant}>
+                    {STATUS_MAP[row.original.status].label}
+                  </Badge>
+                ),
+              },
+              {
+                header: "تاريخ الاستحقاق",
+                cell: ({ row }) => (
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(row.original.due_date).toLocaleDateString("ar-EG")}
+                  </span>
+                ),
+              },
+              {
+                header: "تاريخ الدفع",
+                cell: ({ row }) => (
+                  <span className="text-xs text-muted-foreground">
+                    {row.original.paid_at
+                      ? new Date(row.original.paid_at).toLocaleDateString("ar-EG")
+                      : "—"}
+                  </span>
+                ),
+              },
+              {
+                header: "المبلغ",
+                cell: ({ row }) => (
+                  <span className="font-medium">
+                    {row.original.amount.toLocaleString("ar-EG")} ج.م
+                  </span>
+                ),
+              },
+              {
+                id: "actions",
+                header: "إجراء",
+                cell: ({ row }) => (
+                  <div className="flex flex-wrap items-center justify-center gap-1">
+                    {["pending", "overdue"].includes(row.original.status) ? (
+                      <Button
+                        size="sm"
+                        variant={
+                          row.original.status === "overdue"
+                            ? "destructive"
+                            : "default"
+                        }
+                        className="h-7 text-[11px]"
+                        onClick={() => payInstallment.mutate(row.original.id)}
+                        disabled={payInstallment.isPending}
+                      >
+                        {payInstallment.isPending ? "جاري..." : "ادفع الآن"}
+                      </Button>
+                    ) : null}
+                    {row.original.status === "paid" &&
+                    row.original.type === "reservation_fee" &&
+                    row.original.reservation_id ? (
+                      <ReceiptButton reservationId={row.original.reservation_id} />
+                    ) : null}
+                  </div>
+                ),
+              },
+            ] satisfies ColumnDef<Payment>[]}
+            data={filteredPayments}
+            searchValue={searchValue}
+            onSearchChange={setSearchValue}
+            searchPlaceholder="ابحث بالمعرّف أو النوع أو المبلغ..."
+            filters={[
+              {
+                key: "status",
+                label: "الحالة",
+                value: statusFilter,
+                onChange: setStatusFilter,
+                options: [
+                  { value: "all", label: "كل الحالات" },
+                  ...Object.entries(STATUS_MAP).map(([value, item]) => ({
+                    value,
+                    label: item.label,
+                  })),
+                ],
+              },
+            ]}
+          />
+        )}
       </div>
     </>
   );

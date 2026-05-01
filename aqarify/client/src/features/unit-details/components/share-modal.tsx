@@ -44,8 +44,8 @@ export function ShareModal({ open, onClose, unitNumber, unitId, price }: Props) 
   };
 
   const actions = [
-    { icon: MessageCircle, label: "واتساب", color: "#25D366", bg: "#F0FDF4", onClick: shareWhatsApp },
-    { icon: Share2, label: "فيسبوك", color: "#1877F2", bg: "#EFF6FF", onClick: shareFacebook },
+    { icon: MessageCircle, label: "واتساب", color: "var(--status-success)", bg: "color-mix(in oklch, var(--status-success) 10%, transparent)", onClick: shareWhatsApp },
+    { icon: Share2, label: "فيسبوك", color: "var(--status-info)", bg: "color-mix(in oklch, var(--status-info) 10%, transparent)", onClick: shareFacebook },
     ...(("share" in navigator) ? [{ icon: Link2, label: "مشاركة", color: "var(--color-foreground)", bg: "var(--color-muted)", onClick: nativeShare }] : []),
   ];
 
@@ -81,7 +81,7 @@ export function ShareModal({ open, onClose, unitNumber, unitId, price }: Props) 
               {url}
             </div>
             <Button onClick={copyLink} size="sm" className="gap-1 shrink-0"
-              style={{ backgroundColor: "var(--color-foreground)", color: "white", borderRadius: 0 }}>
+              style={{ backgroundColor: "var(--color-foreground)", color: "var(--color-background)", borderRadius: 0 }}>
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
               {copied ? "تم" : "نسخ"}
             </Button>

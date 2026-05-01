@@ -15,29 +15,17 @@ import {
   Search,
   Sparkles,
 } from "lucide-react";
-import {
-  Badge,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  Alert,
-  AlertDescription,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  Avatar,
-  AvatarFallback,
-  Button,
-} from "@/components/ui-kit";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { appendTenantSearch } from "@/lib/tenant-path";
-import { SaaSPageShell } from "@/components/shared/saas-page-shell";
-import { SaaSKpiCard } from "@/components/shared/saas-kpi-card";
+import { KpiCard } from "@/components/shared/kpi-card";
 import {
+  type ReservationStatusBadgeVariant,
   getReservationStatusLabel,
   getReservationStatusVariant,
 } from "@/features/reservations/shared/reservation-status";
@@ -50,16 +38,13 @@ type Payment = {
   status: string;
 };
 
-const STATUS_MAP: Record<
-  string,
-  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
-> = {
-  pending: { label: "في الانتظار", variant: "secondary" },
-  confirmed: { label: "مؤكد", variant: "default" },
+const STATUS_MAP: Record<string, { label: string; variant: ReservationStatusBadgeVariant }> = {
+  pending: { label: "في الانتظار", variant: "warning" },
+  confirmed: { label: "مؤكد", variant: "success" },
   cancelled: { label: "ملغي", variant: "destructive" },
-  expired: { label: "منتهي", variant: "destructive" },
+  expired: { label: "منتهي", variant: "muted" },
   /** @deprecated DB may still contain legacy value */
-  rejected: { label: "منتهي", variant: "destructive" },
+  rejected: { label: "منتهي", variant: "muted" },
 };
 
 function initials(name?: string | null) {
@@ -113,17 +98,18 @@ export default function CustomerDashboardPage() {
       <Helmet>
         <title>{tenant?.name ? `${tenant.name} — لوحتي` : "لوحة التحكم"}</title>
       </Helmet>
-      <SaaSPageShell
-        title={`مرحباً، ${user?.full_name ?? "عميلنا العزيز"}`}
-        description={`نظرة سريعة على نشاطك في بوابة ${tenant?.name ?? "المطور"}`}
-        actions={
+      <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8">
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">{`مرحباً، ${user?.full_name ?? "عميلنا العزيز"}`}</h1>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{`نظرة سريعة على نشاطك في بوابة ${tenant?.name ?? "المطور"}`}</p>
+          </div>
           <Button asChild size="sm" variant="outline" className="gap-2">
             <Link to={withTenant("/browse")}>
               <Search className="h-4 w-4" /> تصفح الوحدات
             </Link>
           </Button>
-        }
-      >
+        </div>
         {/* Greeting hero */}
         <div className="flex items-center gap-4">
             <Avatar className="size-12 ring-2 ring-primary/20">
@@ -134,9 +120,9 @@ export default function CustomerDashboardPage() {
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <SaaSKpiCard title="إجمالي حجوزاتي" value={reservations.length} icon={Home} />
-          <SaaSKpiCard title="إجمالي المدفوعات" value={payments.length} icon={CreditCard} />
-          <SaaSKpiCard
+          <KpiCard title="إجمالي حجوزاتي" value={reservations.length} icon={Home} />
+          <KpiCard title="إجمالي المدفوعات" value={payments.length} icon={CreditCard} />
+          <KpiCard
             title="أفضل ترتيب انتظار"
             value={bestWaitlist ? `#${bestWaitlist.position}` : "—"}
             subtitle={
@@ -146,7 +132,7 @@ export default function CustomerDashboardPage() {
             }
             icon={Clock}
           />
-          <SaaSKpiCard
+          <KpiCard
             title="القسط القادم"
             value={nextPayment ? `${nextPayment.amount.toLocaleString("ar-EG")} ج.م` : "لا يوجد"}
             subtitle={
@@ -294,7 +280,7 @@ export default function CustomerDashboardPage() {
             </AlertDescription>
           </Alert>
         ) : null}
-      </SaaSPageShell>
+      </div>
     </>
   );
 }

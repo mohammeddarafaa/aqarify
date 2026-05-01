@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from "motion/react";
 import { FadeInView } from "@/components/motion/fade-in-view";
-import { motionTransitions } from "@/components/ui-kit";
+import { motionTransitions } from "@/components/motion/presets";
 
 const amenities = [
   { num: "01", label: "أمن 24 ساعة", desc: "حراسة مشددة وكاميرات مراقبة متطورة على مدار الساعة" },

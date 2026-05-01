@@ -1,7 +1,8 @@
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { CheckCircle2Icon } from "lucide-react";
-import { Button, Card, CardContent, Meteors } from "@/components/ui-kit";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { useReservationByConfirmation } from "../hooks/use-reservation";
 import { appendTenantSearch } from "@/lib/tenant-path";
 import { api } from "@/lib/api";
@@ -35,7 +36,6 @@ export default function ReservationSuccessPage() {
       </Helmet>
       <div className="flex min-h-[70vh] items-center justify-center px-4 py-20">
         <Card className="relative w-full max-w-md overflow-hidden rounded-2xl border-border shadow-sm">
-          <Meteors number={14} />
           <CardContent className="space-y-6 p-8 text-center">
             <div className="mx-auto grid size-16 place-items-center rounded-full bg-emerald-100/80 text-emerald-700">
               <CheckCircle2Icon className="size-9" />

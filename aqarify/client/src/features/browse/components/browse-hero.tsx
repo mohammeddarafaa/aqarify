@@ -44,14 +44,14 @@ export function BrowseHero({ mode, total, isLoading, projectName }: BrowseHeroPr
           {tenant?.logo_url ? (
             <img src={tenant.logo_url} alt={name} className="h-12 w-auto object-contain" />
           ) : (
-            <div className="grid h-12 w-12 place-items-center rounded-full bg-[#141414] text-sm font-semibold uppercase tracking-widest text-white">
+            <div className="grid h-12 w-12 place-items-center rounded-full bg-foreground text-sm font-semibold uppercase tracking-widest text-background">
               {name.slice(0, 2)}
             </div>
           )}
           <div>
             <p className="label-overline text-[var(--color-muted-foreground)]">{labelOverline}</p>
-            <h1 className="mt-1 text-3xl font-bold tracking-tight text-[#141414] md:text-4xl">{title}</h1>
-            <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-[#666]">
+            <h1 className="mt-1 text-3xl font-bold tracking-tight text-foreground md:text-4xl">{title}</h1>
+            <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
                 <MapPin className="h-3.5 w-3.5" />
                 {area}
@@ -59,21 +59,21 @@ export function BrowseHero({ mode, total, isLoading, projectName }: BrowseHeroPr
               {tenant?.contact_phone ? (
                 <a
                   href={`tel:${tenant.contact_phone}`}
-                  className="inline-flex items-center gap-1.5 hover:text-[#141414]"
+                  className="inline-flex items-center gap-1.5 hover:text-foreground"
                 >
                   <Phone className="h-3.5 w-3.5" />
                   {tenant.contact_phone}
                 </a>
               ) : null}
               {countLine ? (
-                <span className="inline-flex items-center gap-1.5 text-[#888]">· {countLine}</span>
+                <span className="inline-flex items-center gap-1.5 text-muted-foreground">· {countLine}</span>
               ) : null}
             </div>
           </div>
         </div>
         <Link
           to={withTenant("/#contact")}
-          className="inline-flex items-center gap-2 self-start text-[11px] font-medium uppercase tracking-widest text-[#141414] hover:opacity-60 md:self-end"
+          className="inline-flex items-center gap-2 self-start text-[11px] font-medium uppercase tracking-widest text-foreground hover:opacity-60 md:self-end"
         >
           استفسر عن وحدة
           <ArrowRight className="h-3.5 w-3.5 rotate-180" />

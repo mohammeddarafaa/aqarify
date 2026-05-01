@@ -9,6 +9,9 @@ export function useTenantTheme() {
 
   useEffect(() => {
     const root = document.documentElement;
+    const computedStyles = getComputedStyle(root);
+    const getDefaultVar = (name: string, fallback: string) =>
+      computedStyles.getPropertyValue(name).trim() || fallback;
     const varsToReset = [
       "--color-primary",
       "--color-secondary",
@@ -31,11 +34,15 @@ export function useTenantTheme() {
     ];
 
     if (tenant?.theme_config) {
-      const theme = tenant.theme_config as Record<string, string | undefined>;
-      const primary = theme.primary_color ?? theme.pcolor1 ?? "#141414";
-      const secondary = theme.secondary_color ?? theme.pcolor2 ?? "#141414";
-      const accent = theme.accent_color ?? theme.pcolor3 ?? "#B8892E";
-      const fontFamily = theme.font_family ?? theme.fontFamilyNormal ?? "Cairo, sans-serif";
+      const theme = tenant.theme_config as unknown as Record<string, string | undefined>;
+      const primary = theme.primary_color ?? theme.pcolor1 ?? getDefaultVar("--primary", "");
+      const secondary =
+        theme.secondary_color ?? theme.pcolor2 ?? getDefaultVar("--secondary", "");
+      const accent = theme.accent_color ?? theme.pcolor3 ?? getDefaultVar("--accent", primary || "");
+      const fontFamily =
+        theme.font_family ?? theme.fontFamilyNormal ?? getDefaultVar("--font-sans", "system-ui, sans-serif");
+      const fontSansStack = `'Poppins', ${fontFamily}, 'Geist', 'DM Sans', system-ui, sans-serif`;
+      const fontArabicStack = `'Cairo', 'Poppins', ${fontFamily}, 'Geist', 'DM Sans', system-ui, sans-serif`;
       const gradient = theme.gradient_primary ?? theme.pcolorG;
       const fontSize = theme.font_size ?? theme.fontSize;
       const soldBadge = theme.sold_badge ?? theme.soldBadge;
@@ -52,9 +59,9 @@ export function useTenantTheme() {
       root.style.setProperty("--primary", primary);
       root.style.setProperty("--secondary", secondary);
       root.style.setProperty("--accent", accent);
-      root.style.setProperty("--font-family", fontFamily);
-      root.style.setProperty("--font-sans", fontFamily);
-      root.style.setProperty("--font-arabic", fontFamily);
+      root.style.setProperty("--font-family", fontSansStack);
+      root.style.setProperty("--font-sans", fontSansStack);
+      root.style.setProperty("--font-arabic", fontArabicStack);
       if (fontSize) root.style.setProperty("--font-size-base", fontSize);
       if (gradient) root.style.setProperty("--tenant-gradient", gradient);
       if (soldBadge) root.style.setProperty("--sold-badge", soldBadge);

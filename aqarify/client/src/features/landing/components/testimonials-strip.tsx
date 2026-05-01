@@ -1,4 +1,4 @@
-import { InfiniteMovingCards } from "@/components/ui-kit";
+import { Card, CardContent } from "@/components/ui/card";
 import { useTenantStore } from "@/stores/tenant.store";
 
 // Tenant-scoped testimonials. Defaults are sensible for any real-estate
@@ -36,8 +36,15 @@ export function TestimonialsStrip() {
           عملاء {tenant?.name ?? "المطور"} يشاركون تجربتهم
         </h2>
       </div>
-      <div className="mt-10">
-        <InfiniteMovingCards items={DEFAULT_ITEMS} speed="slow" />
+      <div className="mx-auto mt-10 grid max-w-6xl gap-4 px-6 md:grid-cols-2">
+        {DEFAULT_ITEMS.map((item) => (
+          <Card key={item.name}>
+            <CardContent className="space-y-2 p-4">
+              <p className="text-sm text-muted-foreground">"{item.quote}"</p>
+              <p className="text-sm font-semibold">{item.name}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
     </section>
   );

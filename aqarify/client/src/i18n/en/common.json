@@ -4,8 +4,11 @@
   "nav": {
     "home": "Home",
     "browse": "Browse Units",
+    "projects": "Projects",
+    "features": "Features",
     "contact": "Contact Us",
     "login": "Login",
+    "team_login": "Team Login",
     "register": "Sign Up",
     "dashboard": "Dashboard",
     "logout": "Logout"
@@ -26,7 +29,8 @@
     "upload": "Upload",
     "download": "Download",
     "share": "Share",
-    "retry": "Retry"
+    "retry": "Retry",
+    "open_menu": "Open menu"
   },
   "status": {
     "available": "Available",

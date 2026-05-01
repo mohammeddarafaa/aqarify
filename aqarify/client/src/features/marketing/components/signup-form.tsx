@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Loader2Icon, CheckIcon, XIcon } from "lucide-react";
-import {
-  Button, Input, Label, RadioGroup, RadioGroupItem, cn,
-} from "@/components/ui-kit";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { cn } from "@/lib/utils";
 import { usePlans } from "../hooks/use-plans";
 import { useSignup, useSlugAvailability, type SignupPayload } from "../hooks/use-signup";
 import { validateSlug } from "./signup-validator";

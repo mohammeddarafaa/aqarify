@@ -39,6 +39,7 @@ import { pluginRoutes } from "./routes/plugins.routes";
 import { platformAdminRoutes } from "./routes/platformAdmin.routes";
 import { registerDomainHandlers } from "./events/registerDomainHandlers";
 import { startDomainEventDispatcher } from "./events/domainEventBus";
+import { favoriteRoutes } from "./routes/favorites.routes";
 
 function validateEnv() {
   const required = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"];
@@ -164,6 +165,7 @@ const uploadLimiter = rateLimit({
 });
 app.use("/webhooks", webhookLimiter);
 app.use("/api/v1/auth", authLimiter);
+app.use("/api/v1/favorites", authLimiter);
 app.use("/api/v1/units", publicLimiter);
 app.use("/api/v1/projects", publicLimiter);
 app.use("/api/v1/reservations", reservationLimiter);
@@ -177,6 +179,7 @@ app.use(attachTenantRegionHeaders);
 
 // Routes — public (no subscription guard needed)
 app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/favorites", favoriteRoutes);
 app.use("/api/v1/tenants", tenantRoutes);
 app.use("/api/v1/plans", planRoutes);
 app.use("/api/v1", platformSubscriptionRoutes); // /signup + /subscription/*

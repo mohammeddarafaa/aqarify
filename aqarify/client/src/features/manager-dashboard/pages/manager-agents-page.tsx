@@ -1,6 +1,8 @@
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useForm } from "react-hook-form";
+import { useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { api } from "@/lib/api";
@@ -9,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { DataTableShell } from "@/components/shared/data-table-shell";
 
 type TeamUser = {
   id: string;
@@ -28,6 +31,8 @@ type FormData = z.infer<typeof schema>;
 
 export default function ManagerAgentsPage() {
   const qc = useQueryClient();
+  const [searchValue, setSearchValue] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
   const { data: users = [], isLoading } = useQuery<TeamUser[]>({
     queryKey: ["manager-agents"],
     queryFn: async () => {
@@ -53,6 +58,19 @@ export default function ManagerAgentsPage() {
     resolver: zodResolver(schema),
     defaultValues: { role: "agent" },
   });
+
+  const filteredUsers = useMemo(() => {
+    const query = searchValue.trim().toLowerCase();
+    return users.filter((user) => {
+      const roleOk = roleFilter === "all" || user.role === roleFilter;
+      const searchOk =
+        !query ||
+        user.full_name.toLowerCase().includes(query) ||
+        user.email.toLowerCase().includes(query) ||
+        (user.phone ?? "").includes(query);
+      return roleOk && searchOk;
+    });
+  }, [users, searchValue, roleFilter]);
 
   return (
     <>
@@ -84,39 +102,57 @@ export default function ManagerAgentsPage() {
           </div>
         </form>
 
-        <div className="rounded-xl border bg-card overflow-hidden">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-            </div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="px-4 py-3 text-right">الاسم</th>
-                  <th className="px-4 py-3 text-right">البريد</th>
-                  <th className="px-4 py-3 text-right">الهاتف</th>
-                  <th className="px-4 py-3 text-right">الدور</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {users.map((u) => (
-                  <tr key={u.id}>
-                    <td className="px-4 py-3 font-medium">{u.full_name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{u.phone ?? "—"}</td>
-                    <td className="px-4 py-3">
-                      <Badge variant="outline">{u.role === "manager" ? "مدير مبيعات" : "موظف مبيعات"}</Badge>
-                    </td>
-                  </tr>
-                ))}
-                {users.length === 0 && (
-                  <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">لا يوجد موظفون حالياً</td></tr>
-                )}
-              </tbody>
-            </table>
-          )}
-        </div>
+        <DataTableShell
+          columns={[
+            {
+              header: "الاسم",
+              cell: ({ row }) => (
+                <span className="font-medium">{row.original.full_name}</span>
+              ),
+            },
+            {
+              header: "البريد",
+              cell: ({ row }) => (
+                <span className="text-muted-foreground">{row.original.email}</span>
+              ),
+            },
+            {
+              header: "الهاتف",
+              cell: ({ row }) => (
+                <span className="text-muted-foreground">
+                  {row.original.phone ?? "—"}
+                </span>
+              ),
+            },
+            {
+              header: "الدور",
+              cell: ({ row }) => (
+                <Badge variant="outline">
+                  {row.original.role === "manager"
+                    ? "مدير مبيعات"
+                    : "موظف مبيعات"}
+                </Badge>
+              ),
+            },
+          ] satisfies ColumnDef<TeamUser>[]}
+          data={isLoading ? [] : filteredUsers}
+          searchValue={searchValue}
+          onSearchChange={setSearchValue}
+          searchPlaceholder="ابحث بالاسم أو البريد أو الهاتف..."
+          filters={[
+            {
+              key: "role",
+              label: "الدور",
+              value: roleFilter,
+              onChange: setRoleFilter,
+              options: [
+                { value: "all", label: "كل الأدوار" },
+                { value: "agent", label: "موظف مبيعات" },
+                { value: "manager", label: "مدير مبيعات" },
+              ],
+            },
+          ]}
+        />
       </div>
     </>
   );

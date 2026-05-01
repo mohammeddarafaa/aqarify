@@ -12,20 +12,10 @@ import {
   DownloadIcon,
   CheckCircleIcon,
 } from "lucide-react";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-  Button,
-  Skeleton,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui-kit";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Navbar } from "@/features/landing/components/navbar";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { PricingSection } from "@/features/unit-details/components/pricing-section";
@@ -36,6 +26,10 @@ import { JoinWaitlistModal } from "@/features/waiting-list/components/join-waitl
 import { useUnitDetail } from "@/features/unit-details/hooks/use-unit-detail";
 import { useTenantStore } from "@/stores/tenant.store";
 import { appendTenantSearch } from "@/lib/tenant-path";
+import { useFavorites } from "@/features/browse/hooks/use-favorites";
+import { useFavoritesStore } from "@/stores/favorites.store";
+import { MobilePropertyActions } from "@/components/shared/mobile-property-actions";
+import { toast } from "@/lib/app-toast";
 
 import { useMyReservations } from "@/features/reservation/hooks/use-reservation";
 
@@ -50,6 +44,8 @@ export default function UnitDetailPage() {
   const [visitOpen, setVisitOpen] = useState(false);
   const [waitlistOpen, setWaitlistOpen] = useState(false);
   const [galleryIdx, setGalleryIdx] = useState(0);
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const isCompared = useFavoritesStore((s) => (unit ? s.isCompared(unit.id) : false));
 
   const reservedByMe = myReservations?.some(
     (r) => r.unit_id === unit?.id && ["pending", "confirmed"].includes(r.status)
@@ -97,7 +93,7 @@ export default function UnitDetailPage() {
         </title>
       </Helmet>
       <Navbar />
-      <main className="min-h-screen bg-background pt-20">
+      <main className="min-h-screen bg-background pb-24 pt-20">
         <div className="mx-auto max-w-screen-xl px-6 py-6">
           <Breadcrumb className="mb-6">
             <BreadcrumbList>
@@ -139,7 +135,7 @@ export default function UnitDetailPage() {
                   href={unit.virtual_tour_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="absolute bottom-4 start-4 rounded-full bg-black/70 px-3 py-1.5 text-xs text-white hover:bg-black/80"
+                  className="absolute bottom-4 start-4 rounded-full bg-[color-mix(in_oklch,var(--color-foreground)_70%,transparent)] px-3 py-1.5 text-xs text-[var(--color-background)] hover:bg-[color-mix(in_oklch,var(--color-foreground)_80%,transparent)]"
                 >
                   360° virtual tour
                 </a>
@@ -352,6 +348,22 @@ export default function UnitDetailPage() {
         onClose={() => setWaitlistOpen(false)}
         unitId={unit.id}
         unitNumber={unit.unit_number}
+      />
+      <MobilePropertyActions
+        favoriteActive={isFavorite(unit.id)}
+        compareActive={isCompared}
+        onFavorite={async () => {
+          await toggleFavorite(unit.id);
+        }}
+        onShare={() => setShareOpen(true)}
+        onCompare={() => {
+          const result = useFavoritesStore.getState().toggleCompareUnit(unit.id);
+          if (result.blocked) {
+            toast.info("You can compare up to 2 units.");
+          } else if (result.selected) {
+            toast.success("Unit added to compare.");
+          }
+        }}
       />
     </>
   );

@@ -71,5 +71,5 @@ export function resolveTenantUiConfig(tenant: TenantLike): TenantUiConfig {
       : fallback;
 
   const parsed = tenantUiConfigSchema.safeParse(candidate);
-  return parsed.success ? parsed.data : fallback;
+  return parsed.success ? parsed.data : tenantUiConfigSchema.parse(fallback);
 }

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { CheckIcon } from "lucide-react";
-import { Button, cn } from "@/components/ui-kit";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import type { Plan } from "../hooks/use-plans";
 import { formatCurrency } from "@/lib/format";
 

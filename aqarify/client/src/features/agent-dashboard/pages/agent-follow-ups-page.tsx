@@ -1,58 +1,29 @@
 import { useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
 import { toast } from "@/lib/app-toast";
 import {
-  CheckCircle2,
-  Calendar,
   Phone,
   MessageCircle,
   Mail,
   MapPin,
   Pin,
   Plus,
-  ClipboardCheck,
 } from "lucide-react";
-import {
-  Button,
-  Input,
-  Label,
-  Textarea,
-  Badge,
-  Avatar,
-  AvatarFallback,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui-kit";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useIsReadOnly } from "@/hooks/use-is-read-only";
-import { SaaSPageShell } from "@/components/shared/saas-page-shell";
-import { SaaSListToolbar } from "@/components/shared/saas-list-toolbar";
-import { SaaSTableShell } from "@/components/shared/saas-table-shell";
+import { DataTableShell } from "@/components/shared/data-table-shell";
 
 type FollowUp = {
   id: string;
@@ -74,15 +45,15 @@ const TYPE_META: Record<
   string,
   { label: string; icon: React.ElementType; tint: string }
 > = {
-  call: { label: "اتصال", icon: Phone, tint: "bg-blue-50 text-blue-600" },
+  call: { label: "اتصال", icon: Phone, tint: "bg-primary/10 text-primary" },
   whatsapp: {
     label: "واتساب",
     icon: MessageCircle,
-    tint: "bg-green-50 text-green-600",
+    tint: "bg-[var(--status-success)]/10 text-[var(--status-success)]",
   },
-  email: { label: "بريد", icon: Mail, tint: "bg-purple-50 text-purple-600" },
-  visit: { label: "زيارة", icon: MapPin, tint: "bg-orange-50 text-orange-600" },
-  other: { label: "أخرى", icon: Pin, tint: "bg-slate-50 text-slate-600" },
+  email: { label: "بريد", icon: Mail, tint: "bg-accent/20 text-accent-foreground" },
+  visit: { label: "زيارة", icon: MapPin, tint: "bg-[var(--status-warning)]/10 text-[var(--status-warning)]" },
+  other: { label: "أخرى", icon: Pin, tint: "bg-muted text-muted-foreground" },
 };
 
 const schema = z.object({
@@ -92,116 +63,6 @@ const schema = z.object({
   notes: z.string().optional(),
 });
 type FormData = z.infer<typeof schema>;
-
-function initials(name?: string | null) {
-  if (!name) return "؟";
-  return name
-    .trim()
-    .split(/\s+/)
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
-
-function FollowUpCard({
-  f,
-  onComplete,
-  readOnly,
-  isCompleting,
-}: {
-  f: FollowUp;
-  onComplete: (id: string) => void;
-  readOnly: boolean;
-  isCompleting?: boolean;
-}) {
-  const meta = TYPE_META[f.type] ?? TYPE_META.other;
-  const Icon = meta.icon;
-  const when = new Date(f.scheduled_at);
-  const overdue = f.status === "scheduled" && when < new Date();
-  const days = Math.ceil(
-    (when.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
-  );
-
-  return (
-    <div
-      className={cn(
-        "rounded-xl border bg-card p-4 space-y-3 transition-all",
-        f.status === "completed" && "opacity-60",
-        overdue && "border-destructive/40 bg-destructive/5",
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <Avatar size="sm">
-            <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-semibold">
-              {initials(leadDisplayName(f.potential_customers))}
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0">
-            <p className="font-medium truncate">
-              {leadDisplayName(f.potential_customers)}
-            </p>
-            <a
-              href={`tel:${f.potential_customers?.phone ?? ""}`}
-              className="text-xs text-muted-foreground hover:text-primary transition-colors"
-              dir="ltr"
-            >
-              {f.potential_customers?.phone}
-            </a>
-          </div>
-        </div>
-        <div
-          className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-lg",
-            meta.tint,
-          )}
-        >
-          <Icon className="h-4 w-4" />
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between text-xs">
-        <div className="flex items-center gap-1.5 text-muted-foreground">
-          <Calendar className="h-3.5 w-3.5" />
-          <span>{when.toLocaleString("ar-EG")}</span>
-        </div>
-        {f.status === "scheduled" && (
-          <Badge variant={overdue ? "destructive" : "outline"}>
-            {overdue
-              ? "متأخرة"
-              : days === 0
-                ? "اليوم"
-                : days === 1
-                  ? "غداً"
-                  : `خلال ${days} يوم`}
-          </Badge>
-        )}
-        {f.status === "completed" && (
-          <Badge variant="default" className="bg-emerald-600">
-            مكتملة
-          </Badge>
-        )}
-      </div>
-
-      {f.notes && (
-        <p className="text-xs text-muted-foreground border-t pt-2">{f.notes}</p>
-      )}
-
-      {f.status === "scheduled" && (
-        <Button
-          size="sm"
-          variant="outline"
-          className="w-full gap-1.5"
-          disabled={readOnly || isCompleting}
-          onClick={() => onComplete(f.id)}
-        >
-          <CheckCircle2 className="h-3.5 w-3.5" /> تسجيل كمكتملة
-        </Button>
-      )}
-    </div>
-  );
-}
 
 export default function AgentFollowUpsPage() {
   const qc = useQueryClient();
@@ -288,7 +149,11 @@ export default function AgentFollowUpsPage() {
       <Helmet>
         <title>المتابعات</title>
       </Helmet>
-      <SaaSPageShell title="جدول المتابعات" description="نمط جدولي موحد للمتابعات مع فلترة حسب الحالة الزمنية.">
+      <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">جدول المتابعات</h1>
+          <p className="text-sm text-muted-foreground">نمط جدولي موحد للمتابعات مع فلترة حسب الحالة الزمنية.</p>
+        </div>
         {/* Header */}
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
@@ -404,71 +269,84 @@ export default function AgentFollowUpsPage() {
           </Dialog>
         </div>
 
-        <SaaSListToolbar
-          filterLabel="الحالة"
-          filterValue={statusFilter}
-          onFilterChange={setStatusFilter}
-          filterOptions={[
-            { value: "all", label: `الكل (${data.length})` },
-            { value: "upcoming", label: `قادمة (${pending.length})` },
-            { value: "overdue", label: `متأخرة (${overdue.length})` },
-            { value: "completed", label: `مكتملة (${done.length})` },
+        <DataTableShell
+          columns={[
+            {
+              header: "العميل",
+              cell: ({ row }) => leadDisplayName(row.original.potential_customers),
+            },
+            {
+              header: "النوع",
+              cell: ({ row }) => (TYPE_META[row.original.type] ?? TYPE_META.other).label,
+            },
+            {
+              header: "الموعد",
+              cell: ({ row }) =>
+                new Date(row.original.scheduled_at).toLocaleString("ar-EG"),
+            },
+            {
+              header: "الحالة",
+              cell: ({ row }) => {
+                const f = row.original;
+                const overdueFlag =
+                  f.status === "scheduled" &&
+                  new Date(f.scheduled_at) < new Date();
+                return (
+                  <Badge
+                    variant={
+                      f.status === "completed"
+                        ? "default"
+                        : overdueFlag
+                          ? "destructive"
+                          : "outline"
+                    }
+                  >
+                    {f.status === "completed"
+                      ? "مكتملة"
+                      : overdueFlag
+                        ? "متأخرة"
+                        : "قادمة"}
+                  </Badge>
+                );
+              },
+            },
+            {
+              id: "actions",
+              header: "إجراء",
+              cell: ({ row }) =>
+                row.original.status === "scheduled" ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={readOnly || complete.isPending}
+                    onClick={() => complete.mutate(row.original.id)}
+                  >
+                    تسجيل كمكتملة
+                  </Button>
+                ) : (
+                  "—"
+                ),
+            },
+          ] satisfies ColumnDef<FollowUp>[]}
+          data={isLoading ? [] : tableRows}
+          searchPlaceholder="ابحث باسم العميل أو رقم الهاتف..."
+          searchValue=""
+          filters={[
+            {
+              key: "status",
+              label: "الحالة",
+              value: statusFilter,
+              onChange: setStatusFilter,
+              options: [
+                { value: "all", label: `الكل (${data.length})` },
+                { value: "upcoming", label: `قادمة (${pending.length})` },
+                { value: "overdue", label: `متأخرة (${overdue.length})` },
+                { value: "completed", label: `مكتملة (${done.length})` },
+              ],
+            },
           ]}
         />
-        <SaaSTableShell
-          isLoading={isLoading}
-          isEmpty={tableRows.length === 0}
-          empty={<EmptyBlock label="لا توجد متابعات مطابقة." />}
-        >
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-start">العميل</TableHead>
-                <TableHead className="text-start">النوع</TableHead>
-                <TableHead className="text-start">الموعد</TableHead>
-                <TableHead className="text-start">الحالة</TableHead>
-                <TableHead className="text-start">إجراء</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tableRows.map((f) => {
-                const meta = TYPE_META[f.type] ?? TYPE_META.other;
-                const overdueFlag = f.status === "scheduled" && new Date(f.scheduled_at) < new Date();
-                return (
-                  <TableRow key={f.id}>
-                    <TableCell>{leadDisplayName(f.potential_customers)}</TableCell>
-                    <TableCell>{meta.label}</TableCell>
-                    <TableCell>{new Date(f.scheduled_at).toLocaleString("ar-EG")}</TableCell>
-                    <TableCell>
-                      <Badge variant={f.status === "completed" ? "default" : overdueFlag ? "destructive" : "outline"}>
-                        {f.status === "completed" ? "مكتملة" : overdueFlag ? "متأخرة" : "قادمة"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {f.status === "scheduled" ? (
-                        <Button size="sm" variant="outline" disabled={readOnly || complete.isPending} onClick={() => complete.mutate(f.id)}>
-                          تسجيل كمكتملة
-                        </Button>
-                      ) : (
-                        "—"
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </SaaSTableShell>
-      </SaaSPageShell>
+      </div>
     </>
-  );
-}
-
-function EmptyBlock({ label }: { label: string }) {
-  return (
-    <div className="flex flex-col items-center gap-2 py-16 text-center rounded-xl border bg-card">
-      <ClipboardCheck className="h-10 w-10 text-muted-foreground/40" />
-      <p className="text-muted-foreground">{label}</p>
-    </div>
   );
 }

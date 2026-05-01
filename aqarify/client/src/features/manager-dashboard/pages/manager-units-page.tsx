@@ -1,44 +1,21 @@
 import { useMemo, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 import { api } from "@/lib/api";
 import { toast } from "@/lib/app-toast";
-import {
-  Button,
-  Input,
-  Label,
-  Badge,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui-kit";
-import { SaaSPageShell } from "@/components/shared/saas-page-shell";
-import { SaaSListToolbar } from "@/components/shared/saas-list-toolbar";
-import { SaaSTableShell } from "@/components/shared/saas-table-shell";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { DataTableShell } from "@/components/shared/data-table-shell";
 
 const STATUS_OPTIONS = ["available", "reserved", "sold", "unavailable"] as const;
 const UNIT_TYPES = ["apartment", "duplex", "villa", "office", "retail"] as const;
 const STATUS_LABELS: Record<string, string> = { available: "متاح", reserved: "محجوز", sold: "مباع", unavailable: "غير متاح" };
-type UnitStatus = (typeof STATUS_OPTIONS)[number];
 
 type Unit = {
   id: string;
@@ -170,84 +147,95 @@ export default function ManagerUnitsPage() {
   return (
     <>
       <Helmet><title>إدارة الوحدات</title></Helmet>
-      <SaaSPageShell
-        title={`الوحدات (${data?.total ?? 0})`}
-        description="قائمة موحدة للوحدات مع فلترة سريعة وإجراءات تحويل مباشرة."
-      >
-        <SaaSListToolbar
+      <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">{`الوحدات (${data?.total ?? 0})`}</h1>
+          <p className="text-sm text-muted-foreground">قائمة موحدة للوحدات مع فلترة سريعة وإجراءات تحويل مباشرة.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={() => setOpenCreate(true)}>إضافة وحدة</Button>
+        </div>
+        <DataTableShell
+          columns={useMemo<ColumnDef<Unit>[]>(
+            () => [
+              { header: "رقم الوحدة", cell: ({ row }) => <span className="font-medium">{row.original.unit_number}</span> },
+              { header: "المشروع", cell: ({ row }) => row.original.projects?.name ?? "—" },
+              { header: "النوع", cell: ({ row }) => row.original.type },
+              { header: "الطابق", cell: ({ row }) => row.original.floor },
+              { header: "المساحة", cell: ({ row }) => `${row.original.size_sqm} م²` },
+              { header: "السعر", cell: ({ row }) => `${row.original.price?.toLocaleString("ar-EG")} ج.م` },
+              {
+                header: "الحالة",
+                cell: ({ row }) => (
+                  <Badge
+                    variant={
+                      row.original.status === "available"
+                        ? "default"
+                        : row.original.status === "reserved"
+                          ? "secondary"
+                          : "outline"
+                    }
+                  >
+                    {STATUS_LABELS[row.original.status] ?? row.original.status}
+                  </Badge>
+                ),
+              },
+              {
+                id: "actions",
+                header: "إجراءات",
+                cell: ({ row }) => (
+                  <div className="flex gap-2">
+                    <Select
+                      value={row.original.status}
+                      onValueChange={(v) =>
+                        changeStatus.mutate({ id: row.original.id, status: v })
+                      }
+                    >
+                      <SelectTrigger className="h-8 w-[120px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STATUS_OPTIONS.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {STATUS_LABELS[s]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => startEdit(row.original)}
+                    >
+                      تعديل
+                    </Button>
+                  </div>
+                ),
+              },
+            ],
+            [changeStatus],
+          )}
+          data={isLoading ? [] : filtered}
           searchValue={searchValue}
           onSearchChange={setSearchValue}
           searchPlaceholder="ابحث برقم الوحدة أو المشروع أو النوع..."
-          filterLabel="الحالة"
-          filterValue={statusFilter}
-          onFilterChange={setStatusFilter}
-          filterOptions={[
-            { value: "all", label: "كل الحالات" },
-            ...STATUS_OPTIONS.map((s) => ({ value: s, label: STATUS_LABELS[s] })),
+          filters={[
+            {
+              key: "status",
+              label: "الحالة",
+              value: statusFilter,
+              onChange: setStatusFilter,
+              options: [
+                { value: "all", label: "كل الحالات" },
+                ...STATUS_OPTIONS.map((s) => ({
+                  value: s,
+                  label: STATUS_LABELS[s],
+                })),
+              ],
+            },
           ]}
-          actionLabel="إضافة وحدة"
-          onActionClick={() => setOpenCreate(true)}
         />
-        <SaaSTableShell
-          isLoading={isLoading}
-          isEmpty={filtered.length === 0}
-          empty={<div className="py-8 text-center text-muted-foreground">لا توجد وحدات مطابقة للفلاتر.</div>}
-        >
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-start">رقم الوحدة</TableHead>
-                <TableHead className="text-start">المشروع</TableHead>
-                <TableHead className="text-start">النوع</TableHead>
-                <TableHead className="text-start">الطابق</TableHead>
-                <TableHead className="text-start">المساحة</TableHead>
-                <TableHead className="text-start">السعر</TableHead>
-                <TableHead className="text-start">الحالة</TableHead>
-                <TableHead className="text-start">إجراءات</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((unit) => (
-                <TableRow key={unit.id}>
-                  <TableCell className="font-medium">{unit.unit_number}</TableCell>
-                  <TableCell>{unit.projects?.name ?? "—"}</TableCell>
-                  <TableCell>{unit.type}</TableCell>
-                  <TableCell>{unit.floor}</TableCell>
-                  <TableCell>{unit.size_sqm} م²</TableCell>
-                  <TableCell>{unit.price?.toLocaleString("ar-EG")} ج.م</TableCell>
-                  <TableCell>
-                    <Badge variant={unit.status === "available" ? "default" : unit.status === "reserved" ? "secondary" : "outline"}>
-                      {STATUS_LABELS[unit.status] ?? unit.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Select
-                        value={unit.status}
-                        onValueChange={(v) => changeStatus.mutate({ id: unit.id, status: v })}
-                      >
-                        <SelectTrigger className="h-8 w-[120px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {STATUS_OPTIONS.map((s) => (
-                            <SelectItem key={s} value={s}>
-                              {STATUS_LABELS[s]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button size="sm" variant="outline" onClick={() => startEdit(unit)}>
-                        تعديل
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </SaaSTableShell>
-      </SaaSPageShell>
+      </div>
 
       <Dialog open={openCreate} onOpenChange={setOpenCreate}>
         <DialogContent className="sm:max-w-2xl">

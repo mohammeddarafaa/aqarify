@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Button, Skeleton, cn } from "@/components/ui-kit";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { usePlans } from "../hooks/use-plans";
 import { PricingCard, type PricingDisplayCurrency } from "./pricing-card";
 

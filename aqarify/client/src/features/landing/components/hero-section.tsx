@@ -3,14 +3,10 @@ import { Link, useLocation } from "react-router-dom";
 import { Search, Building2, ShieldCheck, CreditCard, MapPin } from "lucide-react";
 import { useTenantStore } from "@/stores/tenant.store";
 import { appendTenantSearch } from "@/lib/tenant-path";
-import {
-  Button,
-  Card,
-  CardContent,
-  ShimmeringText,
-  Spotlight,
-  motionTransitions,
-} from "@/components/ui-kit";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { ShimmeringText } from "@/components/motion/shimmering-text";
+import { motionTransitions } from "@/components/motion/presets";
 
 const stats = [
   { value: "500+", label: "وحدة سكنية" },
@@ -52,7 +48,6 @@ export function HeroSection() {
 
   return (
     <section className="relative overflow-hidden bg-background pt-24 pb-14">
-      <Spotlight className="left-0 top-0 md:-top-20 md:left-60" />
       <div className="relative max-w-screen-xl mx-auto px-6 w-full">
         <motion.p
           initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}

@@ -1,11 +1,13 @@
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { api } from "@/lib/api";
 import { toast } from "@/lib/app-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DataTableShell } from "@/components/shared/data-table-shell";
 
 type Project = {
   id: string;
@@ -37,6 +39,10 @@ export default function ManagerProjectsPage() {
   const [form, setForm] = useState<FormData>(EMPTY);
   const [editing, setEditing] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">(
+    "all",
+  );
 
   const { data: projects = [], isLoading } = useQuery<Project[]>({
     queryKey: ["manager-projects-crud"],
@@ -70,6 +76,16 @@ export default function ManagerProjectsPage() {
     });
     setForm((p) => ({ ...p, cover_image_url: res.data.data.publicUrl }));
   }
+
+  const filteredProjects = projects.filter((project) => {
+    const query = searchValue.trim().toLowerCase();
+    const statusOk = statusFilter === "all" || project.status === statusFilter;
+    const searchOk =
+      !query ||
+      project.name.toLowerCase().includes(query) ||
+      (project.address ?? "").toLowerCase().includes(query);
+    return statusOk && searchOk;
+  });
 
   return (
     <>
@@ -110,52 +126,77 @@ export default function ManagerProjectsPage() {
           </div>
         </div>
 
-        <div className="rounded-xl border bg-card overflow-hidden">
-          {isLoading ? (
-            <div className="py-16 text-center text-muted-foreground">جاري التحميل...</div>
-          ) : projects.length === 0 ? (
-            <div className="py-16 text-center text-muted-foreground">لا توجد مشاريع</div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="px-4 py-3 text-right">الصورة</th>
-                  <th className="px-4 py-3 text-right">الاسم</th>
-                  <th className="px-4 py-3 text-right">العنوان</th>
-                  <th className="px-4 py-3 text-right">الحالة</th>
-                  <th className="px-4 py-3 text-right">إجراءات</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {projects.map((p) => (
-                  <tr key={p.id}>
-                    <td className="px-4 py-3">{p.cover_image_url ? <img src={p.cover_image_url} alt={p.name} className="h-10 w-16 rounded object-cover border" /> : "—"}</td>
-                    <td className="px-4 py-3 font-medium">{p.name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{p.address ?? "—"}</td>
-                    <td className="px-4 py-3">{p.status}</td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => {
-                          setEditing(p.id);
-                          setForm({
-                            name: p.name ?? "",
-                            address: p.address ?? "",
-                            description: p.description ?? "",
-                            status: p.status ?? "active",
-                            cover_image_url: p.cover_image_url ?? "",
-                          });
-                        }}
-                        className="text-xs text-primary underline hover:no-underline"
-                      >
-                        تعديل
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+        <DataTableShell
+          columns={[
+            {
+              header: "الصورة",
+              cell: ({ row }) =>
+                row.original.cover_image_url ? (
+                  <img
+                    src={row.original.cover_image_url}
+                    alt={row.original.name}
+                    className="h-10 w-16 rounded border object-cover"
+                  />
+                ) : (
+                  "—"
+                ),
+            },
+            {
+              header: "الاسم",
+              cell: ({ row }) => (
+                <span className="font-medium">{row.original.name}</span>
+              ),
+            },
+            {
+              header: "العنوان",
+              cell: ({ row }) => (
+                <span className="text-muted-foreground">
+                  {row.original.address ?? "—"}
+                </span>
+              ),
+            },
+            { header: "الحالة", cell: ({ row }) => row.original.status },
+            {
+              id: "actions",
+              header: "إجراءات",
+              cell: ({ row }) => (
+                <button
+                  onClick={() => {
+                    setEditing(row.original.id);
+                    setForm({
+                      name: row.original.name ?? "",
+                      address: row.original.address ?? "",
+                      description: row.original.description ?? "",
+                      status: row.original.status ?? "active",
+                      cover_image_url: row.original.cover_image_url ?? "",
+                    });
+                  }}
+                  className="text-xs text-primary underline hover:no-underline"
+                >
+                  تعديل
+                </button>
+              ),
+            },
+          ] satisfies ColumnDef<Project>[]}
+          data={isLoading ? [] : filteredProjects}
+          searchValue={searchValue}
+          onSearchChange={setSearchValue}
+          searchPlaceholder="ابحث باسم المشروع أو العنوان..."
+          filters={[
+            {
+              key: "status",
+              label: "الحالة",
+              value: statusFilter,
+              onChange: (value) =>
+                setStatusFilter(value as "all" | "active" | "inactive"),
+              options: [
+                { value: "all", label: "كل الحالات" },
+                { value: "active", label: "active" },
+                { value: "inactive", label: "inactive" },
+              ],
+            },
+          ]}
+        />
       </div>
     </>
   );

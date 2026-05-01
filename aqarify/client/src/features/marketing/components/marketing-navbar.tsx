@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { MenuIcon, XIcon } from "lucide-react";
-import { Button, cn } from "@/components/ui-kit";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const LINKS = [
   { hash: "#features", label: "Features" },

@@ -4,14 +4,10 @@ import { Helmet } from "react-helmet-async";
 import { ArrowLeftIcon, ShieldCheckIcon } from "lucide-react";
 import { toast } from "@/lib/app-toast";
 import { api } from "@/lib/api";
-import {
-  Alert,
-  AlertDescription,
-  Button,
-  Card,
-  CardContent,
-  Skeleton,
-} from "@/components/ui-kit";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useTenantStore } from "@/stores/tenant.store";
 import { useTenantUi } from "@/hooks/use-tenant-ui";
 import { appendTenantSearch } from "@/lib/tenant-path";

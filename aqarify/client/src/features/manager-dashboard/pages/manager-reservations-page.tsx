@@ -1,12 +1,12 @@
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 import { api } from "@/lib/api";
 import { toast } from "@/lib/app-toast";
 import { useMemo, useState } from "react";
-import { SaaSPageShell } from "@/components/shared/saas-page-shell";
-import { SaaSListToolbar } from "@/components/shared/saas-list-toolbar";
-import { SaaSTableShell } from "@/components/shared/saas-table-shell";
-import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui-kit";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { DataTableShell } from "@/components/shared/data-table-shell";
 import {
   RESERVATION_STATUS_OPTIONS,
   getReservationStatusLabel,
@@ -57,55 +57,90 @@ export default function ManagerReservationsPage() {
   return (
     <>
       <Helmet><title>إدارة الحجوزات</title></Helmet>
-      <SaaSPageShell title="إدارة الحجوزات" description="فلترة ومراجعة الحجوزات مع إجراءات سريعة.">
-        <SaaSListToolbar
+      <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">إدارة الحجوزات</h1>
+          <p className="text-sm text-muted-foreground">فلترة ومراجعة الحجوزات مع إجراءات سريعة.</p>
+        </div>
+        <DataTableShell
+          columns={[
+            {
+              header: "العميل",
+              cell: ({ row }) => row.original.users?.full_name ?? "—",
+            },
+            {
+              header: "الوحدة",
+              cell: ({ row }) => row.original.units?.unit_number ?? "—",
+            },
+            {
+              header: "الحالة",
+              cell: ({ row }) => (
+                <Badge variant={getReservationStatusVariant(row.original.status)}>
+                  {getReservationStatusLabel(row.original.status)}
+                </Badge>
+              ),
+            },
+            {
+              header: "المبلغ",
+              cell: ({ row }) =>
+                `${row.original.total_price?.toLocaleString("ar-EG")} ج.م`,
+            },
+            {
+              id: "actions",
+              header: "إجراءات",
+              cell: ({ row }) => (
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      change.mutate({ id: row.original.id, status: "confirmed" })
+                    }
+                    disabled={change.isPending}
+                  >
+                    تأكيد
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() =>
+                      change.mutate({ id: row.original.id, status: "expired" })
+                    }
+                    disabled={change.isPending}
+                  >
+                    إنهاء
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      change.mutate({ id: row.original.id, status: "cancelled" })
+                    }
+                    disabled={change.isPending}
+                  >
+                    إلغاء
+                  </Button>
+                </div>
+              ),
+            },
+          ] satisfies ColumnDef<Reservation>[]}
+          data={isLoading ? [] : filtered}
           searchValue={searchValue}
           onSearchChange={setSearchValue}
           searchPlaceholder="ابحث باسم العميل أو رقم الوحدة..."
-          filterLabel="الحالة"
-          filterValue={statusFilter}
-          onFilterChange={setStatusFilter}
-          filterOptions={RESERVATION_STATUS_OPTIONS.map((s) => ({ value: s.value, label: s.label }))}
+          filters={[
+            {
+              key: "status",
+              label: "الحالة",
+              value: statusFilter,
+              onChange: setStatusFilter,
+              options: RESERVATION_STATUS_OPTIONS.map((s) => ({
+                value: s.value,
+                label: s.label,
+              })),
+            },
+          ]}
         />
-        <SaaSTableShell
-          isLoading={isLoading}
-          isEmpty={filtered.length === 0}
-          empty={<div className="py-8 text-center text-muted-foreground">لا توجد حجوزات مطابقة.</div>}
-        >
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-start">العميل</TableHead>
-                <TableHead className="text-start">الوحدة</TableHead>
-                <TableHead className="text-start">الحالة</TableHead>
-                <TableHead className="text-start">المبلغ</TableHead>
-                <TableHead className="text-start">إجراءات</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell>{r.users?.full_name ?? "—"}</TableCell>
-                  <TableCell>{r.units?.unit_number ?? "—"}</TableCell>
-                  <TableCell>
-                    <Badge variant={getReservationStatusVariant(r.status)}>
-                      {getReservationStatusLabel(r.status)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{r.total_price?.toLocaleString("ar-EG")} ج.م</TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={() => change.mutate({ id: r.id, status: "confirmed" })} disabled={change.isPending}>تأكيد</Button>
-                      <Button size="sm" variant="destructive" onClick={() => change.mutate({ id: r.id, status: "expired" })} disabled={change.isPending}>إنهاء</Button>
-                      <Button size="sm" variant="outline" onClick={() => change.mutate({ id: r.id, status: "cancelled" })} disabled={change.isPending}>إلغاء</Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </SaaSTableShell>
-      </SaaSPageShell>
+      </div>
     </>
   );
 }

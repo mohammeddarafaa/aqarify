@@ -1,12 +1,14 @@
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { api } from "@/lib/api";
 import { toast } from "@/lib/app-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { DataTableShell } from "@/components/shared/data-table-shell";
 import { useMyReservations } from "@/features/reservation/hooks/use-reservation";
 
 type Doc = {
@@ -29,6 +31,8 @@ export default function DocumentsPage() {
   const [file, setFile] = useState<File | null>(null);
   const [type, setType] = useState("national_id");
   const [reservationId, setReservationId] = useState("");
+  const [searchValue, setSearchValue] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const { data: reservations = [] } = useMyReservations();
 
   useEffect(() => {
@@ -40,6 +44,13 @@ export default function DocumentsPage() {
   const { data: docs = [], isLoading } = useQuery<Doc[]>({
     queryKey: ["customer-documents"],
     queryFn: async () => (await api.get("/documents")).data.data,
+  });
+  const filteredDocs = docs.filter((doc) => {
+    const q = searchValue.trim().toLowerCase();
+    const statusOk = statusFilter === "all" || doc.status === statusFilter;
+    const searchOk =
+      !q || (TYPE_LABEL[doc.type] ?? doc.type).toLowerCase().includes(q);
+    return statusOk && searchOk;
   });
 
   const upload = useMutation({
@@ -119,34 +130,62 @@ export default function DocumentsPage() {
           </Button>
         </div>
 
-        <div className="rounded-xl border bg-card overflow-hidden">
-          {isLoading ? (
-            <div className="py-16 text-center text-muted-foreground">جاري التحميل...</div>
-          ) : docs.length === 0 ? (
-            <div className="py-16 text-center text-muted-foreground">لا توجد مستندات بعد</div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="px-4 py-3 text-right">النوع</th>
-                  <th className="px-4 py-3 text-right">الحالة</th>
-                  <th className="px-4 py-3 text-right">التاريخ</th>
-                  <th className="px-4 py-3 text-right">الملف</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {docs.map((d) => (
-                  <tr key={d.id}>
-                    <td className="px-4 py-3">{TYPE_LABEL[d.type] ?? d.type}</td>
-                    <td className="px-4 py-3"><Badge variant={d.status === "approved" ? "default" : d.status === "rejected" ? "destructive" : "outline"}>{d.status}</Badge></td>
-                    <td className="px-4 py-3 text-muted-foreground">{new Date(d.created_at).toLocaleDateString("ar-EG")}</td>
-                    <td className="px-4 py-3"><a href={d.file_url} target="_blank" rel="noreferrer" className="text-primary underline">عرض</a></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+        <DataTableShell
+          columns={[
+            { header: "النوع", cell: ({ row }) => TYPE_LABEL[row.original.type] ?? row.original.type },
+            {
+              header: "الحالة",
+              cell: ({ row }) => (
+                <Badge
+                  variant={
+                    row.original.status === "approved"
+                      ? "default"
+                      : row.original.status === "rejected"
+                        ? "destructive"
+                        : "outline"
+                  }
+                >
+                  {row.original.status}
+                </Badge>
+              ),
+            },
+            {
+              header: "التاريخ",
+              cell: ({ row }) => new Date(row.original.created_at).toLocaleDateString("ar-EG"),
+            },
+            {
+              header: "الملف",
+              cell: ({ row }) => (
+                <a
+                  href={row.original.file_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary underline"
+                >
+                  عرض
+                </a>
+              ),
+            },
+          ] satisfies ColumnDef<Doc>[]}
+          data={isLoading ? [] : filteredDocs}
+          searchValue={searchValue}
+          onSearchChange={setSearchValue}
+          searchPlaceholder="ابحث بنوع المستند..."
+          filters={[
+            {
+              key: "status",
+              label: "الحالة",
+              value: statusFilter,
+              onChange: setStatusFilter,
+              options: [
+                { value: "all", label: "كل الحالات" },
+                { value: "pending", label: "pending" },
+                { value: "approved", label: "approved" },
+                { value: "rejected", label: "rejected" },
+              ],
+            },
+          ]}
+        />
       </div>
     </>
   );

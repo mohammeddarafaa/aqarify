@@ -1,10 +1,7 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import {
-  AppleCardsCarousel,
-  type AppleCard,
-  Button,
-  Skeleton,
-} from "@/components/ui-kit";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { PropertyCard } from "@/components/shared/property-card";
 import { usePublicProjects } from "@/features/browse/hooks/use-public-projects";
 import { useTenantStore } from "@/stores/tenant.store";
 import { appendTenantSearch } from "@/lib/tenant-path";
@@ -17,16 +14,6 @@ export function FeaturedListingsSection() {
   const tenant = useTenantStore((s) => s.tenant);
   const { data: projects, isLoading } = usePublicProjects();
   const list = (projects ?? []).slice(0, 8);
-
-  const cards: AppleCard[] = list.map((p) => ({
-    id: p.id,
-    category: p.address ?? "مشروع",
-    title: p.name,
-    src:
-      p.cover_image_url ??
-      p.gallery?.[0] ??
-      `https://placehold.co/600x800/f5f5f5/888888?text=${encodeURIComponent(p.name)}`,
-  }));
 
   return (
     <section className="bg-background py-20">
@@ -50,10 +37,29 @@ export function FeaturedListingsSection() {
             ))}
           </div>
         ) : (
-          <AppleCardsCarousel
-            items={cards}
-            onCardClick={(card) => navigate(withTenant(`/browse/projects/${card.id}`))}
-          />
+          <div className="grid gap-4 md:grid-cols-3">
+            {list.slice(0, 6).map((project) => (
+              <button
+                key={project.id}
+                onClick={() => navigate(withTenant(`/browse/projects/${project.id}`))}
+                className="text-start"
+                type="button"
+              >
+                <PropertyCard
+                  title={project.name}
+                  price={project.starting_price ? `${project.starting_price.toLocaleString("ar-EG")} ج.م` : "اسأل عن السعر"}
+                  imageUrl={
+                    project.cover_image_url ??
+                    project.gallery?.[0] ??
+                    `https://placehold.co/600x800/f5f5f5/888888?text=${encodeURIComponent(project.name)}`
+                  }
+                  beds={3}
+                  baths={2}
+                  area={1450}
+                />
+              </button>
+            ))}
+          </div>
         )}
       </div>
     </section>

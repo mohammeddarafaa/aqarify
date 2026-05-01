@@ -57,8 +57,7 @@ export default function ForgotPasswordPage() {
         {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
       </div>
 
-      <Button type="submit" className="w-full" disabled={isLoading}
-        style={{ backgroundColor: "var(--color-primary)", color: "var(--color-primary-foreground)" }}>
+      <Button type="submit" className="h-11 w-full rounded-full text-sm font-semibold" disabled={isLoading}>
         {isLoading ? "Sending..." : "Send Reset Link"}
       </Button>
 

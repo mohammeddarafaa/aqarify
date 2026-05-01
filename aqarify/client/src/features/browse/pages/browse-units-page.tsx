@@ -15,7 +15,12 @@ import { useUnitsQuery } from "@/features/browse/hooks/use-units-query";
 import { usePublicProject } from "@/features/browse/hooks/use-public-projects";
 import { useTenantStore } from "@/stores/tenant.store";
 import { appendTenantSearch } from "@/lib/tenant-path";
-import { Button, Skeleton } from "@/components/ui-kit";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { MobilePropertyActions } from "@/components/shared/mobile-property-actions";
+import { useFavorites } from "@/features/browse/hooks/use-favorites";
+import { useFavoritesStore } from "@/stores/favorites.store";
+import { toast } from "@/lib/app-toast";
 
 export default function BrowseUnitsPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -26,7 +31,7 @@ export default function BrowseUnitsPage() {
   const [view, setView] = useState<"grid" | "map">(
     () => (localStorage.getItem("aqarify:browse-view") as "grid" | "map") ?? "grid",
   );
-  const { filters, setFilter, clearFilters, hasActiveFilters } = useUnitFilters();
+  const { filters, setFilter, patchFilters, clearFilters, hasActiveFilters } = useUnitFilters();
 
   const mergedFilters = useMemo(
     () => ({ ...filters, ...(projectId ? { project_id: projectId } : {}) }),
@@ -39,6 +44,8 @@ export default function BrowseUnitsPage() {
 
   const allUnits = data?.pages.flatMap((p) => p.units) ?? [];
   const total = data?.pages[0]?.meta.total ?? 0;
+  const { favoriteIds } = useFavorites();
+  const compareUnitIds = useFavoritesStore((s) => s.compareUnitIds);
 
   const onChangeView = (next: "grid" | "map") => {
     setView(next);
@@ -62,7 +69,7 @@ export default function BrowseUnitsPage() {
       </Helmet>
       <Navbar />
 
-      <main className="min-h-screen bg-white pt-20">
+      <main className="min-h-screen bg-background pb-24 pt-20">
         <div className="mx-auto max-w-screen-xl px-6 pt-4">
           <Button variant="ghost" asChild className="mb-2 -ms-2 gap-1 text-xs font-medium uppercase tracking-widest text-muted-foreground hover:text-foreground">
             <Link to={withTenant("/browse")}>
@@ -96,7 +103,7 @@ export default function BrowseUnitsPage() {
               <div className="mx-auto max-w-screen-xl">
                 <FilterBar
                   filters={filters}
-                  onFilterChange={setFilter}
+                  onFiltersPatch={patchFilters}
                   onClear={clearFilters}
                   hasActive={hasActiveFilters}
                 />
@@ -107,7 +114,7 @@ export default function BrowseUnitsPage() {
               <button
                 type="button"
                 onClick={() => setMobileFiltersOpen(true)}
-                className="flex w-full items-center gap-3 py-4 text-[11px] font-medium uppercase tracking-widest text-[#141414]"
+                className="flex w-full items-center gap-3 py-4 text-[11px] font-medium uppercase tracking-widest text-foreground"
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" />
                 فلاتر الوحدات
@@ -131,13 +138,13 @@ export default function BrowseUnitsPage() {
                       .map(([k, v]) => (
                         <span
                           key={k}
-                          className="flex shrink-0 items-center gap-1.5 border border-[#141414] px-3 py-1 text-[10px] font-medium uppercase tracking-widest"
+                          className="flex shrink-0 items-center gap-1.5 border border-foreground px-3 py-1 text-[10px] font-medium uppercase tracking-widest"
                         >
                           {v}
                           <button
                             type="button"
                             onClick={() => setFilter(k, "")}
-                            className="text-[#888888] hover:text-[#141414]"
+                            className="text-muted-foreground hover:text-foreground"
                           >
                             <X className="h-3 w-3" />
                           </button>
@@ -146,7 +153,7 @@ export default function BrowseUnitsPage() {
                     <button
                       type="button"
                       onClick={clearFilters}
-                      className="ms-auto shrink-0 text-[10px] font-medium uppercase tracking-widest text-[#888888] hover:text-[#141414]"
+                      className="ms-auto shrink-0 text-[10px] font-medium uppercase tracking-widest text-muted-foreground hover:text-foreground"
                     >
                       مسح الكل
                     </button>
@@ -186,11 +193,41 @@ export default function BrowseUnitsPage() {
               onClose={() => setMobileFiltersOpen(false)}
               filters={filters}
               onFilterChange={setFilter}
+              onFiltersPatch={patchFilters}
               onClear={clearFilters}
+              resultCount={total}
             />
           </>
         )}
       </main>
+      <MobilePropertyActions
+        favoriteActive={favoriteIds.length > 0}
+        compareActive={compareUnitIds.length === 2}
+        onFavorite={() => {
+          window.location.assign(withTenant("/favorites"));
+        }}
+        onShare={async () => {
+          const url = window.location.href;
+          try {
+            if (navigator.share) {
+              await navigator.share({ title: document.title, url });
+            } else {
+              await navigator.clipboard.writeText(url);
+              toast.success("Page link copied");
+            }
+          } catch {
+            // user canceled share
+          }
+        }}
+        onCompare={() => {
+          if (compareUnitIds.length !== 2) {
+            toast.info("Pick 2 units using the home icon on cards.");
+            return;
+          }
+          const ids = compareUnitIds.join(",");
+          window.location.assign(withTenant(`/compare?ids=${encodeURIComponent(ids)}`));
+        }}
+      />
     </>
   );
 }

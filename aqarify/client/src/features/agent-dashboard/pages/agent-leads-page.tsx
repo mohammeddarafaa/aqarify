@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -10,38 +11,16 @@ import { toast } from "@/lib/app-toast";
 import { Plus, Phone, User2, ChevronDown, FileText } from "lucide-react";
 import { appendTenantSearch } from "@/lib/tenant-path";
 import { OfferDrawer } from "../components/offer-drawer";
-import {
-  Avatar,
-  AvatarFallback,
-  Badge,
-  Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  Input,
-  Label,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  Textarea,
-} from "@/components/ui-kit";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useIsReadOnly } from "@/hooks/use-is-read-only";
-import { SaaSPageShell } from "@/components/shared/saas-page-shell";
-import { SaaSListToolbar } from "@/components/shared/saas-list-toolbar";
-import { SaaSTableShell } from "@/components/shared/saas-table-shell";
+import { DataTableShell } from "@/components/shared/data-table-shell";
 import {
   LEAD_STAGES,
   getLeadStage,
@@ -193,20 +172,12 @@ export default function AgentLeadsPage() {
           if (!v) setOfferLeadId(null);
         }}
       />
-      <SaaSPageShell
-        title="العملاء المحتملون"
-        description="نمط جدول موحد لمتابعة العملاء والتحويل بسرعة أعلى."
-      >
+      <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">العملاء المحتملون</h1>
+          <p className="text-sm text-muted-foreground">نمط جدول موحد لمتابعة العملاء والتحويل بسرعة أعلى.</p>
+        </div>
         <div className="flex items-center gap-2">
-          <SaaSListToolbar
-            searchValue={search}
-            onSearchChange={setSearch}
-            searchPlaceholder="بحث بالاسم أو الهاتف..."
-            filterLabel="المرحلة"
-            filterValue={stageFilter}
-            onFilterChange={setStageFilter}
-            filterOptions={[{ value: "all", label: "كل المراحل" }, ...LEAD_STAGES.map((s) => ({ value: s.value, label: s.label }))]}
-          />
           <Dialog open={openNew} onOpenChange={setOpenNew}>
               <DialogTrigger asChild>
                 <Button className="gap-2" disabled={readOnly}>
@@ -284,58 +255,95 @@ export default function AgentLeadsPage() {
             </Dialog>
         </div>
 
-        <SaaSTableShell
-          isLoading={isLoading}
-          isEmpty={filteredLeads.length === 0}
-          empty={<div className="text-center text-muted-foreground">لا يوجد عملاء مطابقون.</div>}
-        >
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-start">العميل</TableHead>
-                <TableHead className="text-start">الهاتف</TableHead>
-                <TableHead className="text-start">المرحلة</TableHead>
-                <TableHead className="text-start">المصدر</TableHead>
-                <TableHead className="text-start">إجراءات</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredLeads.map((lead) => (
-                <TableRow key={lead.id}>
-                  <TableCell>
+        <DataTableShell
+          columns={useMemo<ColumnDef<Lead>[]>(
+            () => [
+              {
+                header: "العميل",
+                cell: ({ row }) => {
+                  const lead = row.original;
+                  return (
                     <div className="flex items-center gap-2">
                       <Avatar size="sm">
-                        <AvatarFallback className="bg-primary/10 text-primary text-[10px]">{initials(leadName(lead))}</AvatarFallback>
+                        <AvatarFallback className="bg-primary/10 text-[10px] text-primary">
+                          {initials(leadName(lead))}
+                        </AvatarFallback>
                       </Avatar>
                       <span className="font-medium">{leadName(lead)}</span>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <a href={`tel:${lead.phone}`} className="inline-flex items-center gap-1 text-muted-foreground hover:text-primary" dir="ltr">
-                      <Phone className="h-3 w-3" /> {lead.phone}
-                    </a>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{getLeadStageLabel(getLeadStage(lead))}</Badge>
-                  </TableCell>
-                  <TableCell>{lead.source || "—"}</TableCell>
-                  <TableCell>
+                  );
+                },
+              },
+              {
+                header: "الهاتف",
+                cell: ({ row }) => (
+                  <a
+                    href={`tel:${row.original.phone}`}
+                    className="inline-flex items-center gap-1 text-muted-foreground hover:text-primary"
+                    dir="ltr"
+                  >
+                    <Phone className="h-3 w-3" /> {row.original.phone}
+                  </a>
+                ),
+              },
+              {
+                header: "المرحلة",
+                cell: ({ row }) => (
+                  <Badge variant="outline">
+                    {getLeadStageLabel(getLeadStage(row.original))}
+                  </Badge>
+                ),
+              },
+              {
+                header: "المصدر",
+                cell: ({ row }) => row.original.source || "—",
+              },
+              {
+                id: "actions",
+                header: "إجراءات",
+                cell: ({ row }) => {
+                  const lead = row.original;
+                  return (
                     <div className="flex flex-wrap gap-1">
-                      {getLeadStage(lead) === "accepted" ? <ProceedToCheckoutButton leadId={lead.id} /> : null}
-                      <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-xs" disabled={readOnly} onClick={() => setOfferLeadId(lead.id)}>
+                      {getLeadStage(lead) === "accepted" ? (
+                        <ProceedToCheckoutButton leadId={lead.id} />
+                      ) : null}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 gap-1 text-xs"
+                        disabled={readOnly}
+                        onClick={() => setOfferLeadId(lead.id)}
+                      >
                         <FileText className="h-3 w-3" /> عروض
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" disabled={readOnly}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 gap-1 text-xs"
+                            disabled={readOnly}
+                          >
                             نقل <ChevronDown className="h-3 w-3" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>نقل إلى مرحلة</DropdownMenuLabel>
                           <DropdownMenuSeparator />
-                          {LEAD_STAGES.filter((x) => x.value !== getLeadStage(lead)).map((x) => (
-                            <DropdownMenuItem key={x.value} onClick={() => updateStage.mutate({ id: lead.id, newStage: x.value })}>
+                          {LEAD_STAGES.filter(
+                            (x) => x.value !== getLeadStage(lead),
+                          ).map((x) => (
+                            <DropdownMenuItem
+                              key={x.value}
+                              onClick={() =>
+                                updateStage.mutate({
+                                  id: lead.id,
+                                  newStage: x.value,
+                                })
+                              }
+                            >
                               <span className={`h-2 w-2 rounded-full ${x.dot}`} />
                               {x.label}
                             </DropdownMenuItem>
@@ -343,12 +351,29 @@ export default function AgentLeadsPage() {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </SaaSTableShell>
+                  );
+                },
+              },
+            ],
+            [readOnly, updateStage],
+          )}
+          data={isLoading ? [] : filteredLeads}
+          searchValue={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="بحث بالاسم أو الهاتف..."
+          filters={[
+            {
+              key: "stage",
+              label: "المرحلة",
+              value: stageFilter,
+              onChange: setStageFilter,
+              options: [
+                { value: "all", label: "كل المراحل" },
+                ...LEAD_STAGES.map((s) => ({ value: s.value, label: s.label })),
+              ],
+            },
+          ]}
+        />
 
         {/* Empty all */}
         {!isLoading && (data?.items?.length ?? 0) === 0 && (
@@ -360,7 +385,7 @@ export default function AgentLeadsPage() {
             </Button>
           </div>
         )}
-      </SaaSPageShell>
+      </div>
     </>
   );
 }
