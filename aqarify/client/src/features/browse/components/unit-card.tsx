@@ -14,18 +14,12 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
   unavailable: { label: "غير متاح", color: "text-muted-foreground" },
 };
 
-interface UnitCardProps {
-  unit: Unit;
-}
-
-function fallbackImage(unit: Unit) {
-  return `https://placehold.co/600x400/f5f5f5/888888?text=${encodeURIComponent(unit.unit_number)}`;
-}
+interface UnitCardProps { unit: Unit; }
 
 export function UnitCard({ unit }: UnitCardProps) {
   const { pathname, search } = useLocation();
   const tenant = useTenantStore((s) => s.tenant);
-  const cover = unit.gallery?.[0] ?? fallbackImage(unit);
+  const cover = unit.gallery?.[0] ?? tenant?.logo_url ?? null;
   const status = STATUS_MAP[unit.status] ?? STATUS_MAP.available;
   const unitHref = appendTenantSearch(pathname, search, `/units/${unit.id}`);
 
@@ -38,12 +32,18 @@ export function UnitCard({ unit }: UnitCardProps) {
     >
       <Link to={unitHref} className="block">
         <div className="relative h-64 overflow-hidden rounded-2xl bg-muted">
-          <img
-            src={cover}
-            alt={`${unit.type} ${unit.unit_number}`}
-            loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
-          />
+          {cover ? (
+            <img
+              src={cover}
+              alt={`${unit.type} ${unit.unit_number}`}
+              loading="lazy"
+              className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-muted to-accent text-sm text-muted-foreground">
+              Unit {unit.unit_number}
+            </div>
+          )}
           <button
             type="button"
             className="absolute end-3 top-3 grid size-8 place-items-center rounded-full bg-background/90 text-foreground transition-colors hover:bg-background"
@@ -58,7 +58,7 @@ export function UnitCard({ unit }: UnitCardProps) {
           <div className="absolute bottom-3 start-3">
             <span
               className={cn(
-                "rounded-full bg-background px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em]",
+                "label-muted rounded-full bg-background px-2.5 py-1",
                 status.color
               )}
             >

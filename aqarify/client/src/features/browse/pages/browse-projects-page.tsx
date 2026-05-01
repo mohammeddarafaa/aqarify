@@ -7,6 +7,7 @@ import { useTenantStore } from "@/stores/tenant.store";
 import { appendTenantSearch } from "@/lib/tenant-path";
 import { Skeleton } from "@/components/ui-kit";
 import { MapPin } from "lucide-react";
+import { LocationDiscoveryOnboarding } from "@/features/browse/components/location-discovery-onboarding";
 
 function projectHref(pathname: string, search: string, projectId: string) {
   return appendTenantSearch(pathname, search, `/browse/projects/${projectId}`);
@@ -33,6 +34,7 @@ export default function BrowseProjectsPage() {
         <BrowseHero mode="projects" total={list.length} isLoading={isLoading} />
 
         <div className="mx-auto max-w-screen-xl px-6 py-10">
+          <LocationDiscoveryOnboarding projects={list} />
           <p className="label-overline mb-6 text-[var(--color-muted-foreground)]">المشاريع</p>
 
           {isLoading ? (
@@ -49,7 +51,8 @@ export default function BrowseProjectsPage() {
                 const cover =
                   p.cover_image_url ??
                   p.gallery?.[0] ??
-                  `https://placehold.co/800x520/f5f5f5/888888?text=${encodeURIComponent(p.name)}`;
+                  tenant?.logo_url ??
+                  null;
                 return (
                   <Link
                     key={p.id}
@@ -57,21 +60,27 @@ export default function BrowseProjectsPage() {
                     className="group block overflow-hidden rounded-2xl border border-[var(--color-border)] bg-white transition-shadow hover:shadow-lg"
                   >
                     <div className="relative aspect-[16/10] overflow-hidden bg-muted">
-                      <img
-                        src={cover}
-                        alt={p.name}
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                      />
+                      {cover ? (
+                        <img
+                          src={cover}
+                          alt={p.name}
+                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-muted to-accent text-sm text-muted-foreground">
+                          {p.name}
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-2 p-5">
-                      <h2 className="text-lg font-semibold tracking-tight text-[#141414]">{p.name}</h2>
+                      <h2 className="text-lg font-semibold tracking-tight text-foreground">{p.name}</h2>
                       {p.address ? (
-                        <p className="flex items-start gap-1.5 text-xs text-[#666]">
+                        <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
                           <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                           <span>{p.address}</span>
                         </p>
                       ) : null}
-                      <span className="inline-block text-[10px] font-medium uppercase tracking-widest text-[var(--color-gold)]">
+                      <span className="label-overline inline-block">
                         عرض الوحدات ←
                       </span>
                     </div>

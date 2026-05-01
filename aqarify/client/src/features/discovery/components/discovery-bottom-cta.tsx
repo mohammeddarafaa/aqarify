@@ -1,6 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui-kit";
-import { Button as HeroButton } from "@heroui/react";
 import { appendTenantSearch } from "@/lib/tenant-path";
 import { useTenantUi } from "@/hooks/use-tenant-ui";
 
@@ -21,14 +20,9 @@ export function DiscoveryBottomCta() {
             "ابدأ بتصفّح المشاريع ثم الوحدات، أو تواصل مع فريق المبيعات من صفحة التواصل."}
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <HeroButton
-            variant="primary"
-            size="lg"
-            className="rounded-full px-8"
-            onPress={() => navigate(withTenant("/browse"))}
-          >
+          <Button className="rounded-full px-8" onClick={() => navigate(withTenant("/browse"))}>
             استكشف الآن
-          </HeroButton>
+          </Button>
           <Button asChild variant="outline" className="rounded-full border-[#141414] bg-transparent">
             <Link to={withTenant("/#contact")}>تواصل معنا</Link>
           </Button>

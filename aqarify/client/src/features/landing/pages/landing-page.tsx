@@ -1,9 +1,9 @@
 import { Helmet } from "react-helmet-async";
 import { useTenantStore } from "@/stores/tenant.store";
 import { Navbar } from "@/features/landing/components/navbar";
+import { HeroSection } from "@/features/landing/components/hero-section";
+import { FeaturedListingsSection } from "@/features/landing/components/featured-listings-section";
 import {
-  DiscoveryHero,
-  DiscoveryFeaturedCarousel,
   DiscoveryValueSplit,
   DiscoveryBottomCta,
 } from "@/features/discovery";
@@ -25,8 +25,8 @@ export default function LandingPage() {
       </Helmet>
       <Navbar />
       <main>
-        <DiscoveryHero />
-        <DiscoveryFeaturedCarousel />
+        <HeroSection />
+        <FeaturedListingsSection />
         <DiscoveryValueSplit />
         <AmenitiesSection />
         <TestimonialsStrip />

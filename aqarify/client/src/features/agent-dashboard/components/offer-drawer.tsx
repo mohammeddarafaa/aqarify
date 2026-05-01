@@ -6,17 +6,22 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { api } from "@/lib/api";
 import { toast } from "@/lib/app-toast";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
+  Button,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
+  Textarea,
+} from "@/components/ui-kit";
 import { useIsReadOnly } from "@/hooks/use-is-read-only";
 
 type NegotiationOffer = {
@@ -127,17 +132,22 @@ export function OfferDrawer({
             {units.length === 0 ? (
               <p className="text-xs text-muted-foreground">لا توجد وحدات متاحة حالياً.</p>
             ) : (
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-              {...form.register("unit_id")}
-              disabled={readOnly}
-            >
-              {units.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.unit_number} · {Number(u.price).toLocaleString("ar-EG")} ج.م
-                </option>
-              ))}
-            </select>
+              <Select
+                value={form.watch("unit_id")}
+                onValueChange={(v) => form.setValue("unit_id", v, { shouldValidate: true })}
+                disabled={readOnly}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="اختر الوحدة" />
+                </SelectTrigger>
+                <SelectContent>
+                  {units.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.unit_number} · {Number(u.price).toLocaleString("ar-EG")} ج.م
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
             {form.formState.errors.unit_id ? (
               <p className="text-xs text-destructive">{form.formState.errors.unit_id.message}</p>

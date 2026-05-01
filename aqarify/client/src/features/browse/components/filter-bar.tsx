@@ -34,11 +34,11 @@ function FilterDropdown({ label, options, value, onChange, isLast }: DropdownPro
           isLast && "border-none",
           open && "bg-[var(--color-muted)]"
         )}>
-        <span className={cn("text-[11px] font-medium tracking-[0.12em] uppercase",
-          activeLabel ? "text-[#141414]" : "text-[#888888]")}>
+        <span className={cn("label-muted",
+          activeLabel ? "text-foreground" : "text-muted-foreground")}>
           {activeLabel ?? label}
         </span>
-        <ChevronDown className={cn("h-3 w-3 text-[#141414] transition-transform shrink-0", open && "rotate-180")} />
+        <ChevronDown className={cn("h-3 w-3 text-foreground transition-transform shrink-0", open && "rotate-180")} />
       </button>
 
       {open && (
@@ -51,15 +51,15 @@ function FilterDropdown({ label, options, value, onChange, isLast }: DropdownPro
           <div className="absolute top-full start-0 z-[100] mt-0.5 min-w-[180px] border border-[var(--color-border)] bg-white shadow-lg">
             <button
               onClick={() => { onChange("all"); setOpen(false); }}
-              className={cn("w-full text-start px-4 py-3 text-[11px] font-medium tracking-widest uppercase hover:bg-[var(--color-muted)] transition-colors",
-                (!value || value === "all") ? "text-[#141414]" : "text-[#888888]")}>
+              className={cn("w-full text-start px-4 py-3 text-xs font-medium tracking-widest uppercase hover:bg-[var(--color-muted)] transition-colors",
+                (!value || value === "all") ? "text-foreground" : "text-muted-foreground")}>
               الكل
             </button>
             {options.map((opt) => (
               <button key={opt}
                 onClick={() => { onChange(opt); setOpen(false); }}
-                className={cn("w-full text-start px-4 py-3 text-[11px] font-medium tracking-widest uppercase hover:bg-[var(--color-muted)] transition-colors",
-                  value === opt ? "text-[#141414]" : "text-[#888888]")}>
+                className={cn("w-full text-start px-4 py-3 text-xs font-medium tracking-widest uppercase hover:bg-[var(--color-muted)] transition-colors",
+                  value === opt ? "text-foreground" : "text-muted-foreground")}>
                 {opt}
               </button>
             ))}
@@ -75,9 +75,19 @@ export function FilterBar({ filters, onFilterChange, onClear, hasActive }: Filte
   const schema = tenant?.filter_schema;
 
   const dropdownFilters = schema?.filters.filter((f) => f.type === "dropdown" && f.options) ?? [];
+  const bedroomOptions = ["1", "2", "3", "4"];
+  const bathroomOptions = ["1", "2", "3", "4"];
+  const chipClass = (active: boolean) =>
+    cn(
+      "rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-widest transition-colors",
+      active
+        ? "border-foreground bg-foreground text-background"
+        : "border-[var(--color-border)] text-muted-foreground hover:border-foreground hover:text-foreground"
+    );
 
   return (
-    <div className="flex min-w-0 flex-wrap items-stretch overflow-visible sm:flex-nowrap">
+    <div className="space-y-3 py-3">
+      <div className="flex min-w-0 flex-wrap items-stretch overflow-visible sm:flex-nowrap">
       {/* Dynamic dropdown filters */}
       {dropdownFilters.map((f, i) => (
         <FilterDropdown
@@ -100,7 +110,7 @@ export function FilterBar({ filters, onFilterChange, onClear, hasActive }: Filte
             placeholder="بحث..."
             className="search-clean flex-1"
           />
-          <Search className="h-3.5 w-3.5 text-[#888888] me-4 shrink-0" />
+          <Search className="h-3.5 w-3.5 text-muted-foreground me-4 shrink-0" />
         </div>
       )}
 
@@ -108,13 +118,60 @@ export function FilterBar({ filters, onFilterChange, onClear, hasActive }: Filte
       {hasActive && (
         <button
           onClick={onClear}
-          className="flex items-center gap-2 px-4 text-[11px] font-medium tracking-widest uppercase text-[#888888] hover:text-[#141414] transition-colors shrink-0 border-e-0">
+          className="flex items-center gap-2 px-4 text-xs font-medium tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors shrink-0 border-e-0">
           مسح
-          <div className="flex h-5 w-5 items-center justify-center rounded-full border border-[#888888]">
+          <div className="flex h-5 w-5 items-center justify-center rounded-full border border-muted-foreground">
             <X className="h-2.5 w-2.5" />
           </div>
         </button>
       )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 px-1">
+        <span className="label-muted text-muted-foreground">beds</span>
+        <button onClick={() => onFilterChange("bedrooms", "all")} className={chipClass(!filters.bedrooms)}>Any</button>
+        {bedroomOptions.map((n) => (
+          <button key={n} onClick={() => onFilterChange("bedrooms", n)} className={chipClass(filters.bedrooms === n)}>
+            {n === "4" ? "4+" : n}
+          </button>
+        ))}
+
+        <span className="ms-3 label-muted text-muted-foreground">baths</span>
+        <button onClick={() => onFilterChange("bathrooms", "all")} className={chipClass(!filters.bathrooms)}>Any</button>
+        {bathroomOptions.map((n) => (
+          <button key={n} onClick={() => onFilterChange("bathrooms", n)} className={chipClass(filters.bathrooms === n)}>
+            {n === "4" ? "4+" : n}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 px-1">
+        <input
+          type="number"
+          min={0}
+          value={filters.min_price ?? ""}
+          onChange={(e) => onFilterChange("min_price", e.target.value)}
+          placeholder="Min price"
+          className="h-9 w-28 rounded-full border border-[var(--color-border)] px-3 text-xs outline-none focus:border-foreground"
+        />
+        <input
+          type="number"
+          min={0}
+          value={filters.max_price ?? ""}
+          onChange={(e) => onFilterChange("max_price", e.target.value)}
+          placeholder="Max price"
+          className="h-9 w-28 rounded-full border border-[var(--color-border)] px-3 text-xs outline-none focus:border-foreground"
+        />
+        <label className="ms-2 inline-flex items-center gap-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={filters.fha_eligible === "true"}
+            onChange={(e) => onFilterChange("fha_eligible", e.target.checked ? "true" : "all")}
+            className="h-3.5 w-3.5 accent-[var(--color-primary)]"
+          />
+          FHA eligible only
+        </label>
+      </div>
     </div>
   );
 }

@@ -15,20 +15,32 @@ import {
   Search,
   Sparkles,
 } from "lucide-react";
-import { BentoGrid, BentoGridItem } from "@/components/aceternity/bento-grid";
-import { Badge } from "@/components/ui/badge";
 import {
+  Badge,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Alert,
+  AlertDescription,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
+  Avatar,
+  AvatarFallback,
+  Button,
+} from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
 import { appendTenantSearch } from "@/lib/tenant-path";
+import { SaaSPageShell } from "@/components/shared/saas-page-shell";
+import { SaaSKpiCard } from "@/components/shared/saas-kpi-card";
+import {
+  getReservationStatusLabel,
+  getReservationStatusVariant,
+} from "@/features/reservations/shared/reservation-status";
 
 type Payment = {
   id: string;
@@ -101,102 +113,67 @@ export default function CustomerDashboardPage() {
       <Helmet>
         <title>{tenant?.name ? `${tenant.name} — لوحتي` : "لوحة التحكم"}</title>
       </Helmet>
-      <div className="mx-auto max-w-6xl px-4 py-8 space-y-8">
-        {/* Greeting hero */}
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-4">
-            <Avatar size="lg" className="ring-2 ring-primary/20">
-              <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                {initials(user?.full_name)}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">
-                مرحباً، {user?.full_name ?? "عميلنا العزيز"}
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                نظرة سريعة على نشاطك في بوابة {tenant?.name ?? "المطور"}
-              </p>
-            </div>
-          </div>
+      <SaaSPageShell
+        title={`مرحباً، ${user?.full_name ?? "عميلنا العزيز"}`}
+        description={`نظرة سريعة على نشاطك في بوابة ${tenant?.name ?? "المطور"}`}
+        actions={
           <Button asChild size="sm" variant="outline" className="gap-2">
             <Link to={withTenant("/browse")}>
               <Search className="h-4 w-4" /> تصفح الوحدات
             </Link>
           </Button>
+        }
+      >
+        {/* Greeting hero */}
+        <div className="flex items-center gap-4">
+            <Avatar className="size-12 ring-2 ring-primary/20">
+              <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                {initials(user?.full_name)}
+              </AvatarFallback>
+            </Avatar>
         </div>
 
-        {/* Bento overview */}
-        <BentoGrid className="md:auto-rows-[11rem]">
-          <BentoGridItem
-            className="md:col-span-1"
-            icon={<Home className="h-5 w-5 text-primary" />}
-            title={<span className="text-3xl font-bold">{reservations.length}</span>}
-            description="إجمالي حجوزاتي"
-          />
-          <BentoGridItem
-            className="md:col-span-1"
-            icon={<CreditCard className="h-5 w-5 text-primary" />}
-            title={<span className="text-3xl font-bold">{payments.length}</span>}
-            description="إجمالي المدفوعات"
-          />
-          <BentoGridItem
-            className="md:col-span-1"
-            icon={<Clock className="h-5 w-5 text-primary" />}
-            title={
-              <span className="text-3xl font-bold">
-                {bestWaitlist ? `#${bestWaitlist.position}` : "—"}
-              </span>
-            }
-            description={
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <SaaSKpiCard title="إجمالي حجوزاتي" value={reservations.length} icon={Home} />
+          <SaaSKpiCard title="إجمالي المدفوعات" value={payments.length} icon={CreditCard} />
+          <SaaSKpiCard
+            title="أفضل ترتيب انتظار"
+            value={bestWaitlist ? `#${bestWaitlist.position}` : "—"}
+            subtitle={
               bestWaitlist
-                ? `أفضل مركز لك في قوائم الانتظار${waitlistMoreCount > 0 ? ` (+${waitlistMoreCount} قائمة أخرى)` : ""}`
-                : "لست في قائمة الانتظار حالياً"
+                ? `${waitlistMoreCount > 0 ? `+${waitlistMoreCount} قوائم إضافية` : "قائمة واحدة"}`
+                : "لا توجد قوائم انتظار"
             }
+            icon={Clock}
           />
-
-          {/* Next payment: big card */}
-          <BentoGridItem
-            className="md:col-span-2 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent"
-            icon={<CalendarDays className="h-5 w-5 text-primary" />}
-            title={
-              nextPayment ? (
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-bold">
-                    {nextPayment.amount.toLocaleString("ar-EG")}
-                  </span>
-                  <span className="text-sm text-muted-foreground">ج.م</span>
-                </div>
-              ) : (
-                <span className="text-xl font-semibold text-muted-foreground">
-                  لا توجد مدفوعات قادمة
-                </span>
-              )
-            }
-            description={
+          <SaaSKpiCard
+            title="القسط القادم"
+            value={nextPayment ? `${nextPayment.amount.toLocaleString("ar-EG")} ج.م` : "لا يوجد"}
+            subtitle={
               nextPayment
-                ? `القسط القادم خلال ${daysUntilNext} يوم — ${new Date(
-                    nextPayment.due_date,
-                  ).toLocaleDateString("ar-EG")}`
+                ? `خلال ${daysUntilNext} يوم`
                 : "أنت على اطلاع بكل مدفوعاتك"
             }
+            icon={CalendarDays}
           />
+        </div>
 
-          <BentoGridItem
-            className="md:col-span-1 bg-primary text-primary-foreground [&_*]:!text-primary-foreground"
-            icon={<Sparkles className="h-5 w-5" />}
-            title="اكتشف وحدات جديدة"
-            description="تصفح أحدث العروض المتاحة"
-            header={
-              <Link
-                to={withTenant("/browse")}
-                className="group absolute inset-0 flex items-end justify-end p-5"
-              >
-                <ArrowLeft className="h-5 w-5 transition-transform group-hover:-translate-x-1 rtl:group-hover:translate-x-1 rtl:rotate-180" />
+        <Card className="shadow-none">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="size-4 text-primary" />
+              اكتشف وحدات جديدة
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">تصفح أحدث العروض المتاحة في مشروعك.</p>
+            <Button asChild size="sm">
+              <Link to={withTenant("/browse")} className="gap-1">
+                استكشف الآن <ArrowLeft className="size-4 rtl:rotate-180" />
               </Link>
-            }
-          />
-        </BentoGrid>
+            </Button>
+          </CardContent>
+        </Card>
 
         {/* Reservations */}
         <section className="space-y-3">
@@ -238,8 +215,8 @@ export default function CustomerDashboardPage() {
                 <TableBody>
                   {reservations.slice(0, 10).map((r) => {
                     const status = STATUS_MAP[r.status] ?? {
-                      label: r.status,
-                      variant: "outline" as const,
+                      label: getReservationStatusLabel(r.status),
+                      variant: getReservationStatusVariant(r.status),
                     };
                     return (
                       <TableRow key={r.id}>
@@ -309,7 +286,15 @@ export default function CustomerDashboardPage() {
             </div>
           </section>
         )}
-      </div>
+        {nextPayment && daysUntilNext !== null && daysUntilNext <= 7 ? (
+          <Alert>
+            <Clock className="size-4 text-amber-600" />
+            <AlertDescription>
+              لديك دفعة قادمة خلال {daysUntilNext} يوم. تأكد من المراجعة في صفحة المدفوعات.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+      </SaaSPageShell>
     </>
   );
 }

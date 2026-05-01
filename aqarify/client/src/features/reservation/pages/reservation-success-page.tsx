@@ -37,7 +37,7 @@ export default function ReservationSuccessPage() {
         <Card className="relative w-full max-w-md overflow-hidden rounded-2xl border-border shadow-sm">
           <Meteors number={14} />
           <CardContent className="space-y-6 p-8 text-center">
-            <div className="mx-auto grid size-16 place-items-center rounded-full bg-emerald-100 text-emerald-600">
+            <div className="mx-auto grid size-16 place-items-center rounded-full bg-emerald-100/80 text-emerald-700">
               <CheckCircle2Icon className="size-9" />
             </div>
             <div className="space-y-1">
@@ -85,7 +85,7 @@ export default function ReservationSuccessPage() {
                     <li>Account: {bankDetails.bank_account_number}</li>
                   </ul>
                 ) : (
-                  <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                  <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
                     Bank account details are not published for this workspace. Please contact the sales team with your reference number.
                   </p>
                 )}

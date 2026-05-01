@@ -29,10 +29,10 @@ const DEFAULT_ITEMS = [
 export function TestimonialsStrip() {
   const tenant = useTenantStore((s) => s.tenant);
   return (
-    <section className="border-y border-[var(--color-border)] bg-[var(--color-muted)] py-16">
+    <section className="border-y border-[var(--color-border)] bg-muted/45 py-16">
       <div className="mx-auto max-w-2xl px-6 text-center">
         <p className="label-overline mb-3">Reviews</p>
-        <h2 className="text-3xl font-bold text-[var(--color-foreground)] md:text-4xl">
+        <h2 className="text-3xl font-bold text-foreground md:text-4xl">
           عملاء {tenant?.name ?? "المطور"} يشاركون تجربتهم
         </h2>
       </div>

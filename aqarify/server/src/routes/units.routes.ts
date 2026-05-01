@@ -14,6 +14,7 @@ unitRoutes.get("/", async (req: TenantRequest, res, next) => {
     const {
       type,
       bedrooms,
+      bathrooms,
       status,
       search,
       page = "1",
@@ -28,6 +29,7 @@ unitRoutes.get("/", async (req: TenantRequest, res, next) => {
       building_id,
       location,
       project_id,
+      fha_eligible,
     } = req.query as Record<string, string>;
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(50, parseInt(limit));
@@ -47,6 +49,7 @@ unitRoutes.get("/", async (req: TenantRequest, res, next) => {
 
     if (type && type !== "all") query = query.eq("type", type);
     if (bedrooms && bedrooms !== "all") query = query.eq("bedrooms", parseInt(bedrooms, 10));
+    if (bathrooms && bathrooms !== "all") query = query.eq("bathrooms", parseInt(bathrooms, 10));
     if (status && status !== "all") query = query.eq("status", status);
     if (min_price) query = query.gte("price", parseFloat(min_price));
     if (max_price) query = query.lte("price", parseFloat(max_price));
@@ -56,11 +59,17 @@ unitRoutes.get("/", async (req: TenantRequest, res, next) => {
     if (finishing && finishing !== "all") query = query.eq("finishing", finishing);
     if (view_type && view_type !== "all") query = query.eq("view_type", view_type);
     if (building_id && /^[0-9a-f-]{36}$/i.test(building_id)) query = query.eq("building_id", building_id);
+    if (fha_eligible === "true") {
+      query = query.or(
+        "custom_attributes->>fha_eligible.eq.true,custom_attributes->>fha_eligible.eq.True,custom_attributes->>fha_eligible.eq.1",
+      );
+    }
     if (search) query = query.ilike("unit_number", `%${search}%`);
 
     const RESERVED_QUERY_KEYS = new Set([
       "type",
       "bedrooms",
+      "bathrooms",
       "status",
       "search",
       "page",
@@ -75,6 +84,7 @@ unitRoutes.get("/", async (req: TenantRequest, res, next) => {
       "building_id",
       "location",
       "project_id",
+      "fha_eligible",
       "attr_key",
       "attr_val",
     ]);

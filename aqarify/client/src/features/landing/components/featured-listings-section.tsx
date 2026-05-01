@@ -34,10 +34,7 @@ export function FeaturedListingsSection() {
         <div className="mb-8 flex items-end justify-between">
           <div>
             <p className="label-overline mb-2">مشاريع مميزة</p>
-            <h2
-              className="text-3xl font-bold text-foreground md:text-4xl"
-              style={{ letterSpacing: "-0.02em" }}
-            >
+            <h2 className="text-3xl font-bold text-foreground md:text-4xl" style={{ letterSpacing: "-0.02em" }}>
               أبرز المشاريع من {tenant?.name ?? "المطور"}
             </h2>
           </div>

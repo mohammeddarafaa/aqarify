@@ -24,7 +24,7 @@ export default function PaymentFailurePage() {
         <Card className="w-full max-w-md rounded-2xl border-border shadow-sm">
           <CardContent className="space-y-6 p-8">
             <div className="flex flex-col items-center text-center">
-              <div className="mx-auto grid size-16 place-items-center rounded-full bg-red-100 text-red-500">
+              <div className="mx-auto grid size-16 place-items-center rounded-full bg-destructive/10 text-destructive">
                 <AlertCircleIcon className="size-9" />
               </div>
               <h1 className="mt-4 text-2xl font-bold">Payment failed</h1>

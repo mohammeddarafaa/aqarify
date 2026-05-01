@@ -80,9 +80,14 @@ export default function UnitDetailPage() {
 
   const gallery = unit.gallery?.length
     ? unit.gallery
-    : [`https://placehold.co/1200x800/f5f5f5/888888?text=Unit+${unit.unit_number}`];
+    : tenant?.logo_url
+      ? [tenant.logo_url]
+      : [];
   const cover = gallery[galleryIdx];
   const isReadOnly = tenant?.status === "read_only";
+  const amenities = Array.isArray((unit.custom_attributes as { amenities?: unknown } | null)?.amenities)
+    ? ((unit.custom_attributes as { amenities?: string[] }).amenities ?? [])
+    : [];
 
   return (
     <>
@@ -119,7 +124,13 @@ export default function UnitDetailPage() {
           {/* Gallery */}
           <div className="relative">
             <div className="relative h-72 overflow-hidden rounded-2xl bg-muted md:h-[440px]">
-              <img src={cover} alt={unit.unit_number} className="h-full w-full object-cover" />
+              {cover ? (
+                <img src={cover} alt={unit.unit_number} className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-muted to-accent text-sm text-muted-foreground">
+                  Unit {unit.unit_number}
+                </div>
+              )}
               <div className="absolute start-4 top-4">
                 <StatusBadge status={unit.status} />
               </div>
@@ -200,6 +211,18 @@ export default function UnitDetailPage() {
                       Finished {unit.finishing ? `(${unit.finishing.toLowerCase()})` : "to spec"}.
                     </p>
                   </div>
+                  {amenities.length > 0 && (
+                    <div className="rounded-xl border border-border bg-card p-5">
+                      <h3 className="mb-3 font-semibold">Amenities</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {amenities.map((a) => (
+                          <span key={a} className="rounded-full border border-border px-3 py-1 text-xs text-foreground">
+                            {a}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </TabsContent>
                 <TabsContent value="payment" className="pt-4">
                   <PaymentCalculator unit={unit} />
@@ -286,6 +309,15 @@ export default function UnitDetailPage() {
                   <Share2Icon className="size-3.5" /> Share
                 </Button>
               </div>
+
+              <Button
+                variant="outline"
+                className="w-full rounded-full text-xs"
+                onClick={() => setVisitOpen(true)}
+                disabled={isReadOnly}
+              >
+                Send inquiry
+              </Button>
 
               {unit.floor_plan_url ? (
                 <a

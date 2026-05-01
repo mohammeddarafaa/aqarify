@@ -18,21 +18,23 @@ import {
   Plus,
   ClipboardCheck,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Button,
+  Input,
+  Label,
+  Textarea,
+  Badge,
+  Avatar,
+  AvatarFallback,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -40,8 +42,17 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui-kit";
 import { useIsReadOnly } from "@/hooks/use-is-read-only";
+import { SaaSPageShell } from "@/components/shared/saas-page-shell";
+import { SaaSListToolbar } from "@/components/shared/saas-list-toolbar";
+import { SaaSTableShell } from "@/components/shared/saas-table-shell";
 
 type FollowUp = {
   id: string;
@@ -167,7 +178,7 @@ function FollowUpCard({
           </Badge>
         )}
         {f.status === "completed" && (
-          <Badge variant="default" className="bg-green-600">
+          <Badge variant="default" className="bg-emerald-600">
             مكتملة
           </Badge>
         )}
@@ -196,6 +207,7 @@ export default function AgentFollowUpsPage() {
   const qc = useQueryClient();
   const readOnly = useIsReadOnly();
   const [openNew, setOpenNew] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const { data = [], isLoading } = useQuery<FollowUp[]>({
     queryKey: ["agent-follow-ups"],
@@ -263,13 +275,20 @@ export default function AgentFollowUpsPage() {
     (f) => f.status === "scheduled" && new Date(f.scheduled_at) < new Date(),
   );
   const done = data.filter((f) => f.status === "completed");
+  const tableRows = data.filter((f) => {
+    if (statusFilter === "all") return true;
+    if (statusFilter === "upcoming") return f.status === "scheduled" && new Date(f.scheduled_at) >= new Date();
+    if (statusFilter === "overdue") return f.status === "scheduled" && new Date(f.scheduled_at) < new Date();
+    if (statusFilter === "completed") return f.status === "completed";
+    return true;
+  });
 
   return (
     <>
       <Helmet>
         <title>المتابعات</title>
       </Helmet>
-      <div className="mx-auto max-w-5xl px-4 py-8 space-y-6">
+      <SaaSPageShell title="جدول المتابعات" description="نمط جدولي موحد للمتابعات مع فلترة حسب الحالة الزمنية.">
         {/* Header */}
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
@@ -385,82 +404,62 @@ export default function AgentFollowUpsPage() {
           </Dialog>
         </div>
 
-        {isLoading ? (
-          <div className="flex justify-center py-16">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          </div>
-        ) : (
-          <Tabs defaultValue="upcoming">
-            <TabsList>
-              <TabsTrigger value="upcoming">
-                قادمة <Badge variant="outline">{pending.length}</Badge>
-              </TabsTrigger>
-              <TabsTrigger value="overdue">
-                متأخرة{" "}
-                <Badge variant={overdue.length ? "destructive" : "outline"}>
-                  {overdue.length}
-                </Badge>
-              </TabsTrigger>
-              <TabsTrigger value="completed">
-                مكتملة <Badge variant="outline">{done.length}</Badge>
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="upcoming" className="pt-4">
-              {pending.length === 0 ? (
-                <EmptyBlock label="لا توجد متابعات قادمة" />
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {pending.map((f) => (
-                    <FollowUpCard
-                      key={f.id}
-                      f={f}
-                      onComplete={(id) => complete.mutate(id)}
-                      readOnly={readOnly}
-                      isCompleting={complete.isPending}
-                    />
-                  ))}
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="overdue" className="pt-4">
-              {overdue.length === 0 ? (
-                <EmptyBlock label="لا توجد متابعات متأخرة — أحسنت!" />
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {overdue.map((f) => (
-                    <FollowUpCard
-                      key={f.id}
-                      f={f}
-                      onComplete={(id) => complete.mutate(id)}
-                      readOnly={readOnly}
-                      isCompleting={complete.isPending}
-                    />
-                  ))}
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="completed" className="pt-4">
-              {done.length === 0 ? (
-                <EmptyBlock label="لا توجد متابعات مكتملة بعد" />
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {done.slice(0, 30).map((f) => (
-                    <FollowUpCard
-                      key={f.id}
-                      f={f}
-                      onComplete={(id) => complete.mutate(id)}
-                      readOnly={readOnly}
-                    />
-                  ))}
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
-        )}
-      </div>
+        <SaaSListToolbar
+          filterLabel="الحالة"
+          filterValue={statusFilter}
+          onFilterChange={setStatusFilter}
+          filterOptions={[
+            { value: "all", label: `الكل (${data.length})` },
+            { value: "upcoming", label: `قادمة (${pending.length})` },
+            { value: "overdue", label: `متأخرة (${overdue.length})` },
+            { value: "completed", label: `مكتملة (${done.length})` },
+          ]}
+        />
+        <SaaSTableShell
+          isLoading={isLoading}
+          isEmpty={tableRows.length === 0}
+          empty={<EmptyBlock label="لا توجد متابعات مطابقة." />}
+        >
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-start">العميل</TableHead>
+                <TableHead className="text-start">النوع</TableHead>
+                <TableHead className="text-start">الموعد</TableHead>
+                <TableHead className="text-start">الحالة</TableHead>
+                <TableHead className="text-start">إجراء</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {tableRows.map((f) => {
+                const meta = TYPE_META[f.type] ?? TYPE_META.other;
+                const overdueFlag = f.status === "scheduled" && new Date(f.scheduled_at) < new Date();
+                return (
+                  <TableRow key={f.id}>
+                    <TableCell>{leadDisplayName(f.potential_customers)}</TableCell>
+                    <TableCell>{meta.label}</TableCell>
+                    <TableCell>{new Date(f.scheduled_at).toLocaleString("ar-EG")}</TableCell>
+                    <TableCell>
+                      <Badge variant={f.status === "completed" ? "default" : overdueFlag ? "destructive" : "outline"}>
+                        {f.status === "completed" ? "مكتملة" : overdueFlag ? "متأخرة" : "قادمة"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {f.status === "scheduled" ? (
+                        <Button size="sm" variant="outline" disabled={readOnly || complete.isPending} onClick={() => complete.mutate(f.id)}>
+                          تسجيل كمكتملة
+                        </Button>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </SaaSTableShell>
+      </SaaSPageShell>
     </>
   );
 }

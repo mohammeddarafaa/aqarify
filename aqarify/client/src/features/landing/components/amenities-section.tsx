@@ -1,5 +1,6 @@
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { FadeInView } from "@/components/motion/fade-in-view";
+import { motionTransitions } from "@/components/ui-kit";
 
 const amenities = [
   { num: "01", label: "أمن 24 ساعة", desc: "حراسة مشددة وكاميرات مراقبة متطورة على مدار الساعة" },
@@ -11,19 +12,20 @@ const amenities = [
 ];
 
 export function AmenitiesSection() {
+  const shouldReduceMotion = useReducedMotion();
   return (
-    <section id="amenities" className="bg-white py-24">
+    <section id="amenities" className="bg-background py-24">
       <div className="max-w-screen-xl mx-auto px-6">
         {/* Section header */}
         <FadeInView>
           <p className="label-overline mb-5">المميزات</p>
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-16 pb-8 border-b border-[var(--color-border)]">
-            <h2 className="display-lg text-[#141414]">
+            <h2 className="display-lg text-foreground">
               حياة استثنائية
               <br />
               في كل تفصيلة.
             </h2>
-            <p className="text-[15px] text-[#888888] leading-relaxed max-w-xs">
+            <p className="text-[15px] text-muted-foreground leading-relaxed max-w-xs">
               كل ما تحتاجه لحياة مريحة وراقية مصمم بعناية في مكان واحد.
             </p>
           </div>
@@ -34,15 +36,15 @@ export function AmenitiesSection() {
           {amenities.map((item, i) => (
             <motion.div
               key={item.num}
-              initial={{ opacity: 0, y: 10 }}
-              whileInView={{ opacity: 1, y: 0 }}
+              initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
+              whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ delay: i * 0.07 }}
-              className="border-b border-e border-[var(--color-border)] p-8 group hover:bg-[#f9f9f9] transition-colors"
+              transition={{ ...motionTransitions.layout, delay: i * 0.06 }}
+              className="border-b border-e border-[var(--color-border)] p-8 group hover:bg-muted/40 transition-colors"
             >
               <span className="label-overline block mb-6">{item.num}</span>
-              <h3 className="text-lg font-semibold text-[#141414] mb-3">{item.label}</h3>
-              <p className="text-sm text-[#888888] leading-relaxed">{item.desc}</p>
+              <h3 className="text-lg font-semibold text-foreground mb-3">{item.label}</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">{item.desc}</p>
             </motion.div>
           ))}
         </div>

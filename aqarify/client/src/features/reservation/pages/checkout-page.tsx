@@ -137,7 +137,7 @@ export default function CheckoutPage() {
                   Unit {unit.unit_number} · {unit.type} · {unit.size_sqm} m²
                 </p>
               </div>
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100/70 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-emerald-700">
                 <ShieldCheckIcon className="size-3" /> Secure · Paymob
               </span>
             </div>

@@ -1,8 +1,10 @@
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton } from "@/components/ui-kit";
 import { Building2, TrendingUp, Users, Clock } from "lucide-react";
+import { SaaSPageShell } from "@/components/shared/saas-page-shell";
+import { SaaSKpiCard } from "@/components/shared/saas-kpi-card";
 
 type DashData = {
   units: { total: number; available?: number; reserved?: number; sold?: number };
@@ -51,24 +53,20 @@ export default function ManagerOverviewPage() {
       <Helmet>
         <title>نظرة عامة المدير</title>
       </Helmet>
-      <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
-        <h1 className="text-2xl font-bold tracking-tight">نظرة عامة</h1>
+      <SaaSPageShell
+        title="نظرة عامة المدير"
+        description="مؤشرات سريعة لحالة المخزون، الحجوزات، الإيرادات، والعملاء المحتملين."
+      >
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {isLoading
             ? Array.from({ length: 4 }).map((_, i) => (
                 <Skeleton key={i} className="h-28 rounded-xl" />
               ))
             : kpis.map(({ label, value, sub, icon: Icon }) => (
-                <div key={label} className="space-y-2 rounded-xl border bg-card p-5">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Icon className="h-4 w-4" /> {label}
-                  </div>
-                  <p className="text-3xl font-bold">{value}</p>
-                  <p className="text-xs text-muted-foreground">{sub}</p>
-                </div>
+                <SaaSKpiCard key={label} title={label} value={value} subtitle={sub} icon={Icon} />
               ))}
         </div>
-      </div>
+      </SaaSPageShell>
     </>
   );
 }

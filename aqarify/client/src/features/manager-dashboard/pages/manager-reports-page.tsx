@@ -17,7 +17,9 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui-kit";
+import { SaaSPageShell } from "@/components/shared/saas-page-shell";
+import { SaaSListToolbar } from "@/components/shared/saas-list-toolbar";
 
 type SalesReport = {
   confirmed: number;
@@ -37,7 +39,7 @@ type InventoryReport = {
 };
 type AgentReport = { agent_id: string; agent_name: string; count: number; revenue: number }[];
 
-const COLORS = ["#22c55e", "#f59e0b", "#3b82f6", "#ef4444", "#8b5cf6"];
+const COLORS = ["#10b981", "#f59e0b", "#3b82f6", "#ef4444", "#8b5cf6"];
 const PERIODS = [
   { label: "آخر 30 يوم", days: 30 },
   { label: "آخر 90 يوم", days: 90 },
@@ -92,22 +94,18 @@ export default function ManagerReportsPage() {
       <Helmet>
         <title>التقارير</title>
       </Helmet>
-      <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold">التقارير</h1>
-          <div className="flex gap-2">
-            {PERIODS.map((p) => (
-              <Button
-                key={p.days}
-                size="sm"
-                variant={period === p.days ? "default" : "outline"}
-                onClick={() => setPeriod(p.days)}
-              >
-                {p.label}
-              </Button>
-            ))}
-          </div>
-        </div>
+      <SaaSPageShell title="التقارير" description="رؤية موحدة للأداء التشغيلي والمالي والمخزون.">
+        <SaaSListToolbar
+          filterLabel="الفترة"
+          filterValue={String(period)}
+          onFilterChange={(v) => setPeriod(Number(v))}
+          filterOptions={PERIODS.map((p) => ({ value: String(p.days), label: p.label }))}
+          customAction={
+            <Button size="sm" variant="outline" onClick={() => setPeriod(30)}>
+              إعادة ضبط
+            </Button>
+          }
+        />
 
         {isLoading ? (
           <div className="py-20 text-center text-muted-foreground">جاري تحميل التقارير...</div>
@@ -209,7 +207,7 @@ export default function ManagerReportsPage() {
             )}
           </div>
         )}
-      </div>
+      </SaaSPageShell>
     </>
   );
 }

@@ -2,8 +2,16 @@ import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "@/lib/app-toast";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { useMemo, useState } from "react";
+import { SaaSPageShell } from "@/components/shared/saas-page-shell";
+import { SaaSListToolbar } from "@/components/shared/saas-list-toolbar";
+import { SaaSTableShell } from "@/components/shared/saas-table-shell";
+import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui-kit";
+import {
+  RESERVATION_STATUS_OPTIONS,
+  getReservationStatusLabel,
+  getReservationStatusVariant,
+} from "@/features/reservations/shared/reservation-status";
 
 type Reservation = {
   id: string;
@@ -15,6 +23,8 @@ type Reservation = {
 };
 
 export default function ManagerReservationsPage() {
+  const [searchValue, setSearchValue] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const qc = useQueryClient();
   const { data, isLoading } = useQuery<{ items: Reservation[] }>({
     queryKey: ["manager-reservations"],
@@ -32,47 +42,70 @@ export default function ManagerReservationsPage() {
   });
 
   const items = data?.items ?? [];
+  const filtered = useMemo(() => {
+    return items.filter((r) => {
+      const statusOk = statusFilter === "all" || r.status === statusFilter;
+      const query = searchValue.trim().toLowerCase();
+      const searchOk =
+        !query ||
+        (r.users?.full_name ?? "").toLowerCase().includes(query) ||
+        (r.units?.unit_number ?? "").toLowerCase().includes(query) ||
+        r.id.toLowerCase().includes(query);
+      return statusOk && searchOk;
+    });
+  }, [items, statusFilter, searchValue]);
   return (
     <>
       <Helmet><title>إدارة الحجوزات</title></Helmet>
-      <div className="mx-auto max-w-6xl px-4 py-8 space-y-4">
-        <h1 className="text-2xl font-bold">إدارة الحجوزات</h1>
-        <div className="rounded-xl border bg-card overflow-hidden">
-          {isLoading ? (
-            <div className="py-16 text-center text-muted-foreground">جاري التحميل...</div>
-          ) : items.length === 0 ? (
-            <div className="py-16 text-center text-muted-foreground">لا توجد حجوزات</div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="px-4 py-3 text-right">العميل</th>
-                  <th className="px-4 py-3 text-right">الوحدة</th>
-                  <th className="px-4 py-3 text-right">الحالة</th>
-                  <th className="px-4 py-3 text-right">المبلغ</th>
-                  <th className="px-4 py-3 text-right">إجراءات</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {items.map((r) => (
-                  <tr key={r.id}>
-                    <td className="px-4 py-3">{r.users?.full_name ?? "—"}</td>
-                    <td className="px-4 py-3">{r.units?.unit_number ?? "—"}</td>
-                    <td className="px-4 py-3"><Badge variant={r.status === "confirmed" ? "default" : r.status === "pending" ? "secondary" : "outline"}>{r.status}</Badge></td>
-                    <td className="px-4 py-3">{r.total_price?.toLocaleString("ar-EG")} ج.م</td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2 justify-end">
-                        <Button size="sm" onClick={() => change.mutate({ id: r.id, status: "confirmed" })} disabled={change.isPending}>تأكيد</Button>
-                        <Button size="sm" variant="destructive" onClick={() => change.mutate({ id: r.id, status: "expired" })} disabled={change.isPending}>إنهاء</Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
+      <SaaSPageShell title="إدارة الحجوزات" description="فلترة ومراجعة الحجوزات مع إجراءات سريعة.">
+        <SaaSListToolbar
+          searchValue={searchValue}
+          onSearchChange={setSearchValue}
+          searchPlaceholder="ابحث باسم العميل أو رقم الوحدة..."
+          filterLabel="الحالة"
+          filterValue={statusFilter}
+          onFilterChange={setStatusFilter}
+          filterOptions={RESERVATION_STATUS_OPTIONS.map((s) => ({ value: s.value, label: s.label }))}
+        />
+        <SaaSTableShell
+          isLoading={isLoading}
+          isEmpty={filtered.length === 0}
+          empty={<div className="py-8 text-center text-muted-foreground">لا توجد حجوزات مطابقة.</div>}
+        >
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-start">العميل</TableHead>
+                <TableHead className="text-start">الوحدة</TableHead>
+                <TableHead className="text-start">الحالة</TableHead>
+                <TableHead className="text-start">المبلغ</TableHead>
+                <TableHead className="text-start">إجراءات</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell>{r.users?.full_name ?? "—"}</TableCell>
+                  <TableCell>{r.units?.unit_number ?? "—"}</TableCell>
+                  <TableCell>
+                    <Badge variant={getReservationStatusVariant(r.status)}>
+                      {getReservationStatusLabel(r.status)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{r.total_price?.toLocaleString("ar-EG")} ج.م</TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => change.mutate({ id: r.id, status: "confirmed" })} disabled={change.isPending}>تأكيد</Button>
+                      <Button size="sm" variant="destructive" onClick={() => change.mutate({ id: r.id, status: "expired" })} disabled={change.isPending}>إنهاء</Button>
+                      <Button size="sm" variant="outline" onClick={() => change.mutate({ id: r.id, status: "cancelled" })} disabled={change.isPending}>إلغاء</Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </SaaSTableShell>
+      </SaaSPageShell>
     </>
   );
 }

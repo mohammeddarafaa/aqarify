@@ -13,11 +13,12 @@
 // =============================================================
 
 // ── shadcn primitives ───────────────────────────────────────────
-export { Button, buttonVariants } from "@/components/ui/button"
+export { TripledButton as Button } from "@/components/ui-kit/tripled-button"
+export { buttonVariants } from "@/components/ui/button"
 export { Input } from "@/components/ui/input"
 export { Label } from "@/components/ui/label"
 export { Textarea } from "@/components/ui/textarea"
-export { Badge } from "@/components/ui/badge"
+export { TripledBadge as Badge } from "@/components/ui-kit/tripled-badge"
 export { Separator } from "@/components/ui/separator"
 export { Skeleton } from "@/components/ui/skeleton"
 export { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -41,7 +42,7 @@ export {
   DialogPortal,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
+} from "@/components/ui-kit/tripled-dialog"
 export {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -137,6 +138,14 @@ export { FadeInView } from "@/components/motion/fade-in-view"
 export { PageTransition } from "@/components/motion/page-transition"
 export { ShimmeringText } from "@/components/motion/shimmering-text"
 export { NotificationList } from "@/components/motion/notification-list"
+export {
+  motionDurations,
+  motionEasing,
+  motionTransitions,
+  revealUpVariants,
+  fadeVariants,
+  staggerChildren,
+} from "@/components/motion/presets"
 
 // ── toast (react-hot-toast) ───────────────────────────────────
 export { AppToaster as Toaster, toast } from "@/lib/app-toast"

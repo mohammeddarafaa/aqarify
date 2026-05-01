@@ -1,16 +1,17 @@
 import { Helmet } from "react-helmet-async";
 import { Link, useLocation } from "react-router-dom";
 import { useMyReservations } from "@/features/reservation/hooks/use-reservation";
-import { Badge } from "@/components/ui/badge";
+import { Badge, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui-kit";
 import { appendTenantSearch } from "@/lib/tenant-path";
+import { useMemo, useState } from "react";
+import { SaaSPageShell } from "@/components/shared/saas-page-shell";
+import { SaaSListToolbar } from "@/components/shared/saas-list-toolbar";
+import { SaaSTableShell } from "@/components/shared/saas-table-shell";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  RESERVATION_STATUS_OPTIONS,
+  getReservationStatusLabel,
+  getReservationStatusVariant,
+} from "@/features/reservations/shared/reservation-status";
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pending: { label: "في الانتظار", variant: "secondary" },
@@ -22,25 +23,51 @@ const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondar
 };
 
 export default function ReservationsPage() {
+  const [searchValue, setSearchValue] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const { data: reservations = [], isLoading } = useMyReservations();
   const { pathname, search } = useLocation();
   const withTenant = (path: string) => appendTenantSearch(pathname, search, path);
+  const filtered = useMemo(() => {
+    return reservations.filter((r) => {
+      const statusOk = statusFilter === "all" || r.status === statusFilter;
+      const query = searchValue.trim().toLowerCase();
+      const searchOk =
+        !query ||
+        r.id.toLowerCase().includes(query) ||
+        String(r.total_price).includes(query);
+      return statusOk && searchOk;
+    });
+  }, [reservations, searchValue, statusFilter]);
 
   return (
     <>
       <Helmet><title>حجوزاتي</title></Helmet>
-      <div className="mx-auto max-w-6xl px-4 py-8 space-y-4">
-        <h1 className="text-2xl font-bold">حجوزاتي</h1>
-        <div className="rounded-xl border bg-card overflow-hidden">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      <SaaSPageShell title="حجوزاتي" description="تابع كل حجوزاتك وحالتها من مكان واحد.">
+        <SaaSListToolbar
+          searchValue={searchValue}
+          onSearchChange={setSearchValue}
+          searchPlaceholder="ابحث برقم الحجز أو المبلغ..."
+          filterLabel="الحالة"
+          filterValue={statusFilter}
+          onFilterChange={setStatusFilter}
+          filterOptions={RESERVATION_STATUS_OPTIONS.map((s) => ({
+            value: s.value,
+            label: s.label,
+          }))}
+        />
+        <SaaSTableShell
+          isLoading={isLoading}
+          isEmpty={filtered.length === 0}
+          empty={
+            <div className="py-8 text-center text-muted-foreground">
+              لا توجد حجوزات مطابقة.{" "}
+              <Link to={withTenant("/browse")} className="text-primary underline">
+                تصفح الوحدات
+              </Link>
             </div>
-          ) : reservations.length === 0 ? (
-            <div className="py-14 text-center text-muted-foreground">
-              لا توجد حجوزات بعد. <Link to={withTenant("/browse")} className="text-primary underline">تصفح الوحدات</Link>
-            </div>
-          ) : (
+          }
+        >
             <Table>
               <TableHeader>
                 <TableRow>
@@ -51,8 +78,11 @@ export default function ReservationsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {reservations.map((r) => {
-                  const status = STATUS_MAP[r.status] ?? { label: r.status, variant: "outline" as const };
+                {filtered.map((r) => {
+                  const status = STATUS_MAP[r.status] ?? {
+                    label: getReservationStatusLabel(r.status),
+                    variant: getReservationStatusVariant(r.status),
+                  };
                   return (
                     <TableRow key={r.id}>
                       <TableCell className="font-mono text-xs">#{r.id.slice(0, 8).toUpperCase()}</TableCell>
@@ -66,9 +96,8 @@ export default function ReservationsPage() {
                 })}
               </TableBody>
             </Table>
-          )}
-        </div>
-      </div>
+        </SaaSTableShell>
+      </SaaSPageShell>
     </>
   );
 }

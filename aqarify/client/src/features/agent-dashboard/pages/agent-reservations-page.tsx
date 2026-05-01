@@ -10,28 +10,34 @@ import {
   Building2,
   FileText,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
+  Avatar,
+  AvatarFallback,
+  Badge,
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/components/ui-kit";
 import { useIsReadOnly } from "@/hooks/use-is-read-only";
 import { useAuthStore } from "@/stores/auth.store";
 import { useState } from "react";
+import { SaaSPageShell } from "@/components/shared/saas-page-shell";
+import { SaaSListToolbar } from "@/components/shared/saas-list-toolbar";
+import { SaaSTableShell } from "@/components/shared/saas-table-shell";
+import {
+  RESERVATION_STATUS_OPTIONS,
+  getReservationStatusLabel,
+  getReservationStatusVariant,
+} from "@/features/reservations/shared/reservation-status";
 
 type ReservationItem = {
   id: string;
@@ -40,24 +46,6 @@ type ReservationItem = {
   created_at: string;
   units?: { unit_number: string; type: string; project?: { name: string } };
   users?: { full_name: string; email: string; phone: string };
-};
-
-const STATUSES = [
-  { value: "all", label: "الكل" },
-  { value: "pending", label: "معلق" },
-  { value: "confirmed", label: "مؤكد" },
-  { value: "cancelled", label: "ملغي" },
-  { value: "expired", label: "منتهي" },
-];
-
-const STATUS_VARIANT: Record<
-  string,
-  "default" | "secondary" | "destructive" | "outline"
-> = {
-  pending: "secondary",
-  confirmed: "default",
-  cancelled: "destructive",
-  expired: "destructive",
 };
 
 function initials(name?: string | null) {
@@ -73,6 +61,7 @@ function initials(name?: string | null) {
 
 export default function AgentReservationsPage() {
   const [status, setStatus] = useState("all");
+  const [searchValue, setSearchValue] = useState("");
   const qc = useQueryClient();
   const readOnly = useIsReadOnly();
   const userRole = useAuthStore((s) => s.user?.role);
@@ -107,6 +96,15 @@ export default function AgentReservationsPage() {
   });
 
   const items = data?.items ?? [];
+  const visibleItems = items.filter((r) => {
+    const q = searchValue.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      (r.users?.full_name ?? "").toLowerCase().includes(q) ||
+      (r.users?.phone ?? "").includes(q) ||
+      (r.units?.unit_number ?? "").toLowerCase().includes(q)
+    );
+  });
   const counts = items.reduce<Record<string, number>>((acc, r) => {
     acc[r.status] = (acc[r.status] ?? 0) + 1;
     return acc;
@@ -117,49 +115,32 @@ export default function AgentReservationsPage() {
       <Helmet>
         <title>الحجوزات</title>
       </Helmet>
-      <div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">إدارة الحجوزات</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              راجع الحجوزات القادمة وأكد أو ارفض الطلبات
-            </p>
-          </div>
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <span>
-              المعلقة:{" "}
-              <strong className="text-foreground">{counts.pending ?? 0}</strong>
-            </span>
-            <span>
-              المؤكدة:{" "}
-              <strong className="text-foreground">{counts.confirmed ?? 0}</strong>
-            </span>
-          </div>
+      <SaaSPageShell title="إدارة الحجوزات" description="راجع الحجوزات وأدر الحالات بسرعة ودقة.">
+        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+          <span>المعلقة: <strong className="text-foreground">{counts.pending ?? 0}</strong></span>
+          <span>المؤكدة: <strong className="text-foreground">{counts.confirmed ?? 0}</strong></span>
         </div>
 
-        {/* Filter */}
-        <Tabs value={status} onValueChange={setStatus}>
-          <TabsList>
-            {STATUSES.map((s) => (
-              <TabsTrigger key={s.value} value={s.value}>
-                {s.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+        <SaaSListToolbar
+          searchValue={searchValue}
+          onSearchChange={setSearchValue}
+          searchPlaceholder="ابحث باسم العميل أو الهاتف أو الوحدة..."
+          filterLabel="الحالة"
+          filterValue={status}
+          onFilterChange={setStatus}
+          filterOptions={RESERVATION_STATUS_OPTIONS.map((s) => ({ value: s.value, label: s.label }))}
+        />
 
-        {/* Table */}
-        <div className="rounded-xl border bg-card overflow-hidden">
-          {isLoading ? (
-            <div className="flex justify-center py-16">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-            </div>
-          ) : items.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-16 text-center">
+        <SaaSTableShell
+          isLoading={isLoading}
+          isEmpty={visibleItems.length === 0}
+          empty={
+            <div className="flex flex-col items-center gap-2 py-8 text-center">
               <FileText className="h-10 w-10 text-muted-foreground/40" />
               <p className="text-muted-foreground">لا توجد حجوزات لعرضها</p>
             </div>
-          ) : (
+          }
+        >
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30">
@@ -176,7 +157,7 @@ export default function AgentReservationsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map((r) => (
+                {visibleItems.map((r) => (
                   <TableRow key={r.id} className="group">
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -210,9 +191,8 @@ export default function AgentReservationsPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={STATUS_VARIANT[r.status] ?? "outline"}>
-                        {STATUSES.find((s) => s.value === r.status)?.label ??
-                          r.status}
+                      <Badge variant={getReservationStatusVariant(r.status)}>
+                        {getReservationStatusLabel(r.status)}
                       </Badge>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
@@ -282,9 +262,8 @@ export default function AgentReservationsPage() {
                 ))}
               </TableBody>
             </Table>
-          )}
-        </div>
-      </div>
+        </SaaSTableShell>
+      </SaaSPageShell>
     </>
   );
 }
