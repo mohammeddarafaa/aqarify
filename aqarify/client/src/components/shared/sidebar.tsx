@@ -17,6 +17,7 @@ import {
   ClipboardList,
   X,
   PhoneCall,
+  BookUser,
   Sparkles,
 } from "lucide-react";
 
@@ -32,6 +33,7 @@ const NAV: NavItem[] = [
   { to: "/agent/overview", label: "نظرة عامة", icon: Home, roles: ["agent", "manager", "admin", "super_admin"] },
   { to: "/agent/reservations", label: "الحجوزات", icon: FileText, roles: ["agent", "manager", "admin", "super_admin"] },
   { to: "/agent/leads", label: "العملاء المحتملين", icon: PhoneCall, roles: ["agent", "manager", "admin", "super_admin"] },
+  { to: "/agent/customers", label: "ملف العملاء", icon: BookUser, roles: ["agent", "manager", "admin", "super_admin"] },
   { to: "/agent/follow-ups", label: "المتابعات", icon: ClipboardList, roles: ["agent", "manager", "admin", "super_admin"] },
   { to: "/agent/documents", label: "مستندات العملاء", icon: FileText, roles: ["agent", "manager", "admin", "super_admin"] },
   { to: "/manager/overview", label: "نظرة عامة المدير", icon: BarChart3, roles: ["manager", "admin", "super_admin"] },

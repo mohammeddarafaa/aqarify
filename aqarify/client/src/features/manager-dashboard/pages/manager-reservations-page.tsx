@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTableShell } from "@/components/shared/data-table-shell";
+import { useTenantMoney } from "@/hooks/use-tenant-money";
 import {
   RESERVATION_STATUS_OPTIONS,
   getReservationStatusLabel,
@@ -23,6 +24,7 @@ type Reservation = {
 };
 
 export default function ManagerReservationsPage() {
+  const { formatMoney } = useTenantMoney();
   const [searchValue, setSearchValue] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const qc = useQueryClient();
@@ -92,10 +94,10 @@ export default function ManagerReservationsPage() {
               accessorKey: "total_price",
               header: "المبلغ",
               cell: ({ row }) =>
-                `${row.original.total_price?.toLocaleString("ar-EG")} ج.م`,
+                row.original.total_price != null ? formatMoney(row.original.total_price) : "—",
               meta: {
                 csvValue: (row: Reservation) =>
-                  `${row.total_price?.toLocaleString("ar-EG") ?? ""} ج.م`,
+                  row.total_price != null ? formatMoney(row.total_price) : "",
               },
             },
             {

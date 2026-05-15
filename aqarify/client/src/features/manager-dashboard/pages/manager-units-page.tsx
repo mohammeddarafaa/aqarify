@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { DataTableShell } from "@/components/shared/data-table-shell";
+import { useTenantMoney } from "@/hooks/use-tenant-money";
 
 const STATUS_OPTIONS = ["available", "reserved", "sold", "unavailable"] as const;
 const UNIT_TYPES = ["apartment", "duplex", "villa", "office", "retail"] as const;
@@ -52,6 +53,7 @@ const emptyForm: FormData = {
 };
 
 export default function ManagerUnitsPage() {
+  const { formatMoney } = useTenantMoney();
   const qc = useQueryClient();
   const [searchValue, setSearchValue] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -190,10 +192,11 @@ export default function ManagerUnitsPage() {
               {
                 accessorKey: "price",
                 header: "السعر",
-                cell: ({ row }) => `${row.original.price?.toLocaleString("ar-EG")} ج.م`,
+                cell: ({ row }) =>
+                  row.original.price != null ? formatMoney(row.original.price) : "—",
                 meta: {
                   csvValue: (row: Unit) =>
-                    `${row.price?.toLocaleString("ar-EG") ?? ""} ج.م`,
+                    row.price != null ? formatMoney(row.price) : "",
                 },
               },
               {

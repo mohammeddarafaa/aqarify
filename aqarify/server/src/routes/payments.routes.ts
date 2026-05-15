@@ -1,18 +1,23 @@
 import { Router } from "express";
 import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
+import { subscriptionGuard } from "../middleware/subscriptionGuard";
 import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { supabaseAdmin } from "../config/supabase";
 import { sendSuccess, sendError, ERROR_CODES } from "../utils/response";
-import { createPaymobPaymentKey } from "../services/paymob.service";
+import {
+  createTenantCardPaymentIntent,
+  type TenantCardGatewayRow,
+} from "../services/cardPaymentIntent.service";
 import { backfillMissingPaymentSchedulesForCustomer } from "../services/reservation.service";
-import { decrypt } from "../utils/hmac";
+import { cardPaymentsEnabledForTenant } from "../services/paymentGateway.factory";
+import { paymentIntentLimiter } from "../middleware/rateLimiters";
 
 export const paymentRoutes = Router();
-paymentRoutes.use(resolveTenant, authenticate, requireTenant);
+paymentRoutes.use(resolveTenant, subscriptionGuard, authenticate, requireTenant);
 const staffRoles = new Set(["agent", "manager", "admin", "super_admin"]);
 
 // POST /api/v1/payments/:id/pay-intent — Paymob for an installment (before GET /:id)
-paymentRoutes.post("/:id/pay-intent", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
+paymentRoutes.post("/:id/pay-intent", paymentIntentLimiter, async (req: TenantRequest & AuthenticatedRequest, res, next) => {
   try {
     const { data: payment } = await supabaseAdmin
       .from("payments")
@@ -29,9 +34,18 @@ paymentRoutes.post("/:id/pay-intent", async (req: TenantRequest & AuthenticatedR
 
     const { data: tenant } = await supabaseAdmin
       .from("tenants")
-      .select("paymob_integration_id, paymob_api_key_enc, paymob_iframe_id, currency")
+      .select("paymob_integration_id, paymob_api_key_enc, paymob_iframe_id, currency, payment_gateway, country_code")
       .eq("id", req.tenantId!)
       .single();
+
+    if (!cardPaymentsEnabledForTenant((tenant as { payment_gateway?: string })?.payment_gateway)) {
+      return sendError(
+        res,
+        ERROR_CODES.VALIDATION_ERROR,
+        "Online card payment is not enabled for this workspace.",
+        400,
+      );
+    }
 
     if (!tenant?.paymob_integration_id || !tenant.paymob_api_key_enc) {
       return sendError(res, "PAYMOB_NOT_CONFIGURED", "Payment gateway not configured", 503);
@@ -40,16 +54,12 @@ paymentRoutes.post("/:id/pay-intent", async (req: TenantRequest & AuthenticatedR
       return sendError(res, "PAYMOB_NOT_CONFIGURED", "Payment gateway not fully configured (missing iFrame ID)", 503);
     }
 
-    const apiKey = decrypt(tenant.paymob_api_key_enc);
     const customer = payment.users as { full_name: string; email: string; phone: string | null };
     const nameParts = customer.full_name.split(" ");
 
-    const currency = (tenant as { currency?: string }).currency?.trim() || "EGP";
-    const { paymentKey } = await createPaymobPaymentKey({
-      apiKey,
-      integrationId: tenant.paymob_integration_id,
+    const { paymentKey } = await createTenantCardPaymentIntent({
+      tenant: tenant as TenantCardGatewayRow,
       amountCents: Math.round(Number(payment.amount) * 100),
-      currency,
       orderId: payment.id,
       billingData: {
         first_name: nameParts[0] ?? customer.full_name,

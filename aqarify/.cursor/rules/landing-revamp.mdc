@@ -1,0 +1,41 @@
+---
+alwaysApply: true
+---
+---
+description: Aqarify tenant landing page revamp rules
+alwaysApply: true
+---
+
+# Aqarify Landing Page Revamp Rules
+
+## Goal
+
+Revamp the tenant-facing landing page into a premium, conversion-focused Aqarify real-estate experience.
+
+This is NOT the SaaS marketing homepage.
+This is the customer-facing property landing page for each real-estate tenant/developer.
+
+Primary user:
+- Property buyer or renter
+- Visitor comparing projects/units
+- Customer who may reserve, join waitlist, schedule visit, or contact sales
+
+Business goal:
+- Increase browse clicks
+- Increase unit reservations
+- Increase schedule-visit/contact intent
+- Increase trust in the tenant/developer
+
+---
+
+# Existing Structure
+
+Work mainly inside:
+
+```txt
+client/src/features/landing/
+client/src/features/browse/
+client/src/features/unit-details/
+client/src/components/shared/
+client/src/stores/tenant.store.ts
+client/src/lib/tenant-path.ts

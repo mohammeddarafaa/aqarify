@@ -5,5 +5,6 @@ export function attachTenantRegionHeaders(req: TenantRequest, res: Response, nex
   if (req.tenantLocale) res.setHeader("x-tenant-locale", req.tenantLocale);
   if (req.tenantTimezone) res.setHeader("x-tenant-timezone", req.tenantTimezone);
   if (req.tenantCurrency) res.setHeader("x-tenant-currency", req.tenantCurrency);
+  if (req.tenantCountryCode) res.setHeader("x-tenant-country", req.tenantCountryCode);
   next();
 }

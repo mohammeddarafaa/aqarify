@@ -9,7 +9,7 @@
     "dev": "npm run dev:client & npm run dev:server",
     "build:client": "npm run build --prefix client",
     "build:server": "npm run build --prefix server",
-    "type-check": "npm run type-check --prefix server && npx tsc -b --prefix client"
+    "type-check": "npm run type-check --prefix server && npm run type-check --prefix client"
   },
   "workspaces": [
     "client",

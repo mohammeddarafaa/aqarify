@@ -8,6 +8,8 @@ export interface TenantRequest extends Request {
   tenantLocale?: string;
   tenantTimezone?: string;
   tenantCurrency?: string;
+  /** ISO 3166-1 alpha-2 (e.g. EG, SA); used for phone validation & regional defaults. */
+  tenantCountryCode?: string;
 }
 
 export async function resolveTenant(
@@ -31,7 +33,7 @@ export async function resolveTenant(
 
   const { data: tenant, error } = await supabaseAdmin
     .from("tenants")
-    .select("id, slug, status, default_locale, default_timezone, fallback_currency")
+    .select("id, slug, status, default_locale, default_timezone, fallback_currency, country_code")
     .or(`slug.eq.${slug},custom_domain.eq.${host}`)
     .single();
 
@@ -49,6 +51,7 @@ export async function resolveTenant(
   req.tenantLocale = tenant.default_locale ?? "ar-EG";
   req.tenantTimezone = tenant.default_timezone ?? "Africa/Cairo";
   req.tenantCurrency = tenant.fallback_currency ?? "EGP";
+  req.tenantCountryCode = ((tenant as { country_code?: string }).country_code ?? "EG").toUpperCase();
   return next();
 }
 

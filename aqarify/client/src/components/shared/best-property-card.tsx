@@ -1,4 +1,5 @@
 import { ArrowUpRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface BestPropertyCardProps {
   title: string;
@@ -8,10 +9,12 @@ interface BestPropertyCardProps {
 }
 
 export function BestPropertyCard({ title, totalSales, totalVisits, imageUrl }: BestPropertyCardProps) {
+  const { t } = useTranslation("dashboard");
+
   return (
     <article className="relative min-h-[320px] overflow-hidden rounded-[2rem] bg-lime p-6 text-lime-foreground shadow-[0_24px_70px_-48px_rgb(20_20_20/.8)]">
       <div className="relative z-10 flex items-start justify-between gap-3">
-        <p className="text-sm font-semibold">Best Apartments</p>
+        <p className="text-sm font-semibold">{t("agent_overview.best_property_title")}</p>
         <span className="grid h-12 w-12 place-items-center rounded-full bg-foreground/10">
           <ArrowUpRight className="h-5 w-5" />
         </span>
@@ -23,11 +26,11 @@ export function BestPropertyCard({ title, totalSales, totalVisits, imageUrl }: B
 
       <div className="relative z-10 mt-9 grid max-w-[10rem] gap-4 text-sm">
         <div>
-          <p className="text-lime-foreground/65">Total Sales</p>
+          <p className="text-lime-foreground/65">{t("agent_overview.best_total_sales")}</p>
           <p className="mt-1 text-2xl font-semibold leading-none">{totalSales}</p>
         </div>
         <div>
-          <p className="text-lime-foreground/65">Total Visits</p>
+          <p className="text-lime-foreground/65">{t("agent_overview.best_total_leads")}</p>
           <p className="mt-1 text-2xl font-semibold leading-none">{totalVisits}</p>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "../config/supabase";
 import { logger } from "../utils/logger";
+import { logActivity } from "./activityLog.service";
 import { autoAssignAgent, createLeadFromCancelledReservation } from "./leadGeneration.service";
 import { sendNotification } from "./notification.service";
 import { generateReceiptPDF } from "./pdf.service";
@@ -164,6 +165,18 @@ export async function confirmReservation(reservationId: string, paymobTxId: stri
   }
 
   logger.info(`Reservation ${reservationId} confirmed`);
+  await logActivity({
+    tenantId: data!.tenant_id as string,
+    userId: null,
+    action: "reservation.confirmed",
+    entityType: "reservation",
+    entityId: reservationId,
+    details: {
+      source: "payment",
+      paymob_transaction_id: paymobTxId,
+      reservation_fee_paid: feePaid,
+    },
+  });
   await emitDomainEvent({
     tenantId: data?.tenant_id,
     eventType: "reservation.confirmed",
@@ -279,44 +292,99 @@ async function ensurePaymentScheduleForReservationIfMissing(reservationId: strin
   logger.info(`Backfilled payment schedule for confirmed reservation ${reservationId}`);
 }
 
-export async function cancelReservation(reservationId: string, tenantId: string, cancelledBy: string) {
-  const { data } = await supabaseAdmin.from("reservations")
-    .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
-    .eq("id", reservationId).eq("tenant_id", tenantId)
-    .select("customer_id, unit_id").single();
+export async function cancelReservation(
+  reservationId: string,
+  tenantId: string,
+  cancelledBy: string,
+  opts?: { requesterRole?: string; reason?: string },
+) {
+  const { data: row, error: fetchErr } = await supabaseAdmin
+    .from("reservations")
+    .select("id, status, customer_id, unit_id")
+    .eq("id", reservationId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
 
-  if (data) {
-    // Free the unit
-    await supabaseAdmin.from("units")
-      .update({ status: "available" }).eq("id", data.unit_id);
+  if (fetchErr) throw fetchErr;
+  if (!row) {
+    throw Object.assign(new Error("Reservation not found"), { code: "NOT_FOUND" });
+  }
 
-    // Auto-create lead from cancelled reservation
-    await createLeadFromCancelledReservation(reservationId);
+  const status = row.status as string;
+  if (status === "cancelled" || status === "expired") {
+    throw Object.assign(new Error("Reservation is already finalized"), { code: "INVALID_STATE_TRANSITION" });
+  }
 
-    // Notify first waitlist person
-    const { data: nextWaiting } = await supabaseAdmin.from("waiting_list")
-      .select("*, users!customer_id(id, full_name, phone, email)")
-      .eq("unit_id", data.unit_id).eq("tenant_id", tenantId)
-      .eq("status", "waiting").order("position", { ascending: true }).limit(1).maybeSingle();
-
-    if (nextWaiting) {
-      const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-      await supabaseAdmin.from("waiting_list")
-        .update({ status: "notified", notified_at: new Date().toISOString(), expires_at: expires })
-        .eq("id", nextWaiting.id);
-
-      const user = nextWaiting.users as { id: string; full_name: string; phone: string; email: string };
-      await sendNotification({
-        tenantId,
-        userId: user.id,
-        type: "waitlist_notified",
-        title: "🎉 الوحدة متاحة!",
-        body: "لديك 24 ساعة لحجز الوحدة التي كنت في قائمة انتظارها!",
-        phone: user.phone,
-        email: user.email,
-        channels: ["in_app", "sms", "email"],
+  if (status === "confirmed") {
+    const role = opts?.requesterRole ?? "";
+    if (!["manager", "admin", "super_admin"].includes(role)) {
+      throw Object.assign(new Error("Only managers or admins can cancel a confirmed reservation"), {
+        code: "AUTH_FORBIDDEN",
       });
     }
+    if (!opts?.reason?.trim()) {
+      throw Object.assign(new Error("Cancellation reason is required for confirmed reservations"), {
+        code: "VALIDATION_ERROR",
+      });
+    }
+  }
+
+  const { data } = await supabaseAdmin
+    .from("reservations")
+    .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
+    .eq("id", reservationId)
+    .eq("tenant_id", tenantId)
+    .in("status", ["pending", "confirmed"])
+    .select("customer_id, unit_id, status")
+    .maybeSingle();
+
+  if (!data) {
+    throw Object.assign(new Error("Reservation could not be cancelled in its current state"), {
+      code: "INVALID_STATE_TRANSITION",
+    });
+  }
+
+  await logActivity({
+    tenantId,
+    userId: cancelledBy,
+    action: "reservation.cancelled",
+    entityType: "reservation",
+    entityId: reservationId,
+    details: {
+      previous_status: status,
+      reason: opts?.reason?.trim() ?? null,
+    },
+  });
+
+  // Free the unit
+  await supabaseAdmin.from("units").update({ status: "available" }).eq("id", data.unit_id);
+
+  // Auto-create lead from cancelled reservation
+  await createLeadFromCancelledReservation(reservationId);
+
+  // Notify first waitlist person
+  const { data: nextWaiting } = await supabaseAdmin.from("waiting_list")
+    .select("*, users!customer_id(id, full_name, phone, email)")
+    .eq("unit_id", data.unit_id).eq("tenant_id", tenantId)
+    .eq("status", "waiting").order("position", { ascending: true }).limit(1).maybeSingle();
+
+  if (nextWaiting) {
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    await supabaseAdmin.from("waiting_list")
+      .update({ status: "notified", notified_at: new Date().toISOString(), expires_at: expires })
+      .eq("id", nextWaiting.id);
+
+    const user = nextWaiting.users as { id: string; full_name: string; phone: string; email: string };
+    await sendNotification({
+      tenantId,
+      userId: user.id,
+      type: "waitlist_notified",
+      title: "🎉 الوحدة متاحة!",
+      body: "لديك 24 ساعة لحجز الوحدة التي كنت في قائمة انتظارها!",
+      phone: user.phone,
+      email: user.email,
+      channels: ["in_app", "sms", "email"],
+    });
   }
 
   logger.info(`Reservation ${reservationId} cancelled by ${cancelledBy}`);

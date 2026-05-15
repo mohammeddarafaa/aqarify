@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { isValidPhoneForTenant } from "@/lib/phone";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
@@ -10,6 +11,7 @@ import { api } from "@/lib/api";
 import { toast } from "@/lib/app-toast";
 import { Plus, Phone, User2, ChevronDown, FileText } from "lucide-react";
 import { appendTenantSearch } from "@/lib/tenant-path";
+import { useTenantStore } from "@/stores/tenant.store";
 import { OfferDrawer } from "../components/offer-drawer";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -45,15 +47,22 @@ function leadName(lead: Lead) {
   return lead.name ?? lead.full_name ?? "—";
 }
 
-const schema = z.object({
-  full_name: z.string().min(2, "الاسم مطلوب"),
-  phone: z.string().min(10, "رقم هاتف غير صالح"),
-  email: z.string().email().optional().or(z.literal("")),
-  source: z.string().optional(),
-  notes: z.string().optional(),
-});
+function buildLeadSchema(country: string | undefined) {
+  return z.object({
+    full_name: z.string().min(2, "الاسم مطلوب"),
+    phone: z
+      .string()
+      .min(8, "رقم هاتف غير صالح")
+      .refine((p) => isValidPhoneForTenant(p, country), {
+        message: "رقم هاتف غير صالح لهذه المنطقة",
+      }),
+    email: z.string().email().optional().or(z.literal("")),
+    source: z.string().optional(),
+    notes: z.string().optional(),
+  });
+}
 
-type FormData = z.infer<typeof schema>;
+type FormData = z.infer<ReturnType<typeof buildLeadSchema>>;
 
 function ProceedToCheckoutButton({ leadId }: { leadId: string }) {
   const navigate = useNavigate();
@@ -94,6 +103,8 @@ function initials(name: string) {
 }
 
 export default function AgentLeadsPage() {
+  const tenantCountry = useTenantStore((s) => s.tenant?.country_code);
+  const schema = useMemo(() => buildLeadSchema(tenantCountry), [tenantCountry]);
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("all");
   const [openNew, setOpenNew] = useState(false);

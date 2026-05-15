@@ -12,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { useIsReadOnly } from "@/hooks/use-is-read-only";
 import { useAuthStore } from "@/stores/auth.store";
 import { DataTableShell } from "@/components/shared/data-table-shell";
+import { useTenantMoney } from "@/hooks/use-tenant-money";
 import {
   RESERVATION_STATUS_OPTIONS,
   getReservationStatusLabel,
@@ -39,6 +40,7 @@ function initials(name?: string | null) {
 }
 
 export default function AgentReservationsPage() {
+  const { formatMoney } = useTenantMoney();
   const [status, setStatus] = useState("all");
   const [searchValue, setSearchValue] = useState("");
   const qc = useQueryClient();
@@ -168,10 +170,11 @@ export default function AgentReservationsPage() {
       {
         accessorKey: "total_price",
         header: "المبلغ",
-        cell: ({ row }) => `${row.original.total_price?.toLocaleString("ar-EG")} ج.م`,
+        cell: ({ row }) =>
+          row.original.total_price != null ? formatMoney(row.original.total_price) : "—",
         meta: {
           csvValue: (r: ReservationItem) =>
-            `${r.total_price?.toLocaleString("ar-EG") ?? ""} ج.م`,
+            r.total_price != null ? formatMoney(r.total_price) : "",
         },
       },
       {

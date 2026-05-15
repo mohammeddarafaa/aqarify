@@ -1,6 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
+import { subscriptionGuard } from "../middleware/subscriptionGuard";
 import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { requireRole } from "../middleware/rbac";
 import { enforcePlanLimit } from "../middleware/planEnforcement";
@@ -9,7 +10,7 @@ import { sendSuccess, sendError, ERROR_CODES } from "../utils/response";
 import { z } from "zod";
 
 export const managerRoutes = Router();
-managerRoutes.use(resolveTenant, authenticate, requireTenant, requireRole("manager", "admin"));
+managerRoutes.use(resolveTenant, subscriptionGuard, authenticate, requireTenant, requireRole("manager", "admin", "super_admin"));
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 8 * 1024 * 1024 },
@@ -26,7 +27,7 @@ managerRoutes.get("/reservations", async (req: TenantRequest & AuthenticatedRequ
     const status = req.query.status as string | undefined;
     let query = supabaseAdmin.from("reservations")
       .select(
-        "*, units(unit_number, type, projects(name)), users!customer_id(full_name, email, phone)",
+        "*, units(unit_number, type, gallery, project:projects(name)), users!customer_id(full_name, email, phone), assigned_agent:users!agent_id(full_name)",
         { count: "exact" },
       )
       .eq("tenant_id", req.tenantId!)
@@ -59,16 +60,18 @@ managerRoutes.patch("/reservations/:id/status", async (req: TenantRequest & Auth
   } catch (err) { return next(err); }
 });
 
-// GET /api/v1/manager/dashboard — key metrics
+// GET /api/v1/manager/dashboard — key metrics (+ charts/trends for overview UI)
 managerRoutes.get("/dashboard", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
   try {
     const tid = req.tenantId!;
 
-    const [units, reservations, revenue, leads] = await Promise.all([
+    const [units, reservations, revenue, leads, confirmedSales, allResCreated] = await Promise.all([
       supabaseAdmin.from("units").select("status", { count: "exact" }).eq("tenant_id", tid),
       supabaseAdmin.from("reservations").select("status", { count: "exact" }).eq("tenant_id", tid),
       supabaseAdmin.from("payments").select("amount").eq("tenant_id", tid).eq("status", "paid"),
       supabaseAdmin.from("potential_customers").select("negotiation_status", { count: "exact" }).eq("tenant_id", tid),
+      supabaseAdmin.from("reservations").select("total_price, created_at").eq("tenant_id", tid).eq("status", "confirmed"),
+      supabaseAdmin.from("reservations").select("created_at").eq("tenant_id", tid),
     ]);
 
     const unitStats = (units.data ?? []).reduce((acc: Record<string, number>, u: { status: string }) => {
@@ -84,11 +87,75 @@ managerRoutes.get("/dashboard", async (req: TenantRequest & AuthenticatedRequest
       acc[l.negotiation_status] = (acc[l.negotiation_status] ?? 0) + 1; return acc;
     }, {});
 
+    const cs = confirmedSales.data ?? [];
+    const totalConfirmedValue = cs.reduce((s, r) => s + (Number(r.total_price) || 0), 0);
+    const confirmedCount = cs.length;
+    const avgSaleValue = confirmedCount ? totalConfirmedValue / confirmedCount : 0;
+
+    const cur = new Date();
+    const curY = cur.getFullYear();
+    const curM = cur.getMonth();
+    const thisMonthStart = new Date(curY, curM, 1).toISOString();
+    const nextMonthStart = new Date(curY, curM + 1, 1).toISOString();
+    const lastMonthStart = new Date(curY, curM - 1, 1).toISOString();
+
+    const thisMonthConfirmed = cs.filter((r) => r.created_at >= thisMonthStart && r.created_at < nextMonthStart);
+    const lastMonthConfirmed = cs.filter((r) => r.created_at >= lastMonthStart && r.created_at < thisMonthStart);
+
+    const revenueThisMonth = thisMonthConfirmed.reduce((s, r) => s + (Number(r.total_price) || 0), 0);
+    const revenueLastMonth = lastMonthConfirmed.reduce((s, r) => s + (Number(r.total_price) || 0), 0);
+    const avgThisMonth = thisMonthConfirmed.length ? revenueThisMonth / thisMonthConfirmed.length : 0;
+    const avgLastMonth = lastMonthConfirmed.length ? revenueLastMonth / lastMonthConfirmed.length : 0;
+
+    const arc = allResCreated.data ?? [];
+    const activity_chart: { day: number; value: number }[] = [];
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(cur);
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - i);
+      const ds = d.toISOString().split("T")[0];
+      const value = arc.filter((r) => r.created_at.startsWith(ds)).length;
+      activity_chart.push({ day: d.getDate(), value });
+    }
+
+    const thisMonthAll = arc.filter((r) => r.created_at >= thisMonthStart && r.created_at < nextMonthStart).length;
+    const lastMonthAll = arc.filter((r) => r.created_at >= lastMonthStart && r.created_at < thisMonthStart).length;
+
+    const dealsMomPct =
+      lastMonthAll > 0
+        ? Math.round(((thisMonthAll - lastMonthAll) / lastMonthAll) * 100)
+        : thisMonthAll > 0
+          ? 100
+          : 0;
+
+    const revenueMomPct =
+      revenueLastMonth > 0
+        ? Math.round(((revenueThisMonth - revenueLastMonth) / revenueLastMonth) * 100)
+        : revenueThisMonth > 0
+          ? 100
+          : 0;
+
     return sendSuccess(res, {
       units: { total: units.count ?? 0, ...unitStats },
       reservations: { total: reservations.count ?? 0, ...resvStats },
       revenue: { total: totalRevenue },
       leads: { total: leads.count ?? 0, ...leadStats },
+      financial: {
+        total_revenue: totalConfirmedValue,
+        avg_sale_value: avgSaleValue,
+        avg_sale_this_month: avgThisMonth,
+        avg_sale_last_month: avgLastMonth,
+        avg_sale_delta: avgThisMonth - avgLastMonth,
+        revenue_this_month: revenueThisMonth,
+        revenue_last_month: revenueLastMonth,
+        revenue_delta: revenueThisMonth - revenueLastMonth,
+        confirmed_this_month: thisMonthConfirmed.length,
+      },
+      activity_chart,
+      trends: {
+        deals_mom_pct: dealsMomPct,
+        revenue_mom_pct: revenueMomPct,
+      },
     });
   } catch (err) { return next(err); }
 });

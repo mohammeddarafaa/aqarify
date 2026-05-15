@@ -5,9 +5,11 @@ import { PropertyCard } from "@/components/shared/property-card";
 import { usePublicProjects } from "@/features/browse/hooks/use-public-projects";
 import { useTenantStore } from "@/stores/tenant.store";
 import { appendTenantSearch } from "@/lib/tenant-path";
+import { useTenantMoney } from "@/hooks/use-tenant-money";
 
 /** Legacy-style carousel; tenant home uses DiscoveryFeaturedCarousel instead. */
 export function FeaturedListingsSection() {
+  const { formatMoney } = useTenantMoney();
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
   const withTenant = (path: string) => appendTenantSearch(pathname, search, path);
@@ -54,7 +56,7 @@ export function FeaturedListingsSection() {
               >
                 <PropertyCard
                   title={project.name}
-                  price={project.starting_price ? `${project.starting_price.toLocaleString("ar-EG")} ج.م` : "اسأل عن السعر"}
+                  price={project.starting_price ? formatMoney(project.starting_price) : "اسأل عن السعر"}
                   imageUrl={
                     project.cover_image_url ??
                     project.gallery?.[0] ??

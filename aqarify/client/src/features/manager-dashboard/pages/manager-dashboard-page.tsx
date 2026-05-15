@@ -1,6 +1,8 @@
 import { Helmet } from "react-helmet-async";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { useTenantMoney } from "@/hooks/use-tenant-money";
 import { BarChart3, Building2, Users, CreditCard, FileText } from "lucide-react";
 
 interface Stats {
@@ -11,17 +13,21 @@ interface Stats {
 }
 
 export default function ManagerDashboardPage() {
+  const { formatMoney } = useTenantMoney();
   const { data: stats, isLoading } = useQuery<Stats>({
     queryKey: ["manager-stats"],
     queryFn: async () => { const r = await api.get("/manager/dashboard"); return r.data.data; },
   });
 
-  const cards = [
-    { icon: Building2, label: "إجمالي الوحدات", value: stats?.units.total, sub: `متاح: ${stats?.units.available ?? 0}` },
-    { icon: FileText, label: "الحجوزات", value: stats?.reservations.total, sub: `معلق: ${stats?.reservations.pending ?? 0}` },
-    { icon: CreditCard, label: "الإيرادات المحصّلة", value: `${(stats?.revenue.total ?? 0).toLocaleString("ar-EG")} ج.م`, sub: "" },
-    { icon: Users, label: "العملاء المحتملون", value: stats?.leads.total, sub: `محوّل: ${stats?.leads.converted ?? 0}` },
-  ];
+  const cards = useMemo(
+    () => [
+      { icon: Building2, label: "إجمالي الوحدات", value: stats?.units.total, sub: `متاح: ${stats?.units.available ?? 0}` },
+      { icon: FileText, label: "الحجوزات", value: stats?.reservations.total, sub: `معلق: ${stats?.reservations.pending ?? 0}` },
+      { icon: CreditCard, label: "الإيرادات المحصّلة", value: formatMoney(stats?.revenue.total ?? 0), sub: "" },
+      { icon: Users, label: "العملاء المحتملون", value: stats?.leads.total, sub: `محوّل: ${stats?.leads.converted ?? 0}` },
+    ],
+    [stats, formatMoney],
+  );
 
   return (
     <>

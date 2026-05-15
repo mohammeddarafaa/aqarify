@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
+import { subscriptionGuard } from "../middleware/subscriptionGuard";
 import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { requireRole } from "../middleware/rbac";
 import { supabaseAdmin } from "../config/supabase";
@@ -16,7 +17,7 @@ const allowedReservationStatusByRole: Record<string, (typeof RESERVATION_STATUS_
 };
 
 export const agentRoutes = Router();
-agentRoutes.use(resolveTenant, authenticate, requireTenant, requireRole("agent", "manager", "admin", "super_admin"));
+agentRoutes.use(resolveTenant, subscriptionGuard, authenticate, requireTenant, requireRole("agent", "manager", "admin", "super_admin"));
 
 // GET /api/v1/agent/stats — KPI dashboard stats
 agentRoutes.get("/stats", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
@@ -57,10 +58,94 @@ agentRoutes.get("/stats", async (req: TenantRequest & AuthenticatedRequest, res,
       fuStats.today = fuData.filter(f => f.status === "scheduled" && f.scheduled_at.startsWith(todayStr)).length;
     }
 
+    let confSalesQuery = supabaseAdmin
+      .from("reservations")
+      .select("total_price, created_at")
+      .eq("tenant_id", tenantId)
+      .eq("status", "confirmed");
+    if (isAgent) confSalesQuery = confSalesQuery.eq("agent_id", agentId);
+    const { data: confirmedSales } = await confSalesQuery;
+
+    const totalRevenue = (confirmedSales ?? []).reduce((s, r) => s + (Number(r.total_price) || 0), 0);
+    const confirmedSaleCount = (confirmedSales ?? []).length;
+    const avgSaleValue = confirmedSaleCount ? totalRevenue / confirmedSaleCount : 0;
+
+    const cur = new Date();
+    const curY = cur.getFullYear();
+    const curM = cur.getMonth();
+    const thisMonthStart = new Date(curY, curM, 1).toISOString();
+    const nextMonthStart = new Date(curY, curM + 1, 1).toISOString();
+    const lastMonthStart = new Date(curY, curM - 1, 1).toISOString();
+
+    const thisMonthConfirmed = (confirmedSales ?? []).filter(
+      (r) => r.created_at >= thisMonthStart && r.created_at < nextMonthStart,
+    );
+    const lastMonthConfirmed = (confirmedSales ?? []).filter(
+      (r) => r.created_at >= lastMonthStart && r.created_at < thisMonthStart,
+    );
+
+    const revenueThisMonth = thisMonthConfirmed.reduce((s, r) => s + (Number(r.total_price) || 0), 0);
+    const revenueLastMonth = lastMonthConfirmed.reduce((s, r) => s + (Number(r.total_price) || 0), 0);
+    const avgThisMonth = thisMonthConfirmed.length ? revenueThisMonth / thisMonthConfirmed.length : 0;
+    const avgLastMonth = lastMonthConfirmed.length ? revenueLastMonth / lastMonthConfirmed.length : 0;
+    const avgSaleDelta = avgThisMonth - avgLastMonth;
+    const revenueDelta = revenueThisMonth - revenueLastMonth;
+
+    let allResQuery = supabaseAdmin.from("reservations").select("created_at").eq("tenant_id", tenantId);
+    if (isAgent) allResQuery = allResQuery.eq("agent_id", agentId);
+    const { data: allResCreated } = await allResQuery;
+
+    const activity_chart: { day: number; value: number }[] = [];
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(cur);
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - i);
+      const ds = d.toISOString().split("T")[0];
+      const value = (allResCreated ?? []).filter((r) => r.created_at.startsWith(ds)).length;
+      activity_chart.push({ day: d.getDate(), value });
+    }
+
+    const thisMonthAll = (allResCreated ?? []).filter(
+      (r) => r.created_at >= thisMonthStart && r.created_at < nextMonthStart,
+    ).length;
+    const lastMonthAll = (allResCreated ?? []).filter(
+      (r) => r.created_at >= lastMonthStart && r.created_at < thisMonthStart,
+    ).length;
+
+    const dealsMomPct =
+      lastMonthAll > 0
+        ? Math.round(((thisMonthAll - lastMonthAll) / lastMonthAll) * 100)
+        : thisMonthAll > 0
+          ? 100
+          : 0;
+
+    const revenueMomPct =
+      revenueLastMonth > 0
+        ? Math.round(((revenueThisMonth - revenueLastMonth) / revenueLastMonth) * 100)
+        : revenueThisMonth > 0
+          ? 100
+          : 0;
+
     return sendSuccess(res, {
       reservations: resStats,
       leads: leadsStats,
       follow_ups: fuStats,
+      financial: {
+        total_revenue: totalRevenue,
+        avg_sale_value: avgSaleValue,
+        avg_sale_this_month: avgThisMonth,
+        avg_sale_last_month: avgLastMonth,
+        avg_sale_delta: avgSaleDelta,
+        revenue_this_month: revenueThisMonth,
+        revenue_last_month: revenueLastMonth,
+        revenue_delta: revenueDelta,
+        confirmed_this_month: thisMonthConfirmed.length,
+      },
+      activity_chart,
+      trends: {
+        deals_mom_pct: dealsMomPct,
+        revenue_mom_pct: revenueMomPct,
+      },
     });
   } catch (err) { return next(err); }
 });

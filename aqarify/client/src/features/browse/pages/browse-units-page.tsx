@@ -17,10 +17,7 @@ import { useTenantStore } from "@/stores/tenant.store";
 import { appendTenantSearch } from "@/lib/tenant-path";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MobilePropertyActions } from "@/components/shared/mobile-property-actions";
-import { useFavorites } from "@/features/browse/hooks/use-favorites";
 import { useFavoritesStore } from "@/stores/favorites.store";
-import { toast } from "@/lib/app-toast";
 
 export default function BrowseUnitsPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -44,7 +41,6 @@ export default function BrowseUnitsPage() {
 
   const allUnits = data?.pages.flatMap((p) => p.units) ?? [];
   const total = data?.pages[0]?.meta.total ?? 0;
-  const { favoriteIds } = useFavorites();
   const compareUnitIds = useFavoritesStore((s) => s.compareUnitIds);
 
   const onChangeView = (next: "grid" | "map") => {
@@ -94,13 +90,17 @@ export default function BrowseUnitsPage() {
           <>
             <BrowseHero mode="units" total={total} isLoading={isLoading} projectName={project.name} />
 
-            <div className="mx-auto flex max-w-screen-xl items-center justify-between px-6 pb-4 pt-6">
+            <div className="mx-auto flex max-w-screen-xl items-center justify-between gap-4 px-6 py-2 md:hidden">
               <p className="label-overline">الفلاتر</p>
               <ViewToggle view={view} onChange={onChangeView} />
             </div>
 
             <div className="hidden border-t border-b border-[var(--color-border)] md:block">
               <div className="mx-auto max-w-screen-xl">
+                <div className="flex items-center justify-between gap-4 px-6 pt-3 pb-1">
+                  <p className="label-overline">الفلاتر</p>
+                  <ViewToggle view={view} onChange={onChangeView} />
+                </div>
                 <FilterBar
                   filters={filters}
                   onFiltersPatch={patchFilters}
@@ -211,35 +211,6 @@ export default function BrowseUnitsPage() {
           </Link>
         </div>
       )}
-
-      <MobilePropertyActions
-        favoriteActive={favoriteIds.length > 0}
-        compareActive={compareUnitIds.length > 0}
-        compareCount={compareUnitIds.length}
-        onFavorite={() => {
-          window.location.assign(withTenant("/favorites"));
-        }}
-        onShare={async () => {
-          const url = window.location.href;
-          try {
-            if (navigator.share) {
-              await navigator.share({ title: document.title, url });
-            } else {
-              await navigator.clipboard.writeText(url);
-              toast.success("Page link copied");
-            }
-          } catch {
-            // user canceled share
-          }
-        }}
-        onCompare={() => {
-          if (compareUnitIds.length === 0) {
-            toast.info("Use the home icon on unit cards to add them to compare.");
-            return;
-          }
-          window.location.assign(withTenant("/compare"));
-        }}
-      />
     </>
   );
 }

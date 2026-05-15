@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { useIsReadOnly } from "@/hooks/use-is-read-only";
+import { useTenantMoney } from "@/hooks/use-tenant-money";
 
 type NegotiationOffer = {
   id: string;
@@ -43,6 +44,7 @@ export function OfferDrawer({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
+  const { formatMoney, currency } = useTenantMoney();
   const qc = useQueryClient();
   const readOnly = useIsReadOnly();
   const id = leadId ?? "";
@@ -133,7 +135,7 @@ export function OfferDrawer({
                 <SelectContent>
                   {units.map((u) => (
                     <SelectItem key={u.id} value={u.id}>
-                      {u.unit_number} · {Number(u.price).toLocaleString("ar-EG")} ج.م
+                      {u.unit_number} · {formatMoney(Number(u.price))}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -145,7 +147,7 @@ export function OfferDrawer({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>السعر المعروض (ج.م)</Label>
+              <Label>السعر المعروض ({currency})</Label>
               <Input type="number" step="0.01" {...form.register("offered_price")} disabled={readOnly} />
             </div>
             <div className="space-y-1">
@@ -177,7 +179,7 @@ export function OfferDrawer({
                   <div className="flex justify-between gap-2">
                     <span className="font-medium">
                       {o.units?.unit_number ?? o.unit_id.slice(0, 8)} —{" "}
-                      {Number(o.offered_price).toLocaleString("ar-EG")} ج.م
+                      {formatMoney(Number(o.offered_price))}
                     </span>
                     <span className="text-xs text-muted-foreground">{o.status}</span>
                   </div>

@@ -9,6 +9,7 @@ import { Topbar } from "@/components/shared/topbar";
 import { ReadOnlyBanner } from "@/components/shared/read-only-banner";
 import { isMobileBottomNavAudience, MobileBottomNav } from "@/components/shared/mobile-bottom-nav";
 import { appendTenantSearch } from "@/lib/tenant-path";
+import { OnboardingGate } from "@/components/onboarding/onboarding-gate";
 
 export default function DashboardLayout() {
   useSyncHomeTenantUrl();
@@ -43,7 +44,9 @@ export default function DashboardLayout() {
               : "flex-1 overflow-y-auto p-4 sm:p-6 lg:pb-6"
           }
         >
-          <Outlet />
+          <OnboardingGate>
+            <Outlet />
+          </OnboardingGate>
         </main>
         <MobileBottomNav />
       </div>

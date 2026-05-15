@@ -85,18 +85,32 @@ export function parseEncryptionKeyVersions(): Record<string, string> {
   return map;
 }
 
-function primaryEncryptKey(): string {
+/** Highest numeric version label (v2 beats v1; v10 beats v9). */
+export function latestEncryptionKeyVersion(): { label: string; key: string } {
   const m = parseEncryptionKeyVersions();
-  return m.v1 ?? m[Object.keys(m).sort()[0]];
+  let bestLabel = Object.keys(m)[0] ?? "v1";
+  let bestNum = -1;
+  for (const label of Object.keys(m)) {
+    const n = parseInt(label.replace(/^v/i, ""), 10);
+    const num = Number.isFinite(n) ? n : 0;
+    if (num > bestNum) {
+      bestNum = num;
+      bestLabel = label;
+    }
+  }
+  return { label: bestLabel, key: m[bestLabel]! };
 }
 
 /**
- * Encrypt for storage. Format: `v1:<iv_hex>:<ciphertext_hex>` (version prefix supports key rotation).
- * @param key — optional explicit key; defaults to primary v1 from env.
+ * Encrypt for storage. Format: `vN:<iv_hex>:<ciphertext_hex>` using the latest configured key version.
+ * @param key — optional explicit key; when set, outer label is still `v1` for backward-compat tests.
  */
 export function encrypt(text: string, key?: string): string {
-  const k = key ?? primaryEncryptKey();
-  return `v1:${aes256cbcEncrypt(text, k)}`;
+  if (key) {
+    return `v1:${aes256cbcEncrypt(text, key)}`;
+  }
+  const { label, key: k } = latestEncryptionKeyVersion();
+  return `${label}:${aes256cbcEncrypt(text, k)}`;
 }
 
 /**

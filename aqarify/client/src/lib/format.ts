@@ -8,6 +8,7 @@ const LOCALE_MAP: Record<string, string> = {
   KWD: "ar-KW",
   QAR: "ar-QA",
   BHD: "ar-BH",
+  OMR: "ar-OM",
   JOD: "ar-JO",
   MAD: "ar-MA",
   TND: "ar-TN",
@@ -16,7 +17,22 @@ const LOCALE_MAP: Record<string, string> = {
   USD: "en-US",
 };
 
-const THREE_DECIMAL = new Set(["KWD", "BHD", "OMR"]);
+/** Gulf currencies using three fractional digits in Intl. */
+export const THREE_DECIMAL_CURRENCIES = new Set(["KWD", "BHD", "OMR"]);
+
+export const REGIONAL_CURRENCIES = [
+  "EGP",
+  "SAR",
+  "AED",
+  "KWD",
+  "QAR",
+  "BHD",
+  "OMR",
+  "JOD",
+  "MAD",
+  "TND",
+  "DZD",
+] as const;
 
 export function formatCurrency(
   amount: number,
@@ -27,7 +43,7 @@ export function formatCurrency(
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
-    maximumFractionDigits: THREE_DECIMAL.has(currency) ? 3 : 2,
+    maximumFractionDigits: THREE_DECIMAL_CURRENCIES.has(currency) ? 3 : 2,
   }).format(amount);
 }
 
@@ -48,6 +64,10 @@ export function formatRelativeTime(date: string | Date, lang = "ar"): string {
   });
 }
 
+/**
+ * @deprecated Prefer `normalizePhoneE164` / `libphonenumber-js` from `@/lib/phone`.
+ * Legacy helper: assumes national numbers for `defaultCountryCode` (numeric, no +).
+ */
 export function formatPhone(phone: string, defaultCountryCode = "20"): string {
   const digits = phone.replace(/\D/g, "");
   if (digits.startsWith(defaultCountryCode)) return `+${digits}`;

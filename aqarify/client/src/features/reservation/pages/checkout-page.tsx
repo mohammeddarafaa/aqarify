@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useTenantStore } from "@/stores/tenant.store";
 import { useTenantUi } from "@/hooks/use-tenant-ui";
 import { appendTenantSearch } from "@/lib/tenant-path";
+import { paymobIframeCheckoutUrl } from "@/lib/paymob";
 import { CheckoutForm } from "../components/checkout-form";
 import { useCreateReservation } from "../hooks/use-reservation";
 
@@ -47,11 +48,8 @@ export default function CheckoutPage() {
       { unit_id: unitId!, ...formData },
       {
         onSuccess: (data) => {
-          const iframeBase =
-            import.meta.env.VITE_PAYMOB_IFRAME_BASE_URL ??
-            "https://accept.paymob.com/api/acceptance/iframes";
           if (data.payment_key && data.iframe_id) {
-            window.location.href = `${iframeBase.replace(/\/$/, "")}/${data.iframe_id}?payment_token=${data.payment_key}`;
+            window.location.href = paymobIframeCheckoutUrl(data.iframe_id, data.payment_key);
           } else if (data.payment_key && !data.iframe_id) {
             toast.error(
               "Payment gateway not fully configured for this tenant. Contact support.",

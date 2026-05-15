@@ -174,7 +174,7 @@ export function FilterBar({ filters, onFiltersPatch, onClear, hasActive }: Filte
     <div className="bg-background">
       <div className="relative">
         <div className="overflow-x-auto overflow-y-hidden">
-          <div className="flex items-center gap-2 px-6 py-3 pe-16 md:pe-6">
+          <div className="flex items-center gap-2 px-6 pt-1 pb-3 pe-16 md:pe-6">
             {filterCategories.map((filter) => {
               const IconComponent = filter.icon;
               const count = getCategoryCount(filter.id);

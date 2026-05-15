@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
+import { subscriptionGuard } from "../middleware/subscriptionGuard";
 import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { requireRole } from "../middleware/rbac";
 import { requirePlugin } from "../middleware/requirePlugin";
@@ -9,7 +10,7 @@ import { listPlugins, hasPluginKey } from "../plugins/pluginRegistry";
 import { sendError, sendSuccess, ERROR_CODES } from "../utils/response";
 
 export const pluginRoutes = Router();
-pluginRoutes.use(resolveTenant, authenticate, requireTenant);
+pluginRoutes.use(resolveTenant, subscriptionGuard, authenticate, requireTenant);
 
 pluginRoutes.get("/", requireRole("admin", "super_admin"), async (req: TenantRequest & AuthenticatedRequest, res, next) => {
   try {

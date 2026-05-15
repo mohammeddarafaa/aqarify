@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { api } from "@/lib/api";
+import { formatCurrency } from "@/lib/format";
 import { toast } from "@/lib/app-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,9 @@ const tenantSchema = z.object({
   name: z.string().min(2), contact_email: z.string().email(),
   contact_phone: z.string().optional(), primary_color: z.string().optional(),
   secondary_color: z.string().optional(), address: z.string().optional(),
+  country_code: z.string().max(8).optional(),
+  currency: z.string().max(8).optional(),
+  custom_domain: z.string().max(200).optional(),
   bank_name: z.string().optional(),
   bank_account_number: z.string().optional(),
   bank_account_holder: z.string().optional(),
@@ -112,6 +116,9 @@ export default function AdminSettingsPage() {
             (tenant.theme_config as { secondary_color?: string } | undefined)?.secondary_color ??
             "",
           address: tenant.address ?? "",
+          country_code: tenant.country_code ?? "",
+          currency: tenant.currency ?? "",
+          custom_domain: tenant.custom_domain ?? "",
           bank_name: tenant.bank_name ?? "",
           bank_account_number: tenant.bank_account_number ?? "",
           bank_account_holder: tenant.bank_account_holder ?? "",
@@ -132,7 +139,13 @@ export default function AdminSettingsPage() {
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
-      await api.patch("/admin/tenant", { ...d, enabled_features: enabledFeatures });
+      await api.patch("/admin/tenant", {
+        ...d,
+        enabled_features: enabledFeatures,
+        custom_domain: d.custom_domain?.trim() ?? "",
+        country_code: d.country_code?.trim() || undefined,
+        currency: d.currency?.trim() || undefined,
+      });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-tenant"] }); toast.success("تم الحفظ"); },
     onError: () => toast.error("فشل الحفظ"),
@@ -232,6 +245,14 @@ export default function AdminSettingsPage() {
               </div>
               <div className="space-y-1 col-span-2"><Label>العنوان</Label>
                 <Input {...tenantForm.register("address")} /></div>
+              <div className="space-y-1"><Label>رمز الدولة</Label>
+                <Input {...tenantForm.register("country_code")} placeholder="EG" dir="ltr" /></div>
+              <div className="space-y-1"><Label>العملة المعروضة</Label>
+                <Input {...tenantForm.register("currency")} placeholder="EGP" dir="ltr" /></div>
+              <div className="space-y-1 col-span-2"><Label>نطاق مخصص (اختياري)</Label>
+                <Input {...tenantForm.register("custom_domain")} placeholder="app.example.com" dir="ltr" className="font-mono text-sm" />
+                <p className="text-xs text-muted-foreground pt-1">أحرف صغيرة وأرقام وشرطة فقط؛ اتركه فارغاً لإزالة الربط.</p>
+              </div>
               <div className="space-y-1 col-span-2 rounded-lg border bg-muted/30 p-4">
                 <p className="text-sm font-medium">تحويل بنكي (للعملاء)</p>
                 <p className="text-xs text-muted-foreground mb-3">يظهر للعميل عند اختيار الدفع بالتحويل.</p>
@@ -364,7 +385,7 @@ export default function AdminSettingsPage() {
                       >
                         <p className="font-medium">{plan.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {plan.price_egp_monthly.toLocaleString("ar-EG")} ج.م / شهرياً
+                          {formatCurrency(plan.price_egp_monthly, "EGP", "ar")} / شهرياً
                         </p>
                       </button>
                     ))}
@@ -392,7 +413,7 @@ export default function AdminSettingsPage() {
                           <td className="px-4 py-3">
                             <Badge variant={inv.status === "succeeded" ? "default" : "outline"}>{inv.status}</Badge>
                           </td>
-                          <td className="px-4 py-3 font-medium">{inv.amount_egp.toLocaleString("ar-EG")} ج.م</td>
+                          <td className="px-4 py-3 font-medium">{formatCurrency(inv.amount_egp, "EGP", "ar")}</td>
                         </tr>
                       ))}
                       {invoices.length === 0 && (

@@ -1,12 +1,13 @@
 import { Router } from "express";
 import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
+import { subscriptionGuard } from "../middleware/subscriptionGuard";
 import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { requireRole } from "../middleware/rbac";
 import { supabaseAdmin } from "../config/supabase";
 import { sendSuccess } from "../utils/response";
 
 export const activityLogRoutes = Router();
-activityLogRoutes.use(resolveTenant, authenticate, requireTenant, requireRole("manager", "admin"));
+activityLogRoutes.use(resolveTenant, subscriptionGuard, authenticate, requireTenant, requireRole("manager", "admin", "super_admin"));
 
 // GET /api/v1/activity-logs
 activityLogRoutes.get("/", async (req: TenantRequest & AuthenticatedRequest, res, next) => {
@@ -24,6 +25,7 @@ activityLogRoutes.get("/", async (req: TenantRequest & AuthenticatedRequest, res
     if (req.query.user_id) query = query.eq("user_id", String(req.query.user_id));
     if (req.query.action) query = query.eq("action", String(req.query.action));
     if (req.query.entity_type) query = query.eq("entity_type", String(req.query.entity_type));
+    if (req.query.entity_id) query = query.eq("entity_id", String(req.query.entity_id));
     if (req.query.from) query = query.gte("created_at", String(req.query.from));
     if (req.query.to) query = query.lte("created_at", String(req.query.to));
 
@@ -31,28 +33,3 @@ activityLogRoutes.get("/", async (req: TenantRequest & AuthenticatedRequest, res
     return sendSuccess(res, data ?? [], { page, limit, total: count ?? 0 });
   } catch (err) { return next(err); }
 });
-
-// Helper to log activity (exported for use in other routes)
-export async function logActivity(
-  tenantId: string,
-  userId: string,
-  action: string,
-  entityType: string,
-  entityId: string,
-  details?: Record<string, unknown>,
-  ipAddress?: string
-) {
-  await supabaseAdmin.from("activity_logs").insert({
-    tenant_id: tenantId,
-    user_id: userId,
-    action,
-    entity_type: entityType,
-    entity_id: entityId,
-    details: details ?? {},
-    ip_address: ipAddress,
-  }).then(({ error }) => {
-    if (error) {
-      // Silently fail — don't break main flow
-    }
-  });
-}

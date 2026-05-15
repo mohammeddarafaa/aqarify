@@ -1,12 +1,16 @@
 import { Router } from "express";
 import { z } from "zod";
 import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
+import { subscriptionGuard } from "../middleware/subscriptionGuard";
 import { optionalAuth, authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { supabaseAdmin } from "../config/supabase";
 import { sendSuccess, sendError, ERROR_CODES } from "../utils/response";
+import { sendNotification } from "../services/notification.service";
+import { logActivity } from "../services/activityLog.service";
+import { scheduleVisitLimiter } from "../middleware/rateLimiters";
 
 export const unitRoutes = Router();
-unitRoutes.use(resolveTenant, optionalAuth, requireTenant);
+unitRoutes.use(resolveTenant, subscriptionGuard, optionalAuth, requireTenant);
 
 // GET /api/v1/units
 unitRoutes.get("/", async (req: TenantRequest, res, next) => {
@@ -166,19 +170,48 @@ unitRoutes.get("/by-ids", async (req: TenantRequest, res, next) => {
   }
 });
 
-const scheduleVisitSchema = z.object({
-  scheduled_at: z.string().min(1),
-  phone: z.string().min(8),
-  full_name: z.string().min(2).optional(),
-  notes: z.string().optional(),
-});
+const scheduleVisitSchema = z
+  .object({
+    scheduled_at: z.string().min(1).optional(),
+    date: z.string().optional(),
+    time_slot: z.string().optional(),
+    phone: z.string().min(8),
+    full_name: z.string().min(2).optional(),
+    notes: z.string().optional(),
+  })
+  .refine((d) => Boolean(d.scheduled_at) || (Boolean(d.date) && Boolean(d.time_slot)), {
+    message: "Provide scheduled_at or both date and time_slot",
+  });
+
+function combineVisitSchedule(parsed: z.infer<typeof scheduleVisitSchema>): string {
+  if (parsed.scheduled_at) return parsed.scheduled_at;
+  const date = parsed.date!;
+  const rawSlot = (parsed.time_slot ?? "10:00").trim();
+  const timePart = rawSlot.includes(":") ? rawSlot : `${rawSlot}:00`;
+  const d = new Date(`${date}T${timePart}`);
+  if (Number.isNaN(d.getTime())) {
+    throw Object.assign(new Error("Invalid visit date/time"), { code: "VALIDATION_ERROR" });
+  }
+  return d.toISOString();
+}
 
 // POST /api/v1/units/:id/schedule-visit
-unitRoutes.post("/:id/schedule-visit", authenticate, async (req: TenantRequest & AuthenticatedRequest, res, next) => {
+unitRoutes.post("/:id/schedule-visit", authenticate, scheduleVisitLimiter, async (req: TenantRequest & AuthenticatedRequest, res, next) => {
   try {
     const parsed = scheduleVisitSchema.safeParse(req.body);
     if (!parsed.success) {
       return sendError(res, ERROR_CODES.VALIDATION_ERROR, "Invalid input", 400, parsed.error.flatten());
+    }
+
+    let scheduledAtIso: string;
+    try {
+      scheduledAtIso = combineVisitSchedule(parsed.data);
+    } catch (e: unknown) {
+      const code = typeof e === "object" && e && "code" in e ? (e as { code?: string }).code : "";
+      if (code === "VALIDATION_ERROR") {
+        return sendError(res, ERROR_CODES.VALIDATION_ERROR, "Invalid visit date or time_slot", 400);
+      }
+      throw e;
     }
 
     const { data: unit } = await supabaseAdmin
@@ -191,13 +224,13 @@ unitRoutes.post("/:id/schedule-visit", authenticate, async (req: TenantRequest &
 
     const { data: agents } = await supabaseAdmin
       .from("users")
-      .select("id")
+      .select("id, phone, email")
       .eq("tenant_id", req.tenantId!)
       .eq("role", "agent")
       .eq("is_active", true)
       .limit(1);
-    const agentId = agents?.[0]?.id;
-    if (!agentId) {
+    const agentRow = agents?.[0];
+    if (!agentRow?.id) {
       return sendError(res, "NO_AGENT_AVAILABLE", "No agent available to assign visit", 503);
     }
 
@@ -212,10 +245,10 @@ unitRoutes.post("/:id/schedule-visit", authenticate, async (req: TenantRequest &
       .from("follow_ups")
       .insert({
         tenant_id: req.tenantId!,
-        agent_id: agentId,
+        agent_id: agentRow.id,
         customer_id: req.userId!,
         type: "visit",
-        scheduled_at: parsed.data.scheduled_at,
+        scheduled_at: scheduledAtIso,
         notes: noteLines.join("\n"),
         status: "scheduled",
       })
@@ -223,6 +256,28 @@ unitRoutes.post("/:id/schedule-visit", authenticate, async (req: TenantRequest &
       .single();
 
     if (error) throw error;
+
+    await sendNotification({
+      tenantId: req.tenantId!,
+      userId: agentRow.id,
+      type: "general",
+      title: "طلب زيارة وحدة",
+      body: `زيارة مجدولة بتاريخ ${scheduledAtIso.slice(0, 16)} — هاتف العميل: ${parsed.data.phone}`,
+      phone: agentRow.phone ?? undefined,
+      email: agentRow.email ?? undefined,
+      channels: ["in_app", "email"],
+    });
+
+    await logActivity({
+      tenantId: req.tenantId!,
+      userId: req.userId,
+      action: "unit.visit_scheduled",
+      entityType: "unit",
+      entityId: req.params.id,
+      details: { follow_up_id: data?.id ?? null, scheduled_at: data?.scheduled_at },
+      ipAddress: req.ip,
+    });
+
     return sendSuccess(
       res,
       {

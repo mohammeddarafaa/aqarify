@@ -8,6 +8,7 @@ import { useAuthStore } from "@/stores/auth.store";
 import { useTenantStore } from "@/stores/tenant.store";
 import { useTenantUi } from "@/hooks/use-tenant-ui";
 import { appendTenantSearch } from "@/lib/tenant-path";
+import { useTenantMoney } from "@/hooks/use-tenant-money";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,13 +20,6 @@ type Payment = {
   status: string;
   reservation_id?: string | null;
 };
-
-function formatEgp(n: number) {
-  return Number(n).toLocaleString("ar-EG", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  });
-}
 
 type Reservation = {
   id: string;
@@ -43,6 +37,7 @@ type Reservation = {
 export default function CustomerOverviewPage() {
   const user = useAuthStore((s) => s.user);
   const tenant = useTenantStore((s) => s.tenant);
+  const { formatMoney } = useTenantMoney();
   const { appName } = useTenantUi();
   const { pathname, search } = useLocation();
   const withTenant = (p: string) => appendTenantSearch(pathname, search, p);
@@ -143,7 +138,7 @@ export default function CustomerOverviewPage() {
                       إجمالي ما دفعته حتى الآن
                     </p>
                     <p className="text-xl font-bold tabular-nums text-foreground md:text-2xl">
-                      {formatEgp(displayTotalPaidSoFar)} ج.م
+                      {formatMoney(displayTotalPaidSoFar)}
                     </p>
                     {paidTotalForActiveReservation === 0 && paidFallbackFromReservation > 0 ? (
                       <p className="mt-1 text-[11px] text-muted-foreground">
@@ -158,7 +153,7 @@ export default function CustomerOverviewPage() {
                   <div className="text-xs">
                     <p className="text-muted-foreground">إجمالي قيمة الوحدة (سعر العقد)</p>
                     <p className="text-lg font-semibold tabular-nums text-foreground">
-                      {formatEgp(activeRes.total_price)} ج.م
+                      {formatMoney(activeRes.total_price)}
                     </p>
                   </div>
                 </div>
@@ -181,7 +176,7 @@ export default function CustomerOverviewPage() {
               <Skeleton className="h-12 w-full" />
             ) : nextPayment ? (
               <div className="space-y-1">
-                <p className="text-2xl font-bold tabular-nums">{formatEgp(nextPayment.amount)} ج.م</p>
+                <p className="text-2xl font-bold tabular-nums">{formatMoney(nextPayment.amount)}</p>
                 <p className="text-xs text-muted-foreground">
                   تاريخ الاستحقاق:{" "}
                   {new Date(nextPayment.due_date).toLocaleDateString("ar-EG")}

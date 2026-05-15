@@ -1,4 +1,4 @@
-export type ReservationStatus = "pending" | "confirmed" | "cancelled" | "expired";
+export type ReservationStatus = "pending" | "confirmed" | "cancelled" | "expired" | "rejected";
 
 export const RESERVATION_STATUS_OPTIONS: Array<{ value: "all" | ReservationStatus; label: string }> = [
   { value: "all", label: "الكل" },
@@ -6,6 +6,7 @@ export const RESERVATION_STATUS_OPTIONS: Array<{ value: "all" | ReservationStatu
   { value: "confirmed", label: "مؤكد" },
   { value: "cancelled", label: "ملغي" },
   { value: "expired", label: "منتهي" },
+  { value: "rejected", label: "مرفوض" },
 ];
 
 /** Badge variants tuned for readability in tables (avoids tenant `secondary` + dark fg clash). */
@@ -21,6 +22,7 @@ export const RESERVATION_STATUS_VARIANT: Record<ReservationStatus, ReservationSt
   confirmed: "success",
   cancelled: "destructive",
   expired: "muted",
+  rejected: "destructive",
 };
 
 export function getReservationStatusLabel(status: string) {
@@ -32,5 +34,6 @@ export function getReservationStatusVariant(status: string): ReservationStatusBa
   if (status === "confirmed") return RESERVATION_STATUS_VARIANT.confirmed;
   if (status === "cancelled") return RESERVATION_STATUS_VARIANT.cancelled;
   if (status === "expired") return RESERVATION_STATUS_VARIANT.expired;
+  if (status === "rejected") return RESERVATION_STATUS_VARIANT.rejected;
   return "outline";
 }

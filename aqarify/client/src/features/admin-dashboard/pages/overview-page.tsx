@@ -1,10 +1,13 @@
 import { Helmet } from "react-helmet-async";
 import { Link, useLocation } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { ReceiptText, Settings, ShieldCheck, Users } from "lucide-react";
 import { appendTenantSearch } from "@/lib/tenant-path";
+import { api } from "@/lib/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { KpiCard } from "@/components/shared/kpi-card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const items = [
   {
@@ -24,9 +27,28 @@ const items = [
   },
 ];
 
+type AdminSummary = {
+  team_users: number;
+  projects: number;
+  pending_reservations: number;
+};
+
 export default function AdminOverviewPage() {
   const { pathname, search } = useLocation();
   const withTenant = (path: string) => appendTenantSearch(pathname, search, path);
+
+  const { data: summary, isLoading } = useQuery<AdminSummary>({
+    queryKey: ["admin-summary"],
+    queryFn: async () => (await api.get("/admin/summary")).data.data,
+  });
+
+  const teamUsers = summary?.team_users ?? 0;
+  const projects = summary?.projects ?? 0;
+  const pending = summary?.pending_reservations ?? 0;
+
+  const teamProgress = teamUsers > 0 ? Math.min(100, 12 + teamUsers * 4) : 0;
+  const projectsProgress = projects > 0 ? Math.min(100, 20 + projects * 6) : 0;
+  const pendingProgress = pending > 0 ? Math.min(100, 25 + pending * 8) : 0;
 
   return (
     <>
@@ -39,11 +61,37 @@ export default function AdminOverviewPage() {
           <p className="text-sm text-muted-foreground">لوحة تحكم سريعة لإدارة الإعدادات والمستخدمين والنشاط.</p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard title="Platform Users" value={248} subtitle="All roles" progress={64} progressColor="lime" />
-          <KpiCard title="Active Projects" value={37} subtitle="Published" progress={71} />
-          <KpiCard title="Open Tickets" value={9} subtitle="Needs action" progress={35} progressColor="striped" />
-          <KpiCard title="System Health" value="99.9%" subtitle="Uptime" progress={92} progressColor="lime" />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {isLoading ? (
+            <>
+              <Skeleton className="h-36 rounded-2xl" />
+              <Skeleton className="h-36 rounded-2xl" />
+              <Skeleton className="h-36 rounded-2xl" />
+            </>
+          ) : (
+            <>
+              <KpiCard
+                title="فريق العمل"
+                value={String(teamUsers)}
+                subtitle="مستخدمون بأدوار تشغيلية"
+                progress={teamProgress}
+                progressColor="lime"
+              />
+              <KpiCard
+                title="المشاريع"
+                value={String(projects)}
+                subtitle="مشاريع مسجّلة"
+                progress={projectsProgress}
+              />
+              <KpiCard
+                title="حجوزات معلّقة"
+                value={String(pending)}
+                subtitle="تحتاج متابعة"
+                progress={pendingProgress}
+                progressColor="striped"
+              />
+            </>
+          )}
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">

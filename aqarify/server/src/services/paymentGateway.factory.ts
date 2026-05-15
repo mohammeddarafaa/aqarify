@@ -1,5 +1,8 @@
 /**
- * Tenant-level payment routing. Today only Paymob is implemented; other values
+ * Tenant-level payment routing.
+ *
+ * Card intents are created through {@link createTenantCardPaymentIntent} so route handlers
+ * stay PSP-agnostic. Today only Paymob implements card checkout; other `payment_gateway` values
  * gate card flows to bank transfer / manual settlement (see reservations.routes).
  */
 export type TenantPaymentGateway = "paymob" | "cmi" | "konnect" | "efawateer" | "manual";

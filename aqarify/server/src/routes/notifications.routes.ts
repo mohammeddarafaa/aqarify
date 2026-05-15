@@ -1,11 +1,12 @@
 import { Router } from "express";
 import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
+import { subscriptionGuard } from "../middleware/subscriptionGuard";
 import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { supabaseAdmin } from "../config/supabase";
 import { sendSuccess } from "../utils/response";
 
 export const notificationRoutes = Router();
-notificationRoutes.use(resolveTenant, authenticate, requireTenant);
+notificationRoutes.use(resolveTenant, subscriptionGuard, authenticate, requireTenant);
 
 // GET /api/v1/notifications
 notificationRoutes.get("/", async (req: TenantRequest & AuthenticatedRequest, res, next) => {

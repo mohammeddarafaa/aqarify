@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
+import { subscriptionGuard } from "../middleware/subscriptionGuard";
 import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { supabaseAdmin } from "../config/supabase";
 import { sendError, sendSuccess, ERROR_CODES } from "../utils/response";
@@ -14,7 +15,7 @@ const syncFavoritesSchema = z.object({
 });
 
 export const favoriteRoutes = Router();
-favoriteRoutes.use(resolveTenant, requireTenant, authenticate);
+favoriteRoutes.use(resolveTenant, subscriptionGuard, requireTenant, authenticate);
 
 async function getFavoriteUnitIds(tenantId: string, userId: string) {
   const { data, error } = await supabaseAdmin

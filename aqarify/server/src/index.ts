@@ -2,7 +2,6 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
-import { rateLimit } from "express-rate-limit";
 import { errorHandler } from "./middleware/errorHandler";
 import { logger } from "./utils/logger";
 import { authRoutes } from "./routes/auth.routes";
@@ -34,6 +33,15 @@ import { startWaitlistTimerCron } from "./jobs/waitlistTimer";
 import { startDailySummaryCron } from "./jobs/dailySummary";
 import { startSubscriptionExpiryCron } from "./jobs/subscriptionExpiry";
 import { parseEncryptionKeyVersions } from "./utils/hmac";
+import {
+  limiter,
+  authLimiter,
+  publicLimiter,
+  webhookLimiter,
+  reservationLimiter,
+  waitlistLimiter,
+  uploadLimiter,
+} from "./middleware/rateLimiters";
 import { supabaseAdmin } from "./config/supabase";
 import { pluginRoutes } from "./routes/plugins.routes";
 import { platformAdminRoutes } from "./routes/platformAdmin.routes";
@@ -79,17 +87,6 @@ app.use(helmet());
 const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? process.env.CLIENT_URL ?? "http://localhost:3000").split(",").map((s) => s.trim()).filter(Boolean);
 const rootDomain = process.env.ROOT_DOMAIN ?? "localhost";
 
-function rateLimitTenantKey(req: express.Request): string {
-  const slugFromHeader = String(req.headers["x-tenant-slug"] ?? "").trim().toLowerCase();
-  const host = String(req.headers.host ?? "").toLowerCase();
-  const subdomain = host.split(".")[0];
-  const slugFromSubdomain =
-    subdomain && !["www", "api", "localhost"].includes(subdomain) ? subdomain : "";
-  const slugFromQuery = typeof req.query.tenant === "string" ? req.query.tenant.toLowerCase() : "";
-  const tenantKey = slugFromHeader || slugFromSubdomain || slugFromQuery || "public";
-  return `${tenantKey}:${req.ip ?? "unknown"}`;
-}
-
 app.use(
   cors({
     origin: async (origin, callback) => {
@@ -131,38 +128,6 @@ app.use(
   }),
 );
 
-const limiter = rateLimit({ windowMs: 60_000, max: 300, keyGenerator: rateLimitTenantKey });
-const authLimiter = rateLimit({ windowMs: 60_000, max: 10, keyGenerator: rateLimitTenantKey });
-const publicLimiter = rateLimit({ windowMs: 60_000, max: 100, keyGenerator: rateLimitTenantKey });
-const webhookLimiter = rateLimit({ windowMs: 60_000, max: 100, keyGenerator: rateLimitTenantKey });
-const rateJson = { ok: false as const, error: { code: "RATE_LIMITED", message: "Too many requests" } };
-const reservationLimiter = rateLimit({
-  windowMs: 60_000,
-  max: 5,
-  message: rateJson,
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => req.method === "GET",
-  keyGenerator: rateLimitTenantKey,
-});
-const waitlistLimiter = rateLimit({
-  windowMs: 60_000,
-  max: 10,
-  message: rateJson,
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => req.method === "GET",
-  keyGenerator: rateLimitTenantKey,
-});
-const uploadLimiter = rateLimit({
-  windowMs: 60_000,
-  max: 20,
-  message: rateJson,
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => req.method === "GET",
-  keyGenerator: rateLimitTenantKey,
-});
 app.use("/webhooks", webhookLimiter);
 app.use("/api/v1/auth", authLimiter);
 app.use("/api/v1/favorites", authLimiter);
@@ -186,33 +151,29 @@ app.use("/api/v1", platformSubscriptionRoutes); // /signup + /subscription/*
 app.use("/api/v1/platform-admin", platformAdminRoutes);
 app.use("/webhooks", webhookRoutes);
 
-// Routes — guarded by subscription status (writes blocked for expired tenants)
-app.use("/api/v1/units", subscriptionGuard, unitRoutes);
-app.use("/api/v1/projects", subscriptionGuard, projectRoutes);
-app.use("/api/v1/reservations", subscriptionGuard, reservationRoutes);
-app.use("/api/v1/waiting-list", subscriptionGuard, waitingListRoutes);
-app.use("/api/v1/payments", subscriptionGuard, paymentRoutes);
-app.use("/api/v1/notifications", subscriptionGuard, notificationRoutes);
-app.use("/api/v1/documents", subscriptionGuard, documentRoutes);
-app.use("/api/v1/activity-logs", subscriptionGuard, activityLogRoutes);
-app.use("/api/v1/reports", subscriptionGuard, reportRoutes);
-app.use("/api/v1/negotiations", subscriptionGuard, negotiationRoutes);
-app.use("/api/v1/agent", subscriptionGuard, agentRoutes);
+// Routes — subscriptionGuard runs inside each router after resolveTenant (see middleware order)
+app.use("/api/v1/units", unitRoutes);
+app.use("/api/v1/projects", projectRoutes);
+app.use("/api/v1/reservations", reservationRoutes);
+app.use("/api/v1/waiting-list", waitingListRoutes);
+app.use("/api/v1/payments", paymentRoutes);
+app.use("/api/v1/notifications", notificationRoutes);
+app.use("/api/v1/documents", documentRoutes);
+app.use("/api/v1/activity-logs", activityLogRoutes);
+app.use("/api/v1/reports", reportRoutes);
+app.use("/api/v1/negotiations", negotiationRoutes);
+app.use("/api/v1/agent", agentRoutes);
 app.use(
   "/api/v1/potential-customers",
-  subscriptionGuard,
   resolveTenant,
+  subscriptionGuard,
   authenticate,
   requireRole("agent", "manager", "admin", "super_admin"),
   potentialCustomerRoutes,
 );
-app.use("/api/v1/manager", subscriptionGuard, managerRoutes);
-app.use("/api/v1/admin", subscriptionGuard, adminRoutes);
-app.use(
-  "/api/v1/plugins",
-  subscriptionGuard,
-  pluginRoutes,
-);
+app.use("/api/v1/manager", managerRoutes);
+app.use("/api/v1/admin", adminRoutes);
+app.use("/api/v1/plugins", pluginRoutes);
 
 // Health check + sitemap hint
 app.get("/health", (_req, res) => res.json({ ok: true, service: "aqarify-api", version: "1.0.0" }));

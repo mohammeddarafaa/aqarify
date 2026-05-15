@@ -24,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { appendTenantSearch } from "@/lib/tenant-path";
+import { useTenantMoney } from "@/hooks/use-tenant-money";
 import { KpiCard } from "@/components/shared/kpi-card";
 import {
   type ReservationStatusBadgeVariant,
@@ -64,6 +65,7 @@ export default function CustomerDashboardPage() {
   const withTenant = (path: string) => appendTenantSearch(pathname, search, path);
   const user = useAuthStore((s) => s.user);
   const tenant = useTenantStore((s) => s.tenant);
+  const { formatMoney } = useTenantMoney();
   const { data: reservations = [], isLoading: resLoading } = useMyReservations();
   const { data: waitingEntries = [] } = useMyWaitingEntries();
   const bestWaitlist = [...waitingEntries].sort((a, b) => a.position - b.position)[0];
@@ -137,7 +139,7 @@ export default function CustomerDashboardPage() {
           <KpiCard title="إجمالي حجوزاتي" value={reservations.length} icon={Home} />
           <KpiCard
             title="إجمالي ما دفعته"
-            value={`${totalPaidSum.toLocaleString("ar-EG")} ج.م`}
+            value={formatMoney(totalPaidSum)}
             subtitle={
               paidInstallmentCount > 0 ? `${paidInstallmentCount} دفعة مسجَّلة` : "لم تُسجَّل دفعات بعد"
             }
@@ -155,7 +157,7 @@ export default function CustomerDashboardPage() {
           />
           <KpiCard
             title="القسط القادم"
-            value={nextPayment ? `${nextPayment.amount.toLocaleString("ar-EG")} ج.م` : "لا يوجد"}
+            value={nextPayment ? formatMoney(nextPayment.amount) : "لا يوجد"}
             subtitle={
               nextPayment
                 ? `خلال ${daysUntilNext} يوم`
@@ -237,7 +239,7 @@ export default function CustomerDashboardPage() {
                           {new Date(r.created_at).toLocaleDateString("ar-EG")}
                         </TableCell>
                         <TableCell className="font-medium">
-                          {r.total_price?.toLocaleString("ar-EG")} ج.م
+                          {r.total_price != null ? formatMoney(r.total_price) : "—"}
                         </TableCell>
                         <TableCell />
                       </TableRow>
@@ -281,12 +283,7 @@ export default function CustomerDashboardPage() {
                         {days === 0 ? "اليوم" : `خلال ${days} يوم`}
                       </Badge>
                     </div>
-                    <p className="text-2xl font-bold text-primary">
-                      {p.amount.toLocaleString("ar-EG")}{" "}
-                      <span className="text-sm font-normal text-muted-foreground">
-                        ج.م
-                      </span>
-                    </p>
+                    <p className="text-2xl font-bold text-primary">{formatMoney(p.amount)}</p>
                   </div>
                 );
               })}

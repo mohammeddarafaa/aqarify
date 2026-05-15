@@ -108,17 +108,25 @@ export function UnitCard({ unit }: UnitCardProps) {
             >
               <Share2Icon className="size-4" />
             </button>
-            <button
-              type="button"
-              className={cn(
-                "grid size-10 place-items-center rounded-full border border-white/25 bg-white/15 text-white backdrop-blur transition-colors hover:bg-white/25",
-                isCompared && "bg-white text-foreground",
-              )}
-              aria-label="Compare"
-              onClick={onCompare}
-            >
-              <HomeIcon className={cn("size-4", isCompared && "fill-current")} />
-            </button>
+            <span className="group/compare-tip relative inline-flex">
+              <button
+                type="button"
+                className={cn(
+                  "grid size-10 place-items-center rounded-full border border-white/25 bg-white/15 text-white backdrop-blur transition-colors hover:bg-white/25",
+                  isCompared && "bg-white text-foreground",
+                )}
+                aria-label={isCompared ? "Remove from compare" : "Add to compare"}
+                onClick={onCompare}
+              >
+                <HomeIcon className={cn("size-4", isCompared && "fill-current")} />
+              </button>
+              <span
+                role="tooltip"
+                className="pointer-events-none absolute end-full top-1/2 z-30 me-2 -translate-y-1/2 whitespace-nowrap rounded-lg bg-foreground px-2.5 py-1.5 text-xs font-medium text-background opacity-0 shadow-lg transition-opacity duration-150 group-hover/compare-tip:opacity-100"
+              >
+                {isCompared ? "Remove from compare" : "Add to compare"}
+              </span>
+            </span>
           </div>
 
           <div className="absolute inset-x-0 bottom-0 p-5 text-white">

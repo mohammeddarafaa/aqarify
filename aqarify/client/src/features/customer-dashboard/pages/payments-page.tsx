@@ -11,6 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Download, CreditCard, Receipt } from "lucide-react";
 import { DataTableShell } from "@/components/shared/data-table-shell";
 import { appendTenantSearch } from "@/lib/tenant-path";
+import { useTenantMoney } from "@/hooks/use-tenant-money";
+import { paymobIframeCheckoutUrl } from "@/lib/paymob";
 
 type Payment = {
   id: string;
@@ -73,6 +75,7 @@ export default function PaymentsPage() {
   const [searchValue, setSearchValue] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const { pathname, search } = useLocation();
+  const { formatMoney } = useTenantMoney();
   const withTenant = (path: string) => appendTenantSearch(pathname, search, path);
   const { data: payments = [], isLoading } = useQuery<Payment[]>({
     queryKey: ["customer-payments"],
@@ -89,7 +92,7 @@ export default function PaymentsPage() {
     },
     onSuccess: (data) => {
       if (data.payment_key && data.iframe_id) {
-        window.location.href = `https://accept.paymob.com/api/acceptance/iframes/${data.iframe_id}?payment_token=${data.payment_key}`;
+        window.location.href = paymobIframeCheckoutUrl(data.iframe_id, data.payment_key);
       } else {
         toast.error("لم يتم إعداد بوابة الدفع. تواصل مع المبيعات.");
       }
@@ -131,7 +134,7 @@ export default function PaymentsPage() {
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Receipt className="h-4 w-4 text-primary" /> إجمالي ما دفعته
               </div>
-              <p className="text-xl font-bold tabular-nums">{totalPaid.toLocaleString("ar-EG")} ج.م</p>
+              <p className="text-xl font-bold tabular-nums">{formatMoney(totalPaid)}</p>
               <p className="text-[11px] text-muted-foreground">
                 مجموع المبالغ المسجَّلة «مدفوع» من جدولة الأقساط
               </p>
@@ -140,7 +143,7 @@ export default function PaymentsPage() {
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <CreditCard className="h-4 w-4" /> المتبقي (قيد / متأخر)
               </div>
-              <p className="text-xl font-bold tabular-nums">{totalDue.toLocaleString("ar-EG")} ج.م</p>
+              <p className="text-xl font-bold tabular-nums">{formatMoney(totalDue)}</p>
             </div>
             <div className="rounded-xl border bg-card p-4 space-y-1 col-span-2 sm:col-span-1">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -237,13 +240,10 @@ export default function PaymentsPage() {
                 accessorKey: "amount",
                 header: "المبلغ",
                 cell: ({ row }) => (
-                  <span className="font-medium">
-                    {row.original.amount.toLocaleString("ar-EG")} ج.م
-                  </span>
+                  <span className="font-medium">{formatMoney(row.original.amount)}</span>
                 ),
                 meta: {
-                  csvValue: (row: Payment) =>
-                    `${row.amount.toLocaleString("ar-EG")} ج.م`,
+                  csvValue: (row: Payment) => formatMoney(row.amount),
                 },
               },
               {

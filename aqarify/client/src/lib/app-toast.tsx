@@ -1,12 +1,18 @@
 import type { ReactNode } from "react";
 import {
   AlertTriangleIcon,
+  BellIcon,
   CircleCheckIcon,
   CircleXIcon,
   InfoIcon,
   Loader2Icon,
 } from "lucide-react";
 import hotToast, { Toaster, type Renderable, type ToastOptions } from "react-hot-toast";
+import {
+  PushNotificationContent,
+  PushNotificationIconFrame,
+  type PushVariant,
+} from "@/components/ui/push-notification";
 import { cn } from "@/lib/utils";
 
 /** Extra options on top of react-hot-toast. */
@@ -15,113 +21,119 @@ export type AppToastOptions = Omit<ToastOptions, "duration"> & {
   description?: string;
   /** Use `false` to keep the toast until dismissed */
   duration?: number | false;
+  /** Shown top-right (e.g. `now`, or a short relative time). */
+  time?: string;
 };
+
+type ToastRest = Omit<AppToastOptions, "description" | "time">;
 
 const shell: ToastOptions["style"] = {
   boxShadow:
     "0 10px 40px -10px color-mix(in oklch, var(--color-foreground) 12%, transparent), 0 4px 12px color-mix(in oklch, var(--color-foreground) 6%, transparent)",
 };
 
-const baseToastClass = cn(
-  "!min-w-[min(100vw-2rem,22rem)] !max-w-[min(100vw-2rem,26rem)]",
-  "!rounded-2xl !px-4 !py-3.5",
-  "!border !border-[var(--color-border)]",
-  "!bg-[color-mix(in_oklch,var(--color-card)_88%,transparent)]",
-  "!text-[var(--color-card-foreground)]",
+/** Outer pill: icon + text columns (theme colors, frosted card). */
+const pushBannerShellClass = cn(
+  "!flex !items-start !gap-3",
+  "!min-w-[min(100vw-2rem,22rem)] !max-w-[min(100vw-2rem,28rem)]",
+  "!rounded-[28px] !border !border-[var(--color-border)] !px-3.5 !py-3",
+  "!bg-[color-mix(in_oklch,var(--color-card)_88%,transparent)] !text-[var(--color-card-foreground)]",
   "!backdrop-blur-xl !backdrop-saturate-150",
   "dark:!bg-[color-mix(in_oklch,var(--color-card)_75%,transparent)]",
   "!font-sans !text-sm !leading-snug",
 );
 
-const variantClass = {
-  success: "!border-l-[3px] !border-l-[var(--status-success)] !pl-3.5",
-  error: "!border-l-[3px] !border-l-[var(--status-error)] !pl-3.5",
-  info: "!border-l-[3px] !border-l-[var(--status-info)] !pl-3.5",
-  warning: "!border-l-[3px] !border-l-[var(--status-warning)] !pl-3.5",
-  loading: "!border-l-[3px] !border-l-[var(--color-foreground)] !pl-3.5",
-  neutral: "!border-l-[3px] !border-l-[var(--color-border)] !pl-3.5",
-} as const;
+const baseToastClass = cn(
+  pushBannerShellClass,
+  "[&>div:last-child]:min-w-0 [&>div:last-child]:flex-1",
+);
 
-function renderBody(title: ReactNode, description?: string): Renderable {
-  if (!description) return title === undefined ? "" : (title as Renderable);
+function renderBody(
+  title: ReactNode,
+  description?: string,
+  timeLabel?: string,
+): Renderable {
+  if (title === undefined || title === "") return "";
   return (
-    <div className="flex flex-col gap-1">
-      <span className="font-semibold tracking-tight text-[var(--color-foreground)]">{title}</span>
-      <span className="text-xs font-normal text-[var(--color-muted-foreground)]">{description}</span>
-    </div>
+    <PushNotificationContent
+      title={title}
+      description={description}
+      time={timeLabel ?? "now"}
+    />
   );
 }
 
 function hotOpts(
-  variant: keyof typeof variantClass,
+  _variant: PushVariant,
   baseDuration: number,
-  rest?: Omit<AppToastOptions, "description">,
+  rest?: ToastRest,
 ): ToastOptions {
   const { className, duration, style, ...toastRest } = rest ?? {};
   return {
     ...toastRest,
     duration: duration === false ? Infinity : (duration ?? baseDuration),
-    className: cn(baseToastClass, variantClass[variant], className),
+    className: cn(baseToastClass, className),
     style: { ...shell, ...style },
   };
 }
 
+function iconFrame(variant: PushVariant, node: ReactNode) {
+  return <PushNotificationIconFrame variant={variant}>{node}</PushNotificationIconFrame>;
+}
+
 /**
- * App toasts (react-hot-toast) — consistent styling, titles + descriptions,
- * loading, promises, and actions.
+ * App toasts (react-hot-toast) — push-style banner: squircle icon, title + body, timestamp.
  */
 export const toast = {
   success: (message: string, extra?: AppToastOptions) => {
-    const { description, ...rest } = extra ?? {};
-    return hotToast.success(renderBody(message, description), {
+    const { description, time, ...rest } = extra ?? {};
+    return hotToast.success(renderBody(message, description, time), {
       ...hotOpts("success", 4200, rest),
-      icon: (
-        <CircleCheckIcon
-          className="size-5 shrink-0 text-[var(--status-success)]"
-          aria-hidden
-        />
+      icon: iconFrame(
+        "success",
+        <CircleCheckIcon className="size-5 shrink-0" aria-hidden />,
       ),
     });
   },
 
   error: (message: string, extra?: AppToastOptions) => {
-    const { description, ...rest } = extra ?? {};
-    return hotToast.error(renderBody(message, description), {
+    const { description, time, ...rest } = extra ?? {};
+    return hotToast.error(renderBody(message, description, time), {
       ...hotOpts("error", 7200, rest),
-      icon: (
-        <CircleXIcon className="size-5 shrink-0 text-[var(--status-error)]" aria-hidden />
+      icon: iconFrame(
+        "error",
+        <CircleXIcon className="size-5 shrink-0" aria-hidden />,
       ),
     });
   },
 
   info: (message: string, extra?: AppToastOptions) => {
-    const { description, ...rest } = extra ?? {};
-    return hotToast(renderBody(message, description), {
+    const { description, time, ...rest } = extra ?? {};
+    return hotToast(renderBody(message, description, time), {
       ...hotOpts("info", 5200, rest),
-      icon: <InfoIcon className="size-5 shrink-0 text-[var(--status-info)]" aria-hidden />,
+      icon: iconFrame("info", <InfoIcon className="size-5 shrink-0" aria-hidden />),
     });
   },
 
   warning: (message: string, extra?: AppToastOptions) => {
-    const { description, ...rest } = extra ?? {};
-    return hotToast(renderBody(message, description), {
+    const { description, time, ...rest } = extra ?? {};
+    return hotToast(renderBody(message, description, time), {
       ...hotOpts("warning", 8200, rest),
-      icon: (
-        <AlertTriangleIcon className="size-5 shrink-0 text-[var(--status-warning)]" aria-hidden />
+      icon: iconFrame(
+        "warning",
+        <AlertTriangleIcon className="size-5 shrink-0" aria-hidden />,
       ),
     });
   },
 
   /** Indeterminate loading; dismiss or replace by resolving a promise with `promise()` */
   loading: (message: string, extra?: AppToastOptions) => {
-    const { description, ...rest } = extra ?? {};
-    return hotToast.loading(renderBody(message, description), {
+    const { description, time, ...rest } = extra ?? {};
+    return hotToast.loading(renderBody(message, description, time), {
       ...hotOpts("loading", Infinity, rest),
-      icon: (
-        <Loader2Icon
-          className="size-5 shrink-0 animate-spin text-[var(--color-foreground)]"
-          aria-hidden
-        />
+      icon: iconFrame(
+        "loading",
+        <Loader2Icon className="size-5 shrink-0 animate-spin" aria-hidden />,
       ),
     });
   },
@@ -135,28 +147,54 @@ export const toast = {
     },
     extra?: AppToastOptions,
   ) => {
-    const { description, ...rest } = extra ?? {};
+    const { description, time, ...rest } = extra ?? {};
     return hotToast.promise(
       promise,
       {
-        loading: renderBody(messages.loading, description),
+        loading: renderBody(messages.loading, description, time),
         success: (data) =>
           renderBody(
             typeof messages.success === "function" ? messages.success(data) : messages.success,
+            undefined,
+            time,
           ) as Renderable,
         error: (err) =>
           renderBody(
             typeof messages.error === "function" ? messages.error(err) : messages.error,
+            undefined,
+            time,
           ) as Renderable,
       },
-      hotOpts("neutral", 4800, rest),
+      {
+        loading: {
+          ...hotOpts("loading", Infinity, rest),
+          icon: iconFrame(
+            "loading",
+            <Loader2Icon className="size-5 shrink-0 animate-spin" aria-hidden />,
+          ),
+        },
+        success: {
+          ...hotOpts("success", 4200, rest),
+          icon: iconFrame(
+            "success",
+            <CircleCheckIcon className="size-5 shrink-0" aria-hidden />,
+          ),
+        },
+        error: {
+          ...hotOpts("error", 7200, rest),
+          icon: iconFrame("error", <CircleXIcon className="size-5 shrink-0" aria-hidden />),
+        },
+      },
     );
   },
 
   /** Title + optional description without a status icon */
   message: (title: string, extra?: AppToastOptions) => {
-    const { description, ...rest } = extra ?? {};
-    return hotToast(renderBody(title, description), hotOpts("neutral", 4500, rest));
+    const { description, time, ...rest } = extra ?? {};
+    return hotToast(renderBody(title, description, time), {
+      ...hotOpts("neutral", 4500, rest),
+      icon: iconFrame("neutral", <BellIcon className="size-5 shrink-0" aria-hidden />),
+    });
   },
 
   /** Primary action button; stays until tap or duration */
@@ -165,20 +203,20 @@ export const toast = {
     act: { label: string; onClick: () => void },
     extra?: AppToastOptions,
   ) => {
-    const { description, className, style, id, position, duration: dur } = extra ?? {};
+    const { description, time, className, style, id, position, duration: dur } = extra ?? {};
     const duration = dur === false ? Infinity : (dur ?? 12_000);
     return hotToast.custom(
       (t) => (
         <div
-          className={cn(
-            baseToastClass,
-            variantClass.neutral,
-            "flex items-start gap-3 shadow-xl",
-            className,
-          )}
+          className={cn(pushBannerShellClass, "!items-center shadow-xl", className)}
           style={{ ...shell, ...style }}
         >
-          <div className="min-w-0 flex-1">{renderBody(title, description)}</div>
+          <PushNotificationContent
+            title={title}
+            description={description}
+            time={time ?? "now"}
+            className="min-w-0 flex-1"
+          />
           <button
             type="button"
             className="shrink-0 rounded-full bg-[var(--color-foreground)] px-3 py-1.5 text-xs font-semibold text-[var(--color-background)] transition-opacity hover:opacity-90"
@@ -213,7 +251,7 @@ export function AppToaster({ topOffset = 24 }: { topOffset?: number }) {
       toastOptions={{
         duration: 4500,
         style: shell,
-        className: cn(baseToastClass, variantClass.neutral),
+        className: baseToastClass,
       }}
     />
   );

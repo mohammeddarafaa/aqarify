@@ -1,14 +1,14 @@
 import type { Response, NextFunction } from "express";
-import type { AuthenticatedRequest } from "./auth";
+import type { TenantRequest } from "./tenant";
 import { supabaseAdmin } from "../config/supabase";
 import { sendError } from "../utils/response";
 
 export const SUBSCRIPTION_EXPIRED = "SUBSCRIPTION_EXPIRED";
 
-// Blocks non-GET requests for tenants whose subscription has lapsed.
+// Runs after resolveTenant. Blocks non-GET requests for tenants whose subscription has lapsed.
 // Reads are always allowed so the public portal still renders in read-only mode.
 export async function subscriptionGuard(
-  req: AuthenticatedRequest,
+  req: TenantRequest,
   res: Response,
   next: NextFunction
 ) {

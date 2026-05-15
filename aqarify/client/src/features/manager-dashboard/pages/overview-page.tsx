@@ -12,6 +12,8 @@ import { PeriodSelector } from "@/components/shared/period-selector";
 import { PillBarChart } from "@/components/shared/pill-bar-chart";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/format";
+import { useTenantStore } from "@/stores/tenant.store";
 import { useMemo, useState } from "react";
 
 type DashData = {
@@ -19,6 +21,32 @@ type DashData = {
   reservations: { total: number; confirmed?: number; pending?: number; cancelled?: number };
   revenue: { total: number };
   leads: { total: number; new?: number };
+  financial?: {
+    avg_sale_this_month: number;
+    avg_sale_last_month: number;
+    avg_sale_delta: number;
+    revenue_this_month: number;
+    revenue_last_month: number;
+    revenue_delta: number;
+    confirmed_this_month: number;
+  };
+  activity_chart?: { day: number; value: number }[];
+  trends?: { deals_mom_pct: number; revenue_mom_pct: number };
+};
+
+type ReservationItem = {
+  id: string;
+  status: string;
+  total_price: number;
+  created_at: string;
+  units?: {
+    unit_number: string;
+    type: string;
+    gallery?: string[] | null;
+    project?: { name: string } | null;
+  };
+  users?: { full_name: string; email: string; phone: string };
+  assigned_agent?: { full_name: string } | null;
 };
 
 type PropertyRow = {
@@ -31,6 +59,20 @@ type PropertyRow = {
   views: string;
   status: "available" | "reserved" | "sold";
 };
+
+const PLACEHOLDER_IMG =
+  "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1000&q=80";
+
+function reservationToBadgeStatus(status: string): PropertyRow["status"] {
+  if (status === "confirmed") return "sold";
+  if (status === "pending") return "reserved";
+  return "available";
+}
+
+function unitImage(gallery: string[] | null | undefined): string {
+  const first = gallery?.find((u) => typeof u === "string" && u.length > 0);
+  return first ?? PLACEHOLDER_IMG;
+}
 
 function MetricCard({
   title,
@@ -76,71 +118,54 @@ function MetricCard({
 
 export default function ManagerOverviewPage() {
   const [period, setPeriod] = useState<"daily" | "weekly" | "monthly">("monthly");
+  const lang = useTenantStore((s) => {
+    const l = s.tenant?.default_locale ?? "ar-EG";
+    return l.startsWith("ar") ? "ar" : "en";
+  });
+  const currency = useTenantStore((s) => s.tenant?.currency ?? s.tenant?.fallback_currency ?? "EGP");
+
   const { data, isLoading } = useQuery<DashData>({
     queryKey: ["manager-dashboard"],
     queryFn: async () => (await api.get("/manager/dashboard")).data.data,
   });
 
-  const chartData = useMemo(
-    () => [
-      { day: 1, value: 17 },
-      { day: 2, value: 12 },
-      { day: 3, value: 22 },
-      { day: 4, value: 27 },
-      { day: 5, value: 14 },
-      { day: 6, value: 21 },
-      { day: 7, value: 30 },
-      { day: 8, value: 18 },
-      { day: 9, value: 25 },
-      { day: 10, value: 16 },
-      { day: 11, value: 28 },
-      { day: 12, value: 36 },
-      { day: 13, value: 33 },
-      { day: 14, value: 24 },
-      { day: 15, value: 23 },
-      { day: 16, value: 42 },
-      { day: 17, value: 35 },
-    ],
-    [],
-  );
+  const { data: reservationPayload } = useQuery({
+    queryKey: ["manager-reservations", "overview"],
+    queryFn: async () => {
+      const r = await api.get("/manager/reservations?page=1&limit=12");
+      return r.data.data as { items: ReservationItem[] };
+    },
+  });
 
-  const propertyImage = "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1000&q=80";
+  const chartData = data?.activity_chart ?? [];
+  const activeChartDay = useMemo(() => {
+    if (!chartData.length) return undefined;
+    const today = new Date().getDate();
+    if (chartData.some((d) => d.day === today)) return today;
+    let best = chartData[0]!;
+    for (const d of chartData) {
+      if (d.value > best.value) best = d;
+    }
+    return best.day;
+  }, [chartData]);
 
-  const rows = useMemo<PropertyRow[]>(
-    () => [
-      {
-        property: "Green Oasis Residence",
-        address: "3284 Skyview Lane, WA 98001",
-        imageUrl: propertyImage,
-        type: "Apartments",
-        agent: "John K.",
-        cost: "$ 692,000",
-        views: "1251 views",
-        status: "available",
-      },
-      {
-        property: "Limeyard West",
-        address: "16 Park Avenue, New Cairo",
-        imageUrl: "https://images.unsplash.com/photo-1600566752355-35792bedcfea?auto=format&fit=crop&w=1000&q=80",
-        type: "Office",
-        agent: "Nour A.",
-        cost: "$ 518,300",
-        views: "884 views",
-        status: "reserved",
-      },
-      {
-        property: "Skyline Atrium",
-        address: "41 Midtown Walk, Cairo",
-        imageUrl: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1000&q=80",
-        type: "Villa",
-        agent: "Youssef M.",
-        cost: "$ 1,210,000",
-        views: "642 views",
-        status: "sold",
-      },
-    ],
-    [propertyImage],
-  );
+  const rows: PropertyRow[] = useMemo(() => {
+    const items = reservationPayload?.items ?? [];
+    return items.map((r) => {
+      const projectName = r.units?.project?.name ?? "—";
+      const unitNo = r.units?.unit_number?.trim() ?? "";
+      return {
+        property: unitNo ? `${projectName} · ${unitNo}` : projectName,
+        address: r.users?.phone ?? r.users?.email ?? "—",
+        imageUrl: unitImage(r.units?.gallery ?? undefined),
+        type: r.units?.type ?? "—",
+        agent: r.assigned_agent?.full_name?.trim() || "—",
+        cost: formatCurrency(Number(r.total_price) || 0, currency, lang),
+        views: "—",
+        status: reservationToBadgeStatus(r.status),
+      };
+    });
+  }, [reservationPayload?.items, currency, lang]);
 
   const columns = useMemo<ColumnDef<PropertyRow>[]>(
     () => [
@@ -180,6 +205,40 @@ export default function ManagerOverviewPage() {
     [],
   );
 
+  const bestReservation = useMemo(() => {
+    const items = [...(reservationPayload?.items ?? [])];
+    items.sort((a, b) => (Number(b.total_price) || 0) - (Number(a.total_price) || 0));
+    return items[0];
+  }, [reservationPayload?.items]);
+
+  const bestTitle = bestReservation
+    ? `${bestReservation.units?.project?.name ?? "—"}${bestReservation.units?.unit_number ? ` · ${bestReservation.units.unit_number}` : ""}`
+    : "—";
+
+  const fin = data?.financial;
+  const avgDelta = fin?.avg_sale_delta ?? 0;
+  const avgDeltaAbs = formatCurrency(Math.abs(avgDelta), currency, lang);
+  const avgComparison =
+    avgDelta > 0
+      ? `${avgDeltaAbs} more than last month`
+      : avgDelta < 0
+        ? `${avgDeltaAbs} less than last month`
+        : "Same as last month";
+
+  const confirmedProgress = data?.reservations.total
+    ? Math.min(100, Math.round(((data.reservations.confirmed ?? 0) / data.reservations.total) * 100))
+    : 0;
+  const pendingProgress = data?.reservations.total
+    ? Math.min(100, Math.round(((data.reservations.pending ?? 0) / data.reservations.total) * 100))
+    : 0;
+
+  const revenueCollected = formatCurrency(data?.revenue.total ?? 0, currency, lang);
+  const reservedUnitsSubtitle = `${data?.units.reserved ?? 0} reserved units`;
+  const dealsTrend = data?.trends?.deals_mom_pct ?? 0;
+  const revenueTrend = data?.trends?.revenue_mom_pct ?? 0;
+
+  const dealsThisMonth = fin?.confirmed_this_month ?? 0;
+
   return (
     <>
       <Helmet>
@@ -196,28 +255,28 @@ export default function ManagerOverviewPage() {
 
         <div className="grid gap-4 xl:grid-cols-12">
           <div className="grid gap-4 sm:grid-cols-2 xl:col-span-6">
-            {isLoading
-              ? Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-44 rounded-[2rem]" />)
-              : (
-                <>
-                  <KpiCard
-                    title="Apartments sold"
-                    value={`$ ${(data ? data.revenue.total : 512927).toLocaleString()}`}
-                    subtitle={`${data?.reservations.confirmed ?? 0} confirmed reservations`}
-                    progress={82}
-                    progressColor="lime"
-                    icon={Building2}
-                  />
-                  <KpiCard
-                    title="Apartments rented"
-                    value={`$ ${(data ? (data.units.reserved ?? 0) * 120000 : 360494).toLocaleString()}`}
-                    subtitle={`${data?.units.reserved ?? 0} reserved units`}
-                    progress={64}
-                    progressColor="striped"
-                    icon={ClipboardCheck}
-                  />
-                </>
-              )}
+            {isLoading ? (
+              Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-44 rounded-[2rem]" />)
+            ) : (
+              <>
+                <KpiCard
+                  title="Collected payments"
+                  value={revenueCollected}
+                  subtitle={`${data?.reservations.confirmed ?? 0} confirmed reservations`}
+                  progress={confirmedProgress}
+                  progressColor="lime"
+                  icon={Building2}
+                />
+                <KpiCard
+                  title="Reserved units"
+                  value={String(data?.units.reserved ?? 0)}
+                  subtitle={reservedUnitsSubtitle}
+                  progress={pendingProgress}
+                  progressColor="striped"
+                  icon={ClipboardCheck}
+                />
+              </>
+            )}
           </div>
 
           <div className="xl:col-span-6">
@@ -225,27 +284,59 @@ export default function ManagerOverviewPage() {
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 xl:col-span-4 xl:grid-cols-1">
-            <MetricCard title="Completed Deals" label="This month" value={(data?.reservations.total ?? 1269).toLocaleString()} trend={{ direction: "down", value: 36 }} />
-            <MetricCard title="Total Revenue" label="This month" value="$ 873,421.39" trend={{ direction: "up", value: 49 }} />
+            <MetricCard
+              title="Deals (confirmed)"
+              label="This month"
+              value={dealsThisMonth.toLocaleString()}
+              trend={{
+                direction: dealsTrend >= 0 ? "up" : "down",
+                value: Math.abs(Math.round(dealsTrend)),
+              }}
+            />
+            <MetricCard
+              title="Reservation value"
+              label="This month"
+              value={formatCurrency(fin?.revenue_this_month ?? 0, currency, lang)}
+              trend={{
+                direction: revenueTrend >= 0 ? "up" : "down",
+                value: Math.abs(Math.round(revenueTrend)),
+              }}
+            />
           </div>
 
           <div className="xl:col-span-3">
-            <BestPropertyCard title="Green Oasis Residence" totalSales="124" totalVisits="539" imageUrl={propertyImage} />
+            {bestReservation ? (
+              <BestPropertyCard
+                title={bestTitle}
+                totalSales={formatCurrency(Number(bestReservation.total_price) || 0, currency, lang)}
+                totalVisits={String(data?.leads.total ?? 0)}
+                imageUrl={unitImage(bestReservation.units?.gallery ?? undefined)}
+              />
+            ) : (
+              <div className="flex min-h-[320px] items-center justify-center rounded-[2rem] border border-dashed border-border/70 p-6 text-center text-sm text-muted-foreground">
+                No reservations yet
+              </div>
+            )}
           </div>
 
           <section className="rounded-[2rem] border border-border/70 bg-card/70 p-6 shadow-[0_24px_70px_-55px_rgb(20_20_20/.65)] xl:col-span-5">
             <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold">Average Sale Value</p>
+                <p className="text-sm font-semibold">Average sale value</p>
                 <p className="mt-8 text-sm text-muted-foreground">This month</p>
                 <div className="mt-1 flex flex-wrap items-baseline gap-4">
-                  <span className="text-2xl font-medium">$ 873,421.39</span>
-                  <span className="text-sm text-muted-foreground">$125,458.24 more than last month</span>
+                  <span className="text-2xl font-medium">
+                    {formatCurrency(fin?.avg_sale_this_month ?? 0, currency, lang)}
+                  </span>
+                  <span className="text-sm text-muted-foreground">{avgComparison}</span>
                 </div>
               </div>
-              <PeriodSelector value="daily" onValueChange={() => undefined} />
             </div>
-            <PillBarChart data={chartData} activeDay={17} height={210} />
+            <PillBarChart
+              data={chartData.length ? chartData : [{ day: 1, value: 0 }]}
+              activeDay={activeChartDay}
+              height={210}
+            />
           </section>
         </div>
 

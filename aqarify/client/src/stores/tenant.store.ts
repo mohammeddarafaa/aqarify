@@ -61,6 +61,8 @@ export interface Tenant {
   bank_account_number?: string | null;
   bank_account_holder?: string | null;
   status?: TenantStatus;
+  /** Present when loaded from admin APIs; null until onboarding is finished. */
+  onboarding_completed_at?: string | null;
 }
 
 interface TenantState {

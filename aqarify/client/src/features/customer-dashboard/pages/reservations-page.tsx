@@ -4,6 +4,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMyReservations } from "@/features/reservation/hooks/use-reservation";
 import { Badge } from "@/components/ui/badge";
 import { appendTenantSearch } from "@/lib/tenant-path";
+import { useTenantMoney } from "@/hooks/use-tenant-money";
 import { useMemo, useState } from "react";
 import { DataTableShell } from "@/components/shared/data-table-shell";
 import {
@@ -27,6 +28,7 @@ export default function ReservationsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const { data: reservations = [], isLoading } = useMyReservations();
   const { pathname, search } = useLocation();
+  const { formatMoney } = useTenantMoney();
   const withTenant = (path: string) => appendTenantSearch(pathname, search, path);
   const filtered = useMemo(() => {
     return reservations.filter((r) => {
@@ -90,9 +92,7 @@ export default function ReservationsPage() {
               accessorKey: "total_price",
               header: "المبلغ",
               cell: ({ row }) => (
-                <span className="font-medium">
-                  {row.original.total_price.toLocaleString("ar-EG")} ج.م
-                </span>
+                <span className="font-medium">{formatMoney(row.original.total_price)}</span>
               ),
             },
           ] satisfies ColumnDef<(typeof reservations)[number]>[]}

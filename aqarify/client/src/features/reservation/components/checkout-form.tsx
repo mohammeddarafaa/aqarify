@@ -12,18 +12,15 @@ import type { CheckoutFormData } from "../types";
 import { useTenantStore } from "@/stores/tenant.store";
 import { useAuthStore } from "@/stores/auth.store";
 import { formatCurrency } from "@/lib/format";
+import { isValidPhoneForTenant } from "@/lib/phone";
 
-function buildCheckoutSchema() {
+function buildCheckoutSchema(tenantCountryIso: string | undefined) {
   return z.object({
     full_name: z.string().min(2, "Name is required"),
     email: z.string().email("Invalid email"),
-    phone: z.string().min(1, "Phone is required").refine(
-      (v) => {
-        const clean = v.replace(/[^\d+]/g, "");
-        return clean.length >= 8 && clean.length <= 20;
-      },
-      { message: "Invalid phone number format" },
-    ),
+    phone: z.string().min(1, "Phone is required").refine((v) => isValidPhoneForTenant(v, tenantCountryIso), {
+      message: "Invalid phone number for this region",
+    }),
     payment_method: z.enum(["card", "fawry", "vodafone_cash", "bank_transfer"]),
     notes: z.string().optional(),
   });
@@ -59,7 +56,7 @@ export function CheckoutForm({
   const tenant = useTenantStore((s) => s.tenant);
   const countryCode = tenant?.country_code ?? "EG";
   const currency = tenant?.currency ?? "EGP";
-  const schema = useMemo(() => buildCheckoutSchema(), []);
+  const schema = useMemo(() => buildCheckoutSchema(tenant?.country_code), [tenant?.country_code]);
 
   const user = useAuthStore((s) => s.user);
   const {

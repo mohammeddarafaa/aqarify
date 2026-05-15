@@ -2,14 +2,16 @@ import { Router } from "express";
 import multer from "multer";
 import { z } from "zod";
 import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
+import { subscriptionGuard } from "../middleware/subscriptionGuard";
 import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { requireRole } from "../middleware/rbac";
 import { supabaseAdmin } from "../config/supabase";
 import { sendSuccess, sendError, ERROR_CODES } from "../utils/response";
 import { logger } from "../utils/logger";
+import { logActivity } from "../services/activityLog.service";
 
 export const documentRoutes = Router();
-documentRoutes.use(resolveTenant, authenticate, requireTenant);
+documentRoutes.use(resolveTenant, subscriptionGuard, authenticate, requireTenant);
 const staffRoles = new Set(["agent", "manager", "admin", "super_admin"]);
 
 const upload = multer({
@@ -102,6 +104,15 @@ documentRoutes.post("/upload", upload.single("file"), async (req: TenantRequest 
     }).select().single();
 
     if (error) throw error;
+    await logActivity({
+      tenantId: req.tenantId!,
+      userId: req.userId,
+      action: "document.uploaded",
+      entityType: "document",
+      entityId: data?.id ?? null,
+      details: { type: docType.data, reservation_id: reservationIdRaw || null },
+      ipAddress: req.ip,
+    });
     return sendSuccess(res, data, undefined, 201);
   } catch (err) { return next(err); }
 });
@@ -112,19 +123,28 @@ const reviewSchema = z.object({
   notes: z.string().optional(),
 });
 
-documentRoutes.patch("/:id/review", requireRole("agent", "manager", "admin"), async (req: TenantRequest & AuthenticatedRequest, res, next) => {
+documentRoutes.patch("/:id/review", requireRole("agent", "manager", "admin", "super_admin"), async (req: TenantRequest & AuthenticatedRequest, res, next) => {
   try {
     const parsed = reviewSchema.safeParse(req.body);
     if (!parsed.success) return sendError(res, ERROR_CODES.VALIDATION_ERROR, "Invalid input", 400);
     const { data } = await supabaseAdmin.from("documents")
       .update({ status: parsed.data.status, reviewed_by: req.userId!, notes: parsed.data.notes })
       .eq("id", req.params.id).eq("tenant_id", req.tenantId!).select().single();
+    await logActivity({
+      tenantId: req.tenantId!,
+      userId: req.userId,
+      action: "document.reviewed",
+      entityType: "document",
+      entityId: req.params.id,
+      details: { status: parsed.data.status },
+      ipAddress: req.ip,
+    });
     return sendSuccess(res, data);
   } catch (err) { return next(err); }
 });
 
 // GET /api/v1/documents/pending — agent/manager: all pending docs
-documentRoutes.get("/pending", requireRole("agent", "manager", "admin"), async (req: TenantRequest & AuthenticatedRequest, res, next) => {
+documentRoutes.get("/pending", requireRole("agent", "manager", "admin", "super_admin"), async (req: TenantRequest & AuthenticatedRequest, res, next) => {
   try {
     const { data } = await supabaseAdmin.from("documents")
       .select("*, users!user_id(full_name, email)")

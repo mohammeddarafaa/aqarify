@@ -1,123 +1,32 @@
 import { Router, type Request, type Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
-import { confirmReservation } from "../services/reservation.service";
 import { activateSubscription } from "../services/subscription.service";
-import { verifyPaymobHmac, decrypt } from "../utils/hmac";
+import { verifyPaymobHmac } from "../utils/hmac";
 import { logger } from "../utils/logger";
-
-async function resolveTenantPaymobHmacSecret(tenantId: string): Promise<string> {
-  const envFallback = process.env.PAYMOB_HMAC_SECRET ?? "";
-  const { data: tenant } = await supabaseAdmin
-    .from("tenants")
-    .select("paymob_hmac_secret_enc")
-    .eq("id", tenantId)
-    .maybeSingle();
-
-  if (!tenant?.paymob_hmac_secret_enc) return envFallback;
-  try {
-    return decrypt(tenant.paymob_hmac_secret_enc);
-  } catch (err) {
-    logger.warn("Failed to decrypt tenant Paymob HMAC; falling back to env", err);
-    return envFallback;
-  }
-}
+import { handlePaymobTenantCallback } from "../services/paymobTenantWebhook.handler";
 
 export const webhookRoutes = Router();
 
+/**
+ * Paymob tenant webhook — delegates to {@link handlePaymobTenantCallback}.
+ * Other PSPs: add routes like `/webhooks/konnect/callback` with their own handlers.
+ */
 webhookRoutes.post("/paymob/callback", async (req: Request, res: Response) => {
   try {
-    const hmac = req.query.hmac as string;
-    const payload = req.body?.obj ?? req.body;
-
-    const orderId: string = String(payload.merchant_order_id ?? payload.order?.id ?? "");
-    const txId = String(payload.id);
-    const amountCents = Number(payload.amount_cents ?? 0);
-    const eventKey = `${txId}:${orderId}:${String(payload.success ?? false)}`;
-    const { error: eventErr } = await supabaseAdmin.from("webhook_events").insert({
-      provider: "paymob",
-      event_key: eventKey,
-      payload,
-    });
-    if (eventErr && eventErr.code === "23505") {
-      logger.info(`Duplicate Paymob webhook ignored: ${eventKey}`);
-      return res.json({ received: true });
-    }
-
-    const { data: reservation } = await supabaseAdmin
-      .from("reservations")
-      .select("id, status, tenant_id")
-      .eq("id", orderId)
-      .maybeSingle();
-
-    if (reservation) {
-      const secret = await resolveTenantPaymobHmacSecret(reservation.tenant_id);
-      if (!verifyPaymobHmac(payload, hmac, secret)) {
-        logger.warn("Paymob HMAC mismatch — ignoring request");
-        return res.status(200).json({ received: true });
-      }
-
-      if (!payload.success) return res.json({ received: true });
-
-      if (reservation.status !== "pending") {
-        logger.info(`Webhook skipped: reservation ${reservation.id} already ${reservation.status}`);
-        return res.json({ received: true });
-      }
-      await confirmReservation(reservation.id, txId, amountCents / 100);
-      logger.info(`Webhook confirmed reservation ${reservation.id}`);
-      return res.json({ received: true });
-    }
-
-    const { data: installment } = await supabaseAdmin
-      .from("payments")
-      .select("id, status, tenant_id")
-      .eq("id", orderId)
-      .maybeSingle();
-
-    if (installment) {
-      const secret = await resolveTenantPaymobHmacSecret(installment.tenant_id);
-      if (!verifyPaymobHmac(payload, hmac, secret)) {
-        logger.warn("Paymob HMAC mismatch (installment) — ignoring request");
-        return res.status(200).json({ received: true });
-      }
-
-      if (!payload.success) return res.json({ received: true });
-    }
-
-    if (installment && ["pending", "overdue"].includes(installment.status)) {
-      const { data: updated } = await supabaseAdmin
-        .from("payments")
-        .update({
-          status: "paid",
-          paid_at: new Date().toISOString(),
-          paymob_transaction_id: txId,
-        })
-        .eq("id", installment.id)
-        .eq("status", installment.status)
-        .select("id")
-        .maybeSingle();
-
-      if (updated) {
-        logger.info(`Webhook confirmed installment payment ${installment.id}`);
-      } else {
-        logger.info(`Webhook skipped: installment ${installment.id} already updated`);
-      }
-      return res.json({ received: true });
-    }
-
-    return res.json({ received: true });
+    await handlePaymobTenantCallback(req, res);
   } catch (err) {
     logger.error("Webhook error", err);
-    return res.status(500).json({ error: "webhook failed" });
+    if (!res.headersSent) res.status(500).json({ error: "webhook failed" });
   }
 });
 
 webhookRoutes.post("/paymob/platform", async (req: Request, res: Response) => {
   try {
-    const hmac = req.query.hmac as string;
+    const hmac = String((req.query as { hmac?: string }).hmac ?? "");
     const secret = process.env.AQARIFY_PAYMOB_HMAC_SECRET ?? "";
-    const payload = req.body?.obj ?? req.body;
+    const payload = (req.body as { obj?: Record<string, unknown> })?.obj ?? (req.body as Record<string, unknown>);
 
-    if (!verifyPaymobHmac(payload, hmac, secret)) {
+    if (!secret || !verifyPaymobHmac(payload as Record<string, unknown>, hmac, secret)) {
       logger.warn("Platform Paymob HMAC mismatch — ignoring request");
       return res.status(200).json({ received: true });
     }
@@ -128,11 +37,12 @@ webhookRoutes.post("/paymob/platform", async (req: Request, res: Response) => {
     }
 
     const subscriptionId: string = String(
-      payload.merchant_order_id ?? payload.order?.id ?? "",
+      payload.merchant_order_id ?? (payload.order as { id?: string })?.id ?? "",
     );
-    const txId = String(payload.id);
+    const txId = String(payload.id ?? "");
     const amountEgp = Number(payload.amount_cents ?? 0) / 100;
     const eventKey = `platform:${txId}:${subscriptionId}:${String(payload.success ?? false)}`;
+
     const { error: eventErr } = await supabaseAdmin.from("webhook_events").insert({
       provider: "paymob_platform",
       event_key: eventKey,
@@ -141,6 +51,10 @@ webhookRoutes.post("/paymob/platform", async (req: Request, res: Response) => {
     if (eventErr && eventErr.code === "23505") {
       logger.info(`Duplicate platform webhook ignored: ${eventKey}`);
       return res.json({ received: true });
+    }
+    if (eventErr) {
+      logger.error("Platform webhook_events insert", eventErr);
+      return res.status(500).json({ error: "platform webhook failed" });
     }
 
     if (!subscriptionId) {

@@ -1412,7 +1412,13 @@ export type Database = {
     Enums: {
       billing_cycle: "monthly" | "yearly"
       document_status: "pending" | "approved" | "rejected"
-      document_type: "national_id" | "proof_of_address" | "contract" | "receipt"
+      document_type:
+        | "national_id"
+        | "proof_of_address"
+        | "contract"
+        | "receipt"
+        | "bank_receipt"
+        | "other"
       followup_type:
         | "call"
         | "visit"
@@ -1600,7 +1606,14 @@ export const Constants = {
     Enums: {
       billing_cycle: ["monthly", "yearly"],
       document_status: ["pending", "approved", "rejected"],
-      document_type: ["national_id", "proof_of_address", "contract", "receipt"],
+      document_type: [
+        "national_id",
+        "proof_of_address",
+        "contract",
+        "receipt",
+        "bank_receipt",
+        "other",
+      ],
       followup_type: ["call", "visit", "message", "email", "whatsapp", "other"],
       lead_source: [
         "reservation_cancelled",

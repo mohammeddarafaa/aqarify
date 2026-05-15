@@ -19,6 +19,7 @@ import {
 } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useTenantMoney } from "@/hooks/use-tenant-money";
 
 type SalesReport = {
   confirmed: number;
@@ -56,6 +57,7 @@ function formatEGP(v: number) {
 }
 
 export default function ManagerReportsPage() {
+  const { formatMoney, currency } = useTenantMoney();
   const [period, setPeriod] = useState(30);
   const from = new Date(Date.now() - period * 86400000).toISOString().split("T")[0];
 
@@ -133,9 +135,7 @@ export default function ManagerReportsPage() {
                   />
                   <Tooltip
                     formatter={(v, name) =>
-                      name === "revenue"
-                        ? `${Number(v).toLocaleString("ar-EG")} ج.م`
-                        : v
+                      name === "revenue" ? formatMoney(Number(v)) : v
                     }
                   />
                   <Legend />
@@ -186,13 +186,13 @@ export default function ManagerReportsPage() {
             </div>
 
             <div className="space-y-3 rounded-xl border bg-card p-5">
-              <h2 className="font-semibold">المالية (ج.م)</h2>
+              <h2 className="font-semibold">المالية ({currency})</h2>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={financialBar}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                   <YAxis tickFormatter={formatEGP} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v) => `${Number(v).toLocaleString("ar-EG")} ج.م`} />
+                  <Tooltip formatter={(v) => formatMoney(Number(v))} />
                   <Bar dataKey="value" name="المبلغ" fill="var(--color-foreground)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>

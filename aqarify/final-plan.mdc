@@ -1,0 +1,808 @@
+---
+alwaysApply: true
+---
+Based on the uploaded source-code bundle, I would treat **10/10** as: production-safe multi-tenant SaaS, reliable payments, strong tenant isolation, no fake/demo data, complete tenant onboarding/settings, Arab-world localization, solid tests, monitoring, and polished UX. 
+
+# Roadmap: Aqarify from **6.4/10 → 10/10**
+
+## Target score ladder
+
+| Target    | Meaning                                                                           |
+| --------- | --------------------------------------------------------------------------------- |
+| **7/10**  | Safe private beta for 1–3 trusted tenants                                         |
+| **8/10**  | Production-ready Egypt launch                                                     |
+| **9/10**  | Strong commercial SaaS with onboarding, analytics, tests, monitoring              |
+| **10/10** | Region-ready Arab-world SaaS with polished UX, automation, scale, and reliability |
+
+---
+
+# Phase 1 — Fix launch blockers first
+
+**Goal: 6.4 → 7.2/10**
+**Priority: must do before any real tenant uses it**
+
+## 1. Fix subscription guard / tenant middleware order
+
+Current risk: tenant/subscription enforcement can be bypassed if middleware checks happen before `req.tenantId` is resolved.
+
+### Required outcome
+
+Every protected route should follow this order:
+
+```ts
+resolveTenant → authenticate → subscriptionGuard → requireRole → handler
+```
+
+### Files to audit
+
+```txt
+server/src/index.ts
+server/src/middleware/tenant.ts
+server/src/middleware/subscriptionGuard.ts
+server/src/routes/*.routes.ts
+```
+
+### Acceptance criteria
+
+* Read-only tenant cannot create reservations.
+* Expired tenant cannot mutate units, reservations, documents, payments, or waitlists.
+* Public routes like tenant lookup, landing, units browsing, and projects remain accessible.
+* Automated tests cover active, trial, read-only, suspended, expired tenant states.
+
+---
+
+## 2. Fix database enum/API mismatches
+
+Current risk: the UI/API allows values that the database may reject.
+
+### Must verify/fix
+
+```txt
+document_type:
+  API accepts: bank_receipt, other
+  DB must support them or API must stop sending them
+
+waitlist_status:
+  waiting, cancelled, notified, expired, converted/removed must align
+
+reservation_status:
+  frontend + backend + DB must use one shared list
+```
+
+### Files to audit
+
+```txt
+supabase/supabase/migrations/00001_create_enums.sql
+supabase/supabase/migrations/00031_fix_enums_receipt_followups.sql
+server/src/routes/documents.routes.ts
+server/src/routes/waitingList.routes.ts
+server/src/routes/agent.routes.ts
+client/src/features/reservation/types.ts
+client/src/features/reservations/shared/reservation-status.ts
+```
+
+### Acceptance criteria
+
+* Uploading a bank-transfer receipt succeeds.
+* Joining/cancelling waitlist succeeds.
+* Agent/manager reservation status updates never fail due to invalid enum values.
+* One shared status map exists on frontend.
+
+---
+
+## 3. Fix role mismatch for `super_admin`
+
+Current risk: frontend may show pages/actions to `super_admin`, while backend rejects them.
+
+### Required outcome
+
+`super_admin` should be allowed wherever platform-wide control is expected.
+
+### Files to audit
+
+```txt
+client/src/lib/rbac.ts
+client/src/features/auth/components/protected-route.tsx
+server/src/middleware/rbac.ts
+server/src/routes/manager.routes.ts
+server/src/routes/reports.routes.ts
+server/src/routes/admin.routes.ts
+```
+
+### Acceptance criteria
+
+* `super_admin` can view reports, tenants, manager views, and admin settings.
+* Unauthorized roles receive clean 403 responses.
+* Frontend never shows buttons the backend will reject.
+
+---
+
+## 4. Remove fake/demo dashboard data
+
+Current risk: business dashboards may show misleading revenue, projects, or customer metrics.
+
+### Files to audit
+
+```txt
+client/src/features/manager-dashboard/pages/overview-page.tsx
+client/src/features/manager-dashboard/pages/manager-dashboard-page.tsx
+client/src/features/agent-dashboard/pages/overview-page.tsx
+client/src/features/admin-dashboard/pages/overview-page.tsx
+```
+
+### Acceptance criteria
+
+* No hardcoded revenue.
+* No hardcoded project names.
+* Empty state appears when tenant has no data.
+* All dashboard KPIs come from API.
+
+---
+
+# Phase 2 — Make payments production-safe
+
+**Goal: 7.2 → 8/10**
+**Priority: required before charging real customers**
+
+## 5. Harden Paymob flow
+
+### Required fixes
+
+* Per-tenant `iframe_id`.
+* Per-tenant Paymob API key.
+* Per-tenant HMAC secret.
+* Webhook idempotency.
+* Webhook rate limit.
+* Installment payment flow.
+* Bank-transfer flow.
+* Receipt generation/download.
+
+### Files to audit
+
+```txt
+server/src/routes/reservations.routes.ts
+server/src/routes/payments.routes.ts
+server/src/routes/webhooks.routes.ts
+server/src/services/paymob.service.ts
+server/src/services/paymentGateway.factory.ts
+server/src/services/pdf.service.ts
+client/src/features/reservation/pages/checkout-page.tsx
+client/src/features/customer-dashboard/pages/payments-page.tsx
+client/src/features/reservation/pages/reservation-success-page.tsx
+```
+
+### Acceptance criteria
+
+* Tenant A and Tenant B can use different Paymob credentials.
+* Webhook from Tenant A cannot confirm Tenant B payment.
+* Duplicate webhook does not double-confirm reservation/payment.
+* Failed HMAC is ignored safely.
+* Installment “Pay Now” works.
+* Bank transfer shows tenant bank details and reference number.
+* Receipt PDF is available after confirmed payment.
+
+---
+
+## 6. Add payment-state machine
+
+Right now payment/reservation status can become messy unless every route is perfectly controlled.
+
+### Add explicit state rules
+
+```txt
+reservation:
+pending → confirmed
+pending → cancelled
+pending → expired
+confirmed → cancelled only by admin/manager with audit reason
+
+payment:
+pending → paid
+pending → overdue
+overdue → paid
+paid cannot go back to pending
+```
+
+### Acceptance criteria
+
+* Invalid status transitions return 409.
+* Every transition creates an activity log.
+* Webhook cannot mutate already-finalized records.
+* Tests cover every transition.
+
+---
+
+# Phase 3 — Complete core SaaS product
+
+**Goal: 8 → 8.8/10**
+
+## 7. Build tenant onboarding wizard
+
+This is essential for SaaS. Without it, onboarding requires manual database/admin work.
+
+### Required screens
+
+```txt
+/admin/onboarding/company
+/admin/onboarding/branding
+/admin/onboarding/payments
+/admin/onboarding/project
+/admin/onboarding/units
+/admin/onboarding/launch
+```
+
+### Must support
+
+* Company name, slug, country, currency.
+* Logo/favicon upload.
+* Brand colors.
+* Payment credentials.
+* Bank-transfer details.
+* First project.
+* First units via form or CSV import.
+* Preview tenant website before launch.
+
+### Acceptance criteria
+
+* New tenant can go from signup to live landing page without developer help.
+* Onboarding progress is saved.
+* Tenant remains `pending_signup` until onboarding is complete.
+* Bad payment credentials cannot be saved without warning.
+
+---
+
+## 8. Build full tenant settings
+
+### Required tabs
+
+```txt
+Branding
+Payments
+Bank Transfer
+Team & Roles
+Filters
+Notifications
+Domain
+Billing
+Features
+```
+
+### Files/new module
+
+```txt
+client/src/features/tenant-settings/
+server/src/routes/admin.routes.ts
+server/src/routes/tenants.routes.ts
+```
+
+### Acceptance criteria
+
+* Admin can update branding without deployment.
+* Admin can configure filters shown on browse page.
+* Admin can configure payment settings.
+* Admin can invite/manage team.
+* Admin can configure custom domain.
+* All settings are validated server-side.
+
+---
+
+## 9. Complete CRM for agents
+
+The product should not only sell units; it should help sales teams close deals.
+
+### Missing/needed pages
+
+```txt
+client/src/features/agent-dashboard/pages/agent-customers-page.tsx
+client/src/features/agent-dashboard/pages/agent-customer-profile-page.tsx
+```
+
+### Customer profile tabs
+
+```txt
+Overview
+Reservations
+Payments
+Documents
+Follow-ups
+Negotiations
+Notes
+Activity
+```
+
+### Acceptance criteria
+
+* Agent can see assigned customers.
+* Agent can open customer profile.
+* Agent can add notes/follow-ups.
+* Agent can see reservation/payment history.
+* Manager can see all agent pipelines.
+
+---
+
+## 10. Add schedule-visit backend flow
+
+The frontend has a visit modal, but the backend must support it properly.
+
+### Endpoint
+
+```txt
+POST /api/v1/units/:id/schedule-visit
+```
+
+### Body
+
+```ts
+{
+  date: string;
+  time_slot: string;
+  phone: string;
+  notes?: string;
+}
+```
+
+### Acceptance criteria
+
+* Visitor can request a visit.
+* Existing logged-in user is linked automatically.
+* Lead/follow-up is created.
+* Assigned agent receives notification.
+* Customer receives confirmation.
+
+---
+
+# Phase 4 — Arab-world readiness
+
+**Goal: 8.8 → 9.3/10**
+
+The source already has some tenant country/currency/map fields, but the frontend and business logic still need deeper regional support. 
+
+## 11. Finish multi-currency everywhere
+
+### Required currencies
+
+```txt
+EGP, SAR, AED, KWD, QAR, BHD, OMR, JOD, MAD, TND, DZD
+```
+
+### Files to audit
+
+```txt
+client/src/lib/format.ts
+client/src/components/shared/currency-display.tsx
+client/src/features/*/*
+server/src/services/paymob.service.ts
+server/src/services/report.service.ts
+server/src/routes/payments.routes.ts
+server/src/routes/reservations.routes.ts
+```
+
+### Acceptance criteria
+
+* No hardcoded `ج.م`.
+* No hardcoded `EGP`.
+* KWD/BHD/OMR support 3 decimal places.
+* Reports use tenant currency.
+* Payment gateway receives tenant currency.
+
+---
+
+## 12. Add regional phone validation
+
+### Required
+
+Use `libphonenumber-js` or equivalent validation.
+
+### Acceptance criteria
+
+* Egypt defaults to `+20`.
+* Saudi defaults to `+966`.
+* UAE defaults to `+971`.
+* Country comes from tenant.
+* Invalid phone numbers are rejected before API call.
+
+---
+
+## 13. Restructure Arabic localization
+
+### Recommended structure
+
+```txt
+client/src/i18n/ar/       → Modern Standard Arabic base
+client/src/i18n/ar-EG/    → Egypt overrides
+client/src/i18n/ar-SA/    → Saudi overrides
+client/src/i18n/ar-AE/    → UAE overrides
+client/src/i18n/en/       → English
+```
+
+### Acceptance criteria
+
+* No Egyptian-only terms in base Arabic.
+* Currency labels are dynamic.
+* National ID labels adapt by country.
+* Date formatting adapts by locale.
+* RTL layout is tested on all major pages.
+
+---
+
+## 14. Abstract payment gateways
+
+Paymob is good for Egypt/Gulf, but not enough for every Arab market.
+
+### Required architecture
+
+```ts
+interface PaymentGateway {
+  createPayment(params: PaymentParams): Promise<PaymentIntent>;
+  verifyWebhook(payload: unknown, signature: string, secret: string): boolean;
+  refund?(paymentId: string): Promise<void>;
+}
+```
+
+### Providers
+
+```txt
+paymob
+manual_bank_transfer
+konnect
+cmi/payzone
+efawateercom
+```
+
+### Acceptance criteria
+
+* Tenant has `payment_gateway`.
+* Checkout does not import Paymob-specific logic directly.
+* Webhook routing is gateway-specific.
+* Manual/bank transfer remains valid fallback.
+
+---
+
+# Phase 5 — Security, reliability, and compliance
+
+**Goal: 9.3 → 9.7/10**
+
+## 15. Add full audit logging
+
+Every sensitive action should create an activity log.
+
+### Log these
+
+```txt
+login
+failed login
+team invite
+role change
+tenant settings change
+payment credential update
+reservation status change
+payment status change
+document upload
+document approval/rejection
+unit create/update/delete
+project create/update/delete
+subscription change
+```
+
+### Acceptance criteria
+
+* Admin can filter activity logs by actor, action, entity, date.
+* Logs include old/new values for critical changes.
+* Logs are immutable from normal admin UI.
+
+---
+
+## 16. Add rate limits everywhere risky
+
+### Required limits
+
+```txt
+auth login
+signup
+reservation creation
+waitlist join
+document upload
+payment intent creation
+webhooks
+password reset
+schedule visit
+contact form
+```
+
+### Acceptance criteria
+
+* Abuse returns 429.
+* Limits are tenant-aware or IP-aware where appropriate.
+* Webhooks have separate limits from user routes.
+
+---
+
+## 17. Add encryption key rotation
+
+Current encrypted tenant credentials need a versioned strategy.
+
+### Format
+
+```txt
+v1:iv:ciphertext
+v2:iv:ciphertext
+```
+
+### Acceptance criteria
+
+* New credentials use latest key version.
+* Old credentials still decrypt.
+* Rotation script can re-encrypt all tenant secrets.
+* Missing key version fails safely.
+
+---
+
+## 18. Harden RLS and service-role usage
+
+### Required
+
+* Public RLS only exposes available public units/projects.
+* Customer can read own reservations/payments/documents.
+* Agent can read assigned customers/leads.
+* Manager/admin can read tenant-wide data.
+* Service role is used only in backend, never exposed.
+
+### Acceptance criteria
+
+* RLS tests prove cross-tenant reads fail.
+* API tests prove Tenant A cannot access Tenant B by guessing IDs.
+* Public tenant endpoint never exposes secret columns.
+
+---
+
+# Phase 6 — Testing and quality gate
+
+**Goal: 9.7 → 9.9/10**
+
+## 19. Add backend integration tests
+
+### Must cover
+
+```txt
+tenant resolution
+auth
+RBAC
+subscriptionGuard
+reservations
+payments
+webhooks
+waitlist
+documents
+reports
+tenant settings
+```
+
+### Suggested test stack
+
+```txt
+vitest or jest
+supertest
+Supabase local test database
+seed fixtures per tenant
+```
+
+### Minimum acceptance
+
+* 80%+ coverage for backend routes.
+* 100% coverage for payment/webhook/tenant isolation critical paths.
+* CI blocks merge on failing tests.
+
+---
+
+## 20. Add frontend tests for critical flows
+
+### Must cover
+
+```txt
+login/session refresh
+browse filters
+unit details
+checkout
+bank transfer
+payment page
+documents page
+waitlist
+role-based navigation
+tenant branding
+```
+
+### Acceptance criteria
+
+* Component tests for forms.
+* E2E tests for main user journeys.
+* No page white-screens on API failure.
+
+---
+
+## 21. Add E2E smoke suite
+
+### User journeys
+
+```txt
+Tenant signup → onboarding → publish
+Customer browse → reserve → pay
+Customer bank transfer → upload receipt
+Agent follow-up → convert lead
+Manager approve reservation
+Admin configure payment settings
+Super admin suspend tenant
+```
+
+### Acceptance criteria
+
+* Runs in CI.
+* Runs against seeded local Supabase.
+* Screenshots/video saved on failure.
+
+---
+
+# Phase 7 — Observability and operations
+
+**Goal: 9.9 → 10/10**
+
+## 22. Add production monitoring
+
+### Required
+
+```txt
+API error tracking
+frontend error tracking
+slow query logging
+payment webhook failures dashboard
+cron job status dashboard
+tenant health dashboard
+email/SMS delivery logs
+```
+
+### Tools
+
+You can use Sentry, Axiom, Logtail, Grafana, Supabase logs, or similar.
+
+### Acceptance criteria
+
+* Every API error has request ID.
+* Frontend error boundary reports error ID.
+* Payment webhook failures alert immediately.
+* Cron failures alert immediately.
+* Admin can see failed notification delivery.
+
+---
+
+## 23. Add backup and disaster recovery
+
+### Required
+
+```txt
+daily database backup
+point-in-time recovery
+storage bucket backup
+secret backup process
+restore drill
+```
+
+### Acceptance criteria
+
+* Restore process is documented.
+* Restore tested at least once.
+* RPO/RTO targets are defined.
+* Tenant data export is possible.
+
+---
+
+## 24. Add performance budget
+
+### Backend targets
+
+```txt
+P95 API response under 500ms for common reads
+P95 checkout intent under 2s
+P95 dashboard under 1s
+```
+
+### Frontend targets
+
+```txt
+LCP under 2.5s
+CLS under 0.1
+JS bundle split by route
+images optimized
+maps lazy-loaded
+```
+
+### Acceptance criteria
+
+* Lighthouse score 90+ for marketing/landing pages.
+* Dashboard route chunks lazy-load.
+* Large tables are paginated/virtualized.
+* Images use optimized sizes.
+
+---
+
+# Final 10/10 checklist
+
+Aqarify becomes **10/10** when all of this is true:
+
+```txt
+[ ] No critical tenant isolation bugs
+[ ] No enum/API contract mismatches
+[ ] No demo data in production UI
+[ ] Payments are per-tenant, idempotent, and audited
+[ ] Bank transfer and online payment both work
+[ ] Tenant onboarding is self-serve
+[ ] Tenant settings are complete
+[ ] CRM/customer profile is complete
+[ ] Multi-currency is complete
+[ ] Regional Arabic/i18n is complete
+[ ] Phone validation is country-aware
+[ ] Payment gateway abstraction exists
+[ ] RLS and RBAC are tested
+[ ] Critical backend routes have integration tests
+[ ] Critical frontend flows have E2E tests
+[ ] Monitoring and alerting are live
+[ ] Backups and restore are tested
+[ ] Performance budget is met
+[ ] UX is polished on mobile and desktop
+```
+
+## Recommended execution order
+
+| Sprint       | Focus                                              | Expected score |
+| ------------ | -------------------------------------------------- | -------------: |
+| **Sprint 1** | Middleware, enums, roles, fake data removal        |     **7.2/10** |
+| **Sprint 2** | Payments, webhooks, receipts, bank transfer        |       **8/10** |
+| **Sprint 3** | Onboarding, tenant settings, CRM completion        |     **8.8/10** |
+| **Sprint 4** | Multi-country, currency, i18n, gateway abstraction |     **9.3/10** |
+| **Sprint 5** | Security, RLS, audit logs, rate limits             |     **9.7/10** |
+| **Sprint 6** | Tests, CI, E2E, reliability                        |     **9.9/10** |
+| **Sprint 7** | Monitoring, backups, performance, polish           |      **10/10** |
+
+My practical recommendation: **do not chase 10/10 immediately**. First aim for **8/10**, because that is the point where Aqarify becomes commercially usable for Egypt. Then push to **9–10/10** when you want regional SaaS scale.
+
+---
+
+## Sprint execution status
+
+| Sprint | Status |
+| ------ | ------ |
+| **Sprint 1** — Middleware, enums, roles, fake data removal | **Completed** (2026-05-02) |
+| **Sprint 2** — Payments, webhooks, receipts, bank transfer | **Completed** (2026-05-02) |
+| **Sprint 3** — Onboarding, tenant settings, CRM completion | **Completed** (2026-05-02) |
+| **Sprint 4** — Multi-country, currency, i18n, gateway abstraction | **Completed** (2026-05-02) |
+| **Sprint 5** — Security, RLS, audit logs, rate limits | Pending |
+| **Sprint 6** — Tests, CI, E2E, reliability | Pending |
+| **Sprint 7** — Monitoring, backups, performance, polish | Pending |
+
+### Sprint 1 delivered
+
+- **Middleware:** `subscriptionGuard` runs after `resolveTenant` inside each guarded router (was ineffective when mounted before routers because `req.tenantId` was unset). Order is now `resolveTenant → subscriptionGuard → authenticate / optionalAuth → …` per route family.
+- **Enums:** Migration `00059_document_type_bank_other.sql` adds `bank_receipt` and `other` to `document_type`; client `database.types.ts` and shared reservation status include DB-aligned values (`rejected` in UI map).
+- **Roles:** `super_admin` added where tenant managers/admins already had access (`manager`, `reports`, `projects` mutations, `documents` review, `reservations` cancel, `activity-logs`, `negotiations`).
+- **Dashboards:** Manager overview uses `/manager/dashboard` (extended with financial + `activity_chart` + trends) and `/manager/reservations`; admin overview uses new `GET /api/v1/admin/summary` instead of hardcoded KPIs.
+
+### Sprint 2 delivered
+
+- **Webhooks:** `POST /webhooks/paymob/callback` now **verifies HMAC with the order’s tenant secret first**, then writes `webhook_events` (with `tenant_id`) for idempotency, then applies side effects. Prevents bad HMAC from consuming idempotency keys. Installment `paid` updates log `activity_logs` (`payment.paid`). Platform webhook keeps HMAC-before-idempotency.
+- **Per-tenant Paymob:** Unchanged data model — still `paymob_api_key_enc`, `paymob_integration_id`, `paymob_iframe_id`, `paymob_hmac_secret_enc` per tenant; `POST /api/v1/payments/:id/pay-intent` now also checks `payment_gateway` via `cardPaymentsEnabledForTenant` (aligned with reservations card flow).
+- **Reservation / payment rules:** Manual **confirm** returns **409** unless status is `pending`. **Cancel** supports `pending` or `confirmed`; cancelling **confirmed** requires **manager/admin/super_admin** + optional `reason` in body; activity log `reservation.cancelled` with previous status. **`reservation.confirmed`** logged when confirmation succeeds.
+- **Receipts:** Existing flow retained — `confirmReservation` generates PDF and `/reservations/:id/receipt` signs URLs; bank transfer UX unchanged (`bank_details` + reference on success page).
+- **Client:** Shared `paymobIframeCheckoutUrl()` in `client/src/lib/paymob.ts` (uses `VITE_PAYMOB_IFRAME_BASE_URL`) for checkout + مدفوعات customer Pay Now.
+
+**Still deferred (plan §20 / §19):** automated tests for payment transitions and webhooks; Sprint 6 can add them.
+
+### Sprint 3 delivered
+
+- **Onboarding:** `OnboardingGate` wraps the dashboard `Outlet`; routes `/admin/onboarding` → company step and `/admin/onboarding/:step` serve the wizard; completion navigates to `/admin/overview` and removes the “skip” shortcut that bypassed the gate.
+- **Tenant settings:** Admin general tab includes country code, display currency, and custom domain (PATCH aligns with server).
+- **CRM:** `/agent/customers` list and `/agent/customers/:id` profile with tabs (overview, reservations, payments, documents, follow-ups, negotiations, activity) backed by `GET/PATCH /agent/potential-customers/:id`; sidebar link “ملف العملاء”.
+
+### Sprint 4 delivered
+
+- **Currency:** `format.ts` adds **OMR** locale mapping and exports `THREE_DECIMAL_CURRENCIES`; tenant-facing UI uses `useTenantMoney()` / `CurrencyDisplay` instead of hardcoded `ج.م` / `EGP` (platform subscription rows in admin settings stay **EGP** via `formatCurrency(..., "EGP")`).
+- **Phones:** `libphonenumber-js` on client (`lib/phone.ts`) and server (`utils/phone.ts`); checkout, agent lead creation, and API (`POST` leads / reservations) validate against tenant `country_code`; middleware sets `req.tenantCountryCode` and header `x-tenant-country`.
+- **Paymob / gateways:** `createTenantCardPaymentIntent` centralizes card intents; Paymob billing geo follows tenant country; tenant webhook logic lives in `paymobTenantWebhook.handler.ts`; `paymentGateway.factory` documents PSP-agnostic routing.
+- **i18n:** Regional bundles `ar-EG`, `ar-SA`, `ar-AE` (merged over MSA `ar`); `useLocaleSync` picks regional Arabic from `tenant.default_locale` / `country_code`; English unchanged.

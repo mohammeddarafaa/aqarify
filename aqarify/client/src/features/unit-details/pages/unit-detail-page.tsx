@@ -29,10 +29,8 @@ import { useTenantStore } from "@/stores/tenant.store";
 import { appendTenantSearch } from "@/lib/tenant-path";
 import { useFavorites } from "@/features/browse/hooks/use-favorites";
 import { useFavoritesStore } from "@/stores/favorites.store";
-import { MobilePropertyActions } from "@/components/shared/mobile-property-actions";
-import { toast } from "@/lib/app-toast";
-
 import { useMyReservations } from "@/features/reservation/hooks/use-reservation";
+import { CurrencyDisplay } from "@/components/shared/currency-display";
 
 export default function UnitDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -244,7 +242,7 @@ export default function UnitDetailPage() {
                     <div className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3 text-sm">
                       <dt className="text-muted-foreground">Reservation fee</dt>
                       <dd className="font-medium text-foreground">
-                        EGP {unit.reservation_fee.toLocaleString()}
+                        <CurrencyDisplay amount={unit.reservation_fee} />
                       </dd>
                     </div>
                     <div className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3 text-sm">
@@ -375,26 +373,6 @@ export default function UnitDetailPage() {
           </Link>
         </div>
       )}
-
-      <MobilePropertyActions
-        favoriteActive={isFavorite(unit.id)}
-        compareActive={compareCount > 0}
-        compareCount={compareCount}
-        onFavorite={async () => {
-          await toggleFavorite(unit.id);
-        }}
-        onShare={() => setShareOpen(true)}
-        onCompare={() => {
-          if (!isCompared) {
-            toggleCompareUnit(unit.id);
-          }
-          if (useFavoritesStore.getState().compareUnitIds.length === 0) {
-            toast.info("Something went wrong updating compare.");
-            return;
-          }
-          window.location.assign(withTenant("/compare"));
-        }}
-      />
     </>
   );
 }

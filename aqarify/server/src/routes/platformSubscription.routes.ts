@@ -14,6 +14,8 @@ import {
 import { createPlatformPayment } from "../services/platformPaymob.service";
 import { paymobReturnFlatToHmacPayload, verifyPaymobHmac } from "../utils/hmac";
 import { logger } from "../utils/logger";
+import { platformConfirmReturnLimiter, signupLimiter } from "../middleware/rateLimiters";
+import { logActivity } from "../services/activityLog.service";
 
 export const platformSubscriptionRoutes = Router();
 
@@ -41,7 +43,7 @@ const confirmPlatformReturnSchema = z.object({
 // When Paymob redirects the browser to our app, we get a signed query string.
 // That works on localhost even if the server webhook URL is not reachable.
 // Webhooks remain the canonical path in production; this is HMAC-verified the same way.
-platformSubscriptionRoutes.post("/subscription/confirm-platform-return", async (req, res, next) => {
+platformSubscriptionRoutes.post("/subscription/confirm-platform-return", platformConfirmReturnLimiter, async (req, res, next) => {
   try {
     const parsed = confirmPlatformReturnSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -223,6 +225,15 @@ platformSubscriptionRoutes.post(
         return sendError(res, ERROR_CODES.TENANT_NOT_FOUND, "No tenant context", 400);
       }
       const result = await cancelSubscription(req.tenantId);
+      await logActivity({
+        tenantId: req.tenantId,
+        userId: req.userId,
+        action: "subscription.cancel_requested",
+        entityType: "tenant_subscription",
+        entityId: result.id,
+        details: { cancel_at_period_end: result.cancel_at_period_end },
+        ipAddress: req.ip,
+      });
       return sendSuccess(res, result);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "cancel failed";
@@ -254,6 +265,19 @@ platformSubscriptionRoutes.post(
         tenantId: req.tenantId,
         planCode: parsed.data.plan_code,
         billingCycle: parsed.data.billing_cycle,
+      });
+      const plan = result.plan as { code?: string } | null | undefined;
+      await logActivity({
+        tenantId: req.tenantId,
+        userId: req.userId,
+        action: "subscription.plan_changed",
+        entityType: "tenant_subscription",
+        entityId: result.id,
+        details: {
+          plan_code: plan?.code ?? parsed.data.plan_code,
+          billing_cycle: result.billing_cycle,
+        },
+        ipAddress: req.ip,
       });
       return sendSuccess(res, result);
     } catch (err) {

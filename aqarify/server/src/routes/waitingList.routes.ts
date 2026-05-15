@@ -1,12 +1,13 @@
 import { Router } from "express";
 import { z } from "zod";
 import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
+import { subscriptionGuard } from "../middleware/subscriptionGuard";
 import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { supabaseAdmin } from "../config/supabase";
 import { sendSuccess, sendError, ERROR_CODES } from "../utils/response";
 
 export const waitingListRoutes = Router();
-waitingListRoutes.use(resolveTenant, authenticate, requireTenant);
+waitingListRoutes.use(resolveTenant, subscriptionGuard, authenticate, requireTenant);
 
 const joinSchema = z.object({
   unit_id: z.string().uuid().optional(),

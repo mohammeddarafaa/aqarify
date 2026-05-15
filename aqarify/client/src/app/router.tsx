@@ -55,6 +55,8 @@ const AgentLeadsPage = lazy(() => import("@/features/agent-dashboard/pages/agent
 const AgentFollowUpsPage = lazy(() => import("@/features/agent-dashboard/pages/agent-follow-ups-page"));
 const AgentOverviewPage = lazy(() => import("@/features/agent-dashboard/pages/overview-page"));
 const AgentDocumentsPage = lazy(() => import("@/features/agent-dashboard/pages/agent-documents-page"));
+const AgentCustomersPage = lazy(() => import("@/features/agent-dashboard/pages/agent-customers-page"));
+const AgentCustomerProfilePage = lazy(() => import("@/features/agent-dashboard/pages/agent-customer-profile-page"));
 
 const ManagerDashboardPage = lazy(() => import("@/features/manager-dashboard/pages/overview-page"));
 const ManagerUnitsPage = lazy(() => import("@/features/manager-dashboard/pages/manager-units-page"));
@@ -65,6 +67,7 @@ const ManagerReservationsPage = lazy(() => import("@/features/manager-dashboard/
 const ManagerReportsPage = lazy(() => import("@/features/manager-dashboard/pages/manager-reports-page"));
 
 const AdminSettingsPage = lazy(() => import("@/features/admin/pages/admin-settings-page"));
+const OnboardingWizardPage = lazy(() => import("@/features/onboarding/pages/onboarding-wizard-page"));
 const AdminOverviewPage = lazy(() => import("@/features/admin-dashboard/pages/overview-page"));
 const ActivityLogsPage = lazy(() => import("@/features/admin-dashboard/pages/activity-logs-page"));
 const PlatformAdminDashboardPage = lazy(() => import("@/features/platform-admin/pages/platform-admin-dashboard-page"));
@@ -429,6 +432,8 @@ const appRoutes = [
       { path: "/agent/overview", element: D(AgentOverviewPage, ["agent", "manager", "admin", "super_admin"]) },
       { path: "/agent/reservations", element: D(AgentReservationsPage, ["agent", "manager", "admin", "super_admin"]) },
       { path: "/agent/leads", element: D(AgentLeadsPage, ["agent", "manager", "admin", "super_admin"]) },
+      { path: "/agent/customers", element: D(AgentCustomersPage, ["agent", "manager", "admin", "super_admin"]) },
+      { path: "/agent/customers/:id", element: D(AgentCustomerProfilePage, ["agent", "manager", "admin", "super_admin"]) },
       { path: "/agent/follow-ups", element: D(AgentFollowUpsPage, ["agent", "manager", "admin", "super_admin"]) },
       { path: "/agent/documents", element: D(AgentDocumentsPage, ["agent", "manager", "admin", "super_admin"]) },
       { path: "/manager/overview", element: D(ManagerDashboardPage, ["manager", "admin", "super_admin"]) },
@@ -440,6 +445,8 @@ const appRoutes = [
       { path: "/manager/reports", element: D(ManagerReportsPage, ["manager", "admin", "super_admin"]) },
       { path: "/manager/waiting-list", element: D(ManagerWaitingListPage, ["manager", "admin", "super_admin"]) },
       { path: "/admin/overview", element: D(AdminOverviewPage, ["admin", "super_admin"]) },
+      { path: "/admin/onboarding", element: <RedirectWithTenant to="/admin/onboarding/company" /> },
+      { path: "/admin/onboarding/:step", element: D(OnboardingWizardPage, ["admin", "super_admin"]) },
       { path: "/admin/settings", element: D(AdminSettingsPage, ["admin", "super_admin"]) },
       { path: "/admin/activity-logs", element: D(ActivityLogsPage, ["admin", "super_admin"]) },
       { path: "/platform-admin", element: D(PlatformAdminDashboardPage, ["super_admin"]) },

@@ -32,11 +32,14 @@ export function useUnitFilters() {
   const setFilter = useCallback(
     (key: string, value: string) => {
       if (RESERVED.has(key)) return;
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        applyFilterEntry(next, key, value);
-        return next;
-      });
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          applyFilterEntry(next, key, value);
+          return next;
+        },
+        { replace: true },
+      );
     },
     [setSearchParams]
   );
@@ -44,27 +47,33 @@ export function useUnitFilters() {
   /** Applies several filter keys in one navigation update (avoids clobbering with rapid setFilter calls). */
   const patchFilters = useCallback(
     (patch: Record<string, string>) => {
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        for (const [key, value] of Object.entries(patch)) {
-          applyFilterEntry(next, key, value);
-        }
-        return next;
-      });
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          for (const [key, value] of Object.entries(patch)) {
+            applyFilterEntry(next, key, value);
+          }
+          return next;
+        },
+        { replace: true },
+      );
     },
     [setSearchParams]
   );
 
   const clearFilters = useCallback(
     () =>
-      setSearchParams((prev) => {
-        const next = new URLSearchParams();
-        for (const key of RESERVED) {
-          const existing = prev.get(key);
-          if (existing) next.set(key, existing);
-        }
-        return next;
-      }),
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams();
+          for (const key of RESERVED) {
+            const existing = prev.get(key);
+            if (existing) next.set(key, existing);
+          }
+          return next;
+        },
+        { replace: true },
+      ),
     [setSearchParams]
   );
 

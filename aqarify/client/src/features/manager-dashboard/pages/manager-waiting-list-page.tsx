@@ -4,6 +4,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { api } from "@/lib/api";
 import { Clock } from "lucide-react";
 import { DataTableShell } from "@/components/shared/data-table-shell";
+import { useTenantMoney } from "@/hooks/use-tenant-money";
 
 type WaitingListEntry = {
   id: string;
@@ -16,6 +17,7 @@ type WaitingListEntry = {
 };
 
 export default function ManagerWaitingListPage() {
+  const { formatMoney } = useTenantMoney();
   const { data = [], isLoading } = useQuery<WaitingListEntry[]>({
     queryKey: ["manager-waiting-list"],
     queryFn: async () => {
@@ -60,15 +62,13 @@ export default function ManagerWaitingListPage() {
               id: "prefs",
               accessorFn: (row) =>
                 `${row.preferred_type ? `نوع: ${row.preferred_type}` : "نوع: —"}${
-                  row.max_budget
-                    ? ` | ميزانية: ${row.max_budget.toLocaleString("ar-EG")} ج.م`
-                    : ""
+                  row.max_budget != null ? ` | ميزانية: ${formatMoney(row.max_budget)}` : ""
                 }`,
               header: "النوع/الميزانية",
               cell: ({ row }) =>
                 `${row.original.preferred_type ? `نوع: ${row.original.preferred_type}` : "نوع: —"}${
-                  row.original.max_budget
-                    ? ` | ميزانية: ${row.original.max_budget.toLocaleString("ar-EG")} ج.م`
+                  row.original.max_budget != null
+                    ? ` | ميزانية: ${formatMoney(row.original.max_budget)}`
                     : ""
                 }`,
             },

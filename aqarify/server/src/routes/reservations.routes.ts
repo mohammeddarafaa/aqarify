@@ -1,18 +1,22 @@
 import { Router } from "express";
 import { z } from "zod";
 import { resolveTenant, requireTenant, type TenantRequest } from "../middleware/tenant";
+import { subscriptionGuard } from "../middleware/subscriptionGuard";
 import { authenticate, type AuthenticatedRequest } from "../middleware/auth";
 import { supabaseAdmin } from "../config/supabase";
 import { createReservation, confirmReservation, cancelReservation } from "../services/reservation.service";
 import { requireRole } from "../middleware/rbac";
-import { createPaymobPaymentKey } from "../services/paymob.service";
+import {
+  createTenantCardPaymentIntent,
+  type TenantCardGatewayRow,
+} from "../services/cardPaymentIntent.service";
 import { cardPaymentsEnabledForTenant } from "../services/paymentGateway.factory";
-import { decrypt } from "../utils/hmac";
+import { isValidPhoneForTenant } from "../utils/phone";
 import { receiptObjectPathFromStoredValue } from "../utils/receipt-storage";
 import { sendSuccess, sendError, ERROR_CODES } from "../utils/response";
 
 export const reservationRoutes = Router();
-reservationRoutes.use(resolveTenant, authenticate, requireTenant);
+reservationRoutes.use(resolveTenant, subscriptionGuard, authenticate, requireTenant);
 
 const createSchema = z.object({
   unit_id: z.string().uuid(),
@@ -30,6 +34,10 @@ reservationRoutes.post("/", async (req: TenantRequest & AuthenticatedRequest, re
     if (!parsed.success) return sendError(res, ERROR_CODES.VALIDATION_ERROR, "Invalid input", 400, parsed.error.flatten());
 
     const { unit_id, payment_method, full_name, phone, email, notes } = parsed.data;
+
+    if (!isValidPhoneForTenant(phone, req.tenantCountryCode)) {
+      return sendError(res, ERROR_CODES.VALIDATION_ERROR, "Invalid phone number for this region.", 400);
+    }
 
     // Get unit details
     const { data: unit } = await supabaseAdmin.from("units")
@@ -77,7 +85,7 @@ reservationRoutes.post("/", async (req: TenantRequest & AuthenticatedRequest, re
     if (payment_method === "card" || payment_method === "fawry" || payment_method === "vodafone_cash") {
       const { data: tenant } = await supabaseAdmin
         .from("tenants")
-        .select("paymob_integration_id, paymob_api_key_enc, paymob_iframe_id, currency, payment_gateway")
+        .select("paymob_integration_id, paymob_api_key_enc, paymob_iframe_id, currency, payment_gateway, country_code")
         .eq("id", req.tenantId!)
         .single();
 
@@ -97,16 +105,17 @@ reservationRoutes.post("/", async (req: TenantRequest & AuthenticatedRequest, re
         return sendError(res, "PAYMOB_NOT_CONFIGURED", "Payment gateway not fully configured (missing iFrame ID)", 503);
       }
 
-      const apiKey = decrypt(tenant.paymob_api_key_enc);
       const nameParts = full_name.split(" ");
-      const currency = (tenant as { currency?: string }).currency?.trim() || "EGP";
-      const { paymentKey } = await createPaymobPaymentKey({
-        apiKey,
-        integrationId: tenant.paymob_integration_id,
+      const { paymentKey } = await createTenantCardPaymentIntent({
+        tenant: tenant as TenantCardGatewayRow,
         amountCents: Math.round(unit.reservation_fee * 100),
-        currency,
         orderId: reservation.id,
-        billingData: { first_name: nameParts[0] ?? full_name, last_name: nameParts[1] ?? ".", email, phone_number: phone },
+        billingData: {
+          first_name: nameParts[0] ?? full_name,
+          last_name: nameParts[1] ?? ".",
+          email,
+          phone_number: phone,
+        },
       });
 
       return sendSuccess(
@@ -253,12 +262,38 @@ reservationRoutes.get("/:id", async (req: TenantRequest & AuthenticatedRequest, 
   } catch (err) { return next(err); }
 });
 
+const cancelReservationBody = z.object({
+  reason: z.string().max(2000).optional(),
+});
+
 // POST /api/v1/reservations/:id/cancel
-reservationRoutes.post("/:id/cancel", requireRole("manager", "admin", "agent"), async (req: TenantRequest & AuthenticatedRequest, res, next) => {
+reservationRoutes.post("/:id/cancel", requireRole("manager", "admin", "agent", "super_admin"), async (req: TenantRequest & AuthenticatedRequest, res, next) => {
   try {
-    const result = await cancelReservation(String(req.params.id), req.tenantId!, req.userId!);
+    const parsed = cancelReservationBody.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return sendError(res, ERROR_CODES.VALIDATION_ERROR, "Invalid input", 400, parsed.error.flatten());
+    }
+    const result = await cancelReservation(String(req.params.id), req.tenantId!, req.userId!, {
+      requesterRole: req.userRole,
+      reason: parsed.data.reason,
+    });
     return sendSuccess(res, result);
-  } catch (err) { return next(err); }
+  } catch (err: unknown) {
+    const e = err as { code?: string; message?: string };
+    if (e.code === "AUTH_FORBIDDEN") {
+      return sendError(res, ERROR_CODES.AUTH_FORBIDDEN, e.message ?? "Forbidden", 403);
+    }
+    if (e.code === "VALIDATION_ERROR") {
+      return sendError(res, ERROR_CODES.VALIDATION_ERROR, e.message ?? "Invalid input", 400);
+    }
+    if (e.code === "INVALID_STATE_TRANSITION") {
+      return sendError(res, ERROR_CODES.INVALID_STATE_TRANSITION, e.message ?? "Invalid transition", 409);
+    }
+    if (e.code === "NOT_FOUND") {
+      return sendError(res, ERROR_CODES.RESERVATION_NOT_FOUND, e.message ?? "Not found", 404);
+    }
+    return next(err);
+  }
 });
 
 // POST /api/v1/reservations/:id/confirm — manual confirm (bank transfer)
@@ -270,6 +305,14 @@ reservationRoutes.post("/:id/confirm", requireRole("agent", "manager", "admin", 
       .eq("tenant_id", req.tenantId!)
       .single();
     if (!reservation) return sendError(res, ERROR_CODES.RESERVATION_NOT_FOUND, "Not found", 404);
+    if (reservation.status !== "pending") {
+      return sendError(
+        res,
+        ERROR_CODES.INVALID_STATE_TRANSITION,
+        "Only pending reservations can be confirmed manually",
+        409,
+      );
+    }
     const confirmed = await confirmReservation(String(req.params.id), "manual", Number(reservation.reservation_fee_paid));
     return sendSuccess(res, confirmed);
   } catch (err) { return next(err); }

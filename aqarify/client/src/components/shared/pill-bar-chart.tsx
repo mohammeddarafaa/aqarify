@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
 interface PillBarChartProps {
@@ -7,6 +8,7 @@ interface PillBarChartProps {
 }
 
 export function PillBarChart({ data, activeDay, height = 220 }: PillBarChartProps) {
+  const { t } = useTranslation("dashboard");
   const max = Math.max(...data.map((item) => Math.abs(item.value)), 1);
 
   return (
@@ -39,7 +41,7 @@ export function PillBarChart({ data, activeDay, height = 220 }: PillBarChartProp
           </div>
         );
       })}
-      <span className="ms-2 pb-11 text-xs text-muted-foreground">daily</span>
+      <span className="ms-2 pb-11 text-xs text-muted-foreground">{t("agent_overview.chart_daily")}</span>
     </div>
   );
 }
