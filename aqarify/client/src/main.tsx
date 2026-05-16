@@ -8,6 +8,9 @@ import "@fontsource/poppins/500.css";
 import "@fontsource/poppins/600.css";
 import "@fontsource/poppins/700.css";
 import "@/styles/globals.css";
+import { initSentry } from "@/lib/sentry";
+ 
+initSentry();
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Root element not found");

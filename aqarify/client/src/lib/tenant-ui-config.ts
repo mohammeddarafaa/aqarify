@@ -36,12 +36,35 @@ const tenantContentSchema = z.object({
     .default("ابدأ بتصفّح المشاريع ثم الوحدات، أو تواصل مع فريق المبيعات."),
 });
 
+const tenantStatSchema = z.object({
+  value: z.string(),
+  label: z.string(),
+});
+
+const tenantValueCardSchema = z.object({
+  icon: z.string(),
+  title: z.string(),
+  desc: z.string(),
+});
+
 const tenantUiConfigSchema = z.object({
   version: z.literal(1).default(1),
   branding: tenantBrandingSchema,
   features: tenantFeaturesSchema.default({}),
   localization: tenantLocalizationSchema.default({}),
   content: tenantContentSchema.default({}),
+  stats: z.array(tenantStatSchema).default([
+    { value: "500+", label: "وحدة سكنية" },
+    { value: "98%", label: "رضا العملاء" },
+    { value: "15+", label: "سنة خبرة" },
+    { value: "3", label: "مشاريع نشطة" },
+  ]),
+  value_cards: z.array(tenantValueCardSchema).default([
+    { icon: "Building2", title: "وحدات موثقة", desc: "عروض محدثة مع تفاصيل واضحة لكل وحدة." },
+    { icon: "MapPin", title: "حجز مباشر", desc: "تصفح المتاح، احجز خطوتك التالية، وتابع حالة الطلب من لوحتك." },
+    { icon: "CreditCard", title: "دفع آمن", desc: "مدفوعات مرتبطة بحجزك عبر بوابة الدفع المعتمدة للمطور." },
+    { icon: "ShieldCheck", title: "متابعة شفافة", desc: "إشعارات وحالة الحجز والمستندات في مكان واحد." },
+  ]),
 });
 
 export type TenantUiConfig = z.infer<typeof tenantUiConfigSchema>;

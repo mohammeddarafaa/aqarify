@@ -24,10 +24,10 @@ export const rateLimitJson = {
   error: { code: "RATE_LIMITED", message: "Too many requests" },
 };
 
-export const limiter = rateLimit({ windowMs: 60_000, max: 300, keyGenerator: rateLimitTenantKey });
-export const authLimiter = rateLimit({ windowMs: 60_000, max: 10, keyGenerator: rateLimitTenantKey });
-export const publicLimiter = rateLimit({ windowMs: 60_000, max: 100, keyGenerator: rateLimitTenantKey });
-export const webhookLimiter = rateLimit({ windowMs: 60_000, max: 100, keyGenerator: rateLimitTenantKey });
+export const limiter = rateLimit({ windowMs: 60_000, max: 300, keyGenerator: rateLimitTenantKey, validate: false });
+export const authLimiter = rateLimit({ windowMs: 60_000, max: 10, keyGenerator: rateLimitTenantKey, validate: false });
+export const publicLimiter = rateLimit({ windowMs: 60_000, max: 100, keyGenerator: rateLimitTenantKey, validate: false });
+export const webhookLimiter = rateLimit({ windowMs: 60_000, max: 100, keyGenerator: rateLimitTenantKey, validate: false });
 
 export const reservationLimiter = rateLimit({
   windowMs: 60_000,
@@ -37,6 +37,7 @@ export const reservationLimiter = rateLimit({
   legacyHeaders: false,
   skip: (req) => req.method === "GET",
   keyGenerator: rateLimitTenantKey,
+  validate: false,
 });
 
 export const waitlistLimiter = rateLimit({
@@ -47,6 +48,7 @@ export const waitlistLimiter = rateLimit({
   legacyHeaders: false,
   skip: (req) => req.method === "GET",
   keyGenerator: rateLimitTenantKey,
+  validate: false,
 });
 
 export const uploadLimiter = rateLimit({
@@ -57,6 +59,7 @@ export const uploadLimiter = rateLimit({
   legacyHeaders: false,
   skip: (req) => req.method === "GET",
   keyGenerator: rateLimitTenantKey,
+  validate: false,
 });
 
 /** Public tenant signup — strict per-IP. */
@@ -67,6 +70,7 @@ export const signupLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => req.ip ?? "unknown",
+  validate: false,
 });
 
 /** Browser return URL after Paymob — per-IP burst control. */
@@ -77,6 +81,7 @@ export const platformConfirmReturnLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => req.ip ?? "unknown",
+  validate: false,
 });
 
 /** Customer card pay-intent — per authenticated user + tenant scope. */
@@ -87,6 +92,7 @@ export const paymentIntentLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: tenantUserKey,
+  validate: false,
 });
 
 /** Schedule unit visit — per authenticated user + tenant scope. */
@@ -97,4 +103,5 @@ export const scheduleVisitLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: tenantUserKey,
+  validate: false,
 });

@@ -1,0 +1,59 @@
+{
+  "app_name": "بوابة عقارية",
+  "nav": {
+    "overview":          "نظرة عامة",
+    "browse":            "تصفّح الوحدات",
+    "reservations":      "حجوزاتي",
+    "payments":          "مدفوعاتي",
+    "waitlist":          "قائمة الانتظار",
+    "documents":         "مستنداتي",
+    "leads":             "العملاء المحتملين",
+    "customers":         "ملف العملاء",
+    "follow_ups":        "المتابعات",
+    "client_docs":       "مستندات العملاء",
+    "manager_overview":  "نظرة عامة المدير",
+    "projects":          "المشاريع",
+    "units":             "الوحدات",
+    "staff":             "الموظفون",
+    "all_reservations":  "حجوزات العملاء",
+    "reports":           "التقارير",
+    "platform_overview": "نظرة عامة المنصة",
+    "settings":          "إعدادات المنصة",
+    "activity":          "سجل النشاط",
+    "platform_admin":    "لوحة الإدارة",
+    "notifications":     "الإشعارات",
+    "profile":           "الملف الشخصي",
+    "dashboard":         "لوحة التحكم",
+    "login":             "تسجيل الدخول",
+    "register":          "إنشاء حساب",
+    "contact":           "تواصل معنا",
+    "features":          "المميزات",
+    "group_customer":    "العميل",
+    "group_agent":       "المبيعات",
+    "group_manager":     "المدير",
+    "group_admin":       "الإدارة",
+    "group_platform":    "المنصة"
+  },
+  "topbar": {
+    "search":            "بحث...",
+    "search_in":         "بحث في {{name}}...",
+    "open_menu":         "فتح القائمة",
+    "toggle_language":   "تغيير اللغة",
+    "light_mode":        "الوضع النهاري",
+    "dark_mode":         "الوضع الليلي",
+    "notifications":     "الإشعارات",
+    "logout":            "خروج"
+  },
+  "roles": {
+    "customer":    "عميل",
+    "agent":       "موظف مبيعات",
+    "manager":     "مدير مبيعات",
+    "admin":       "مسؤول المنصة",
+    "super_admin": "مدير النظام"
+  },
+  "status": {
+    "available": "متاح",
+    "reserved":  "محجوز",
+    "sold":      "مباع"
+  }
+}

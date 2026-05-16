@@ -1,0 +1,59 @@
+{
+  "app_name": "Real Estate Portal",
+  "nav": {
+    "overview":          "Overview",
+    "browse":            "Browse Units",
+    "reservations":      "My Reservations",
+    "payments":          "My Payments",
+    "waitlist":          "Waitlist",
+    "documents":         "My Documents",
+    "leads":             "Leads",
+    "customers":         "Customer Profiles",
+    "follow_ups":        "Follow-ups",
+    "client_docs":       "Client Documents",
+    "manager_overview":  "Manager Overview",
+    "projects":          "Projects",
+    "units":             "Units",
+    "staff":             "Staff",
+    "all_reservations":  "All Reservations",
+    "reports":           "Reports",
+    "platform_overview": "Platform Overview",
+    "settings":          "Platform Settings",
+    "activity":          "Activity Log",
+    "platform_admin":    "Admin Console",
+    "notifications":     "Notifications",
+    "profile":           "Profile",
+    "dashboard":         "Dashboard",
+    "login":             "Sign In",
+    "register":          "Create Account",
+    "contact":           "Contact Us",
+    "features":          "Features",
+    "group_customer":    "Customer",
+    "group_agent":       "Sales",
+    "group_manager":     "Manager",
+    "group_admin":       "Admin",
+    "group_platform":    "Platform"
+  },
+  "topbar": {
+    "search":            "Search...",
+    "search_in":         "Search in {{name}}...",
+    "open_menu":         "Open menu",
+    "toggle_language":   "Toggle language",
+    "light_mode":        "Light mode",
+    "dark_mode":         "Dark mode",
+    "notifications":     "Notifications",
+    "logout":            "Logout"
+  },
+  "roles": {
+    "customer":    "Customer",
+    "agent":       "Sales Agent",
+    "manager":     "Sales Manager",
+    "admin":       "Admin",
+    "super_admin": "Super Admin"
+  },
+  "status": {
+    "available": "Available",
+    "reserved":  "Reserved",
+    "sold":      "Sold"
+  }
+}

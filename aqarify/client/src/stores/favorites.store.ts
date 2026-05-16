@@ -33,7 +33,13 @@ export const useFavoritesStore = create<FavoritesState>()(
         return !exists;
       },
       setLocalFavorites: (unitIds) => {
-        set({ localFavoriteUnitIds: [...new Set(unitIds)] });
+        const uniqueIds = [...new Set(unitIds)];
+        const current = get().localFavoriteUnitIds;
+        const changed =
+          uniqueIds.length !== current.length || uniqueIds.some((id) => !current.includes(id));
+        if (changed) {
+          set({ localFavoriteUnitIds: uniqueIds });
+        }
       },
       markSyncedForUser: (userId) => set({ lastSyncedUserId: userId }),
       clearSyncMarker: () => set({ lastSyncedUserId: null }),
