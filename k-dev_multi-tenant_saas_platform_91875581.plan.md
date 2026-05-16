@@ -152,6 +152,21 @@ All Supabase schema lives in the project repo, not managed from the dashboard:
 
 Every table includes a `tenant_id` column. Supabase RLS policies ensure data isolation.
 
+### White-Label Contract (No Hardcoded Tenant UI)
+
+Every UI-facing value must come from tenant config, i18n, or feature config. No tenant-specific literals are allowed in frontend components or backend response templates.
+
+**Per-tenant configuration domains:**
+- **Branding tokens**: logo, favicon, colors, typography, border radius, spacing scale, button style
+- **Content tokens**: product name, hero text, CTA labels, footer links, legal text, contact details
+- **Behavior tokens**: enabled modules, dashboard widgets, available payment methods, map default settings
+- **Localization tokens**: supported languages, default locale, RTL preference
+
+**Non-negotiable implementation rule:**
+- If a value can differ between tenants, it must be stored in tenant config tables/JSON and resolved at runtime.
+- If a value is global and constant for all tenants, document it as a platform constant in one place.
+- Never branch by tenant slug/name in code (no `if tenant === "acme"` patterns).
+
 ```mermaid
 graph LR
     subgraph tenantRouting ["Tenant Resolution"]
@@ -578,6 +593,11 @@ Every task is scoped for AI implementation: each produces files under 150 lines,
 1.10. Layout routes: `PublicLayout`, `AuthLayout`, `CustomerLayout`, `AgentLayout`, `ManagerLayout`, `AdminLayout`
 1.11. User profile page: view/edit name, phone, email, avatar upload
 1.12. RTL layout: detect language, set `dir="rtl"` on `<html>`, Tailwind RTL classes activate
+1.13. Build `tenant_ui_config` schema + zod validator (strict parsing, defaults, version field)
+1.14. Create `TenantConfigProvider` that hydrates branding/content/features before route render
+1.15. Add startup fail-safe: reject rendering tenant pages when required tenant config keys are missing
+1.16. Add tenant-scoped feature flag hook (`use-tenant-feature`) for module toggles
+1.17. Replace static app name/logo/footer text with tenant content tokens everywhere
 
 ### PHASE 2: Public-Facing Pages (Customer Journey Start)
 2.1. Landing page hero: Aceternity spotlight effect, project name, stats counter (animated numbers), CTA buttons
@@ -713,6 +733,11 @@ Every task is scoped for AI implementation: each produces files under 150 lines,
 11.5. Paymob credentials tab: API key input, integration ID input, test connection button
 11.6. Custom domain tab: instructions + DNS verification, CNAME record check
 11.7. Notification template tab: preview and customize email subject lines, SMS text templates
+11.8. Content editor tab: tenant product name, hero copy, CTA labels, legal/footer text, contact channels
+11.9. Feature modules tab: enable/disable map view, waitlist, leads pipeline, exports, payment methods by tenant plan
+11.10. Theme presets + live preview: preview tenant homepage/dashboard before publishing
+11.11. Config versioning + rollback: store previous config snapshots and allow one-click rollback
+11.12. Publish workflow: draft -> validate -> publish with audit log
 
 ### PHASE 12: Polish + Production Deployment
 12.1. Motion.dev animations: page transitions (fade + slide), card hover (scale + shadow), scroll reveals (whileInView), loading pulse
@@ -1024,6 +1049,9 @@ These `.cursor/rules/` files enforce consistent code generation across the entir
 - No `console.log` in production code -- use winston logger on backend
 - All strings user-facing must go through i18n `t()` function
 - CSS logical properties for RTL support (`ps-4` not `pl-4`, `ms-2` not `ml-2`)
+- No tenant-specific literals in code (brand names, logos, domains, copy)
+- No tenant-specific conditional branches by slug/name; use config-driven behavior only
+- Any new UI text must map to i18n keys and support tenant content overrides
 
 ### Rule: `react-components.mdc`
 - Functional components only, no class components
@@ -1077,6 +1105,7 @@ These `.cursor/rules/` files enforce consistent code generation across the entir
 - **Email**: Resend + React Email -- permanent free tier (3k/mo), React component email templates, modern API
 - **Animations**: Motion.dev -- production-grade, React-native API, hardware-accelerated
 - **CSS**: Tailwind + CSS variables -- CSS variables enable runtime theme switching per tenant
+- **White-label enforcement**: tenant config contract + zod validation + provider fail-fast prevents hardcoded tenant UI regressions
 - **i18n**: Arabic (RTL) + English via react-i18next, CSS logical properties
 - **DB logic in code**: All Supabase migrations, RLS policies, seed data, and type generation live in the repo under `supabase/`
 - **PDF generation**: @react-pdf/renderer client-side for receipts; pdfkit server-side for contracts
