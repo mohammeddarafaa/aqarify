@@ -1,25 +1,44 @@
 import { cn } from "@/lib/utils";
-import type { ReactNode } from "react";
+import { Inbox } from "lucide-react";
 
 interface EmptyStateProps {
-  icon?: ReactNode;
   title: string;
   description?: string;
-  action?: ReactNode;
+  action?: React.ReactNode;
+  icon?: React.ElementType;
   className?: string;
 }
 
-export function EmptyState({ icon, title, description, action, className }: EmptyStateProps) {
+/**
+ * EmptyState — shown whenever a list or dashboard has no data.
+ *
+ * Constitution §6: "Hardcoded demo data in any user-facing page is a bug."
+ * Every dashboard uses this instead of fake numbers.
+ */
+export function EmptyState({
+  title,
+  description,
+  action,
+  icon: Icon = Inbox,
+  className,
+}: EmptyStateProps) {
   return (
-    <div className={cn("flex flex-col items-center justify-center py-16 px-4 text-center", className)}>
-      {icon && (
-        <div className="mb-4 text-[var(--color-muted-foreground)] opacity-40 text-5xl">{icon}</div>
+    <div
+      className={cn(
+        "flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-border p-12 text-center",
+        className,
       )}
-      <h3 className="text-base font-semibold text-[var(--color-foreground)] mb-1">{title}</h3>
-      {description && (
-        <p className="text-sm text-[var(--color-muted-foreground)] max-w-xs">{description}</p>
-      )}
-      {action && <div className="mt-4">{action}</div>}
+    >
+      <div className="grid h-14 w-14 place-items-center rounded-full bg-muted">
+        <Icon className="h-6 w-6 text-muted-foreground" />
+      </div>
+      <div className="space-y-1">
+        <p className="font-semibold text-foreground">{title}</p>
+        {description && (
+          <p className="text-sm text-muted-foreground">{description}</p>
+        )}
+      </div>
+      {action && <div>{action}</div>}
     </div>
   );
 }

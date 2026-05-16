@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "../config/supabase";
 import { logger } from "../utils/logger";
+import { withCronLock } from "../jobs/cronLock";
 
 export interface DomainEvent<TPayload = Record<string, unknown>> {
   tenantId?: string;
@@ -78,11 +79,22 @@ async function processPendingEvents(limit = 50): Promise<void> {
   }
 }
 
+/**
+ * Wraps processPendingEvents in an atomic cron lock so that across N server
+ * replicas only one instance processes events per 3-second tick.
+ */
+async function dispatchTick(): Promise<void> {
+  // Lock for 4 s (slightly longer than the 3 s interval) to prevent overlap
+  await withCronLock("domain_event_dispatcher", 4, processPendingEvents);
+}
+
 export function startDomainEventDispatcher() {
   if (dispatcherStarted) return;
   dispatcherStarted = true;
   dispatcherTimer = setInterval(() => {
-    processPendingEvents().catch((err) => logger.error("Domain event dispatcher failed", err));
+    dispatchTick().catch((err) =>
+      logger.error("Domain event dispatcher failed", err),
+    );
   }, 3000);
   logger.info("Domain event dispatcher started");
 }

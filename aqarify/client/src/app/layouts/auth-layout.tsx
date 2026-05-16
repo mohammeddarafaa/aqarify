@@ -1,54 +1,79 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { Card, CardContent } from "@/components/ui/card";
-import { useTenant } from "@/hooks/use-tenant";
-import { useTenantTheme } from "@/hooks/use-tenant-theme";
-import { useTenantUi } from "@/hooks/use-tenant-ui";
+import { Sparkles } from "lucide-react";
 import { useTenantStore } from "@/stores/tenant.store";
+import { useTenantTheme } from "@/hooks/use-tenant-theme";
+import { useSyncHomeTenantUrl } from "@/hooks/use-sync-home-tenant-url";
+import { useTenantUi } from "@/hooks/use-tenant-ui";
 import { appendTenantSearch } from "@/lib/tenant-path";
 
+/**
+ * Auth layout — white-labeled.
+ *
+ * Left panel: brand identity (logo, name, tagline, primary gradient)
+ * Right panel: auth form (login / register / reset password)
+ *
+ * On mobile: stacks vertically with a compact brand strip at top.
+ */
 export default function AuthLayout() {
-  useTenant();
+  useSyncHomeTenantUrl();
   useTenantTheme();
-  const { pathname, search } = useLocation();
-  const withTenant = (path: string) => appendTenantSearch(pathname, search, path);
+
   const tenant = useTenantStore((s) => s.tenant);
   const { appName } = useTenantUi();
+  const { pathname, search } = useLocation();
+  const home = appendTenantSearch(pathname, search, "/");
+
+  const tagline = tenant?.tenant_ui_config?.branding?.tagline;
+  const heroTitle = tenant?.tenant_ui_config?.content?.hero_title;
+  const heroSub   = tenant?.tenant_ui_config?.content?.hero_subtitle;
 
   return (
-    <div className="grid min-h-screen bg-background lg:grid-cols-2">
-      <div className="relative hidden lg:block">
-        <img
-          src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1600&q=80"
-          alt="Property"
-          className="h-full w-full object-cover"
-        />
-        <div className="absolute inset-0 bg-[color-mix(in_oklch,var(--color-foreground)_45%,transparent)]" />
-        <div className="absolute inset-x-0 bottom-0 p-10 text-[var(--color-background)]">
-          <p className="text-sm uppercase tracking-[0.2em] text-[color-mix(in_oklch,var(--color-background)_80%,transparent)]">{appName}</p>
-          <h2 className="mt-3 max-w-md text-4xl font-semibold leading-tight">
-            ابدأ رحلتك العقارية من منصة موحدة وسريعة.
-          </h2>
+    <div className="flex min-h-screen flex-col lg:flex-row">
+      {/* ── Brand panel (left / top on mobile) ──────────────────────── */}
+      <div
+        className="flex flex-col items-center justify-center gap-6 bg-foreground px-8 py-12 text-background lg:min-h-screen lg:w-[42%] lg:items-start lg:px-16"
+        style={{
+          background: tenant?.theme_config?.primary_color
+            ? `linear-gradient(135deg, ${tenant.theme_config.primary_color}, ${tenant.theme_config.secondary_color ?? tenant.theme_config.primary_color}dd)`
+            : undefined,
+        }}
+      >
+        <Link to={home} className="flex items-center gap-3">
+          {tenant?.logo_url ? (
+            <img
+              src={tenant.logo_url}
+              alt={appName}
+              className="h-12 object-contain brightness-0 invert"
+            />
+          ) : (
+            <div className="grid h-12 w-12 place-items-center rounded-xl bg-background/20">
+              <Sparkles className="h-6 w-6 text-background" />
+            </div>
+          )}
+          <div className="hidden lg:block">
+            <p className="text-xl font-bold">{appName}</p>
+            {tagline && (
+              <p className="text-sm font-medium opacity-70">{tagline}</p>
+            )}
+          </div>
+        </Link>
+
+        <div className="hidden max-w-sm text-start lg:block">
+          <h1 className="text-3xl font-bold leading-tight">
+            {heroTitle ?? appName}
+          </h1>
+          {heroSub && (
+            <p className="mt-3 text-base font-medium opacity-70">{heroSub}</p>
+          )}
         </div>
       </div>
-      <div className="flex items-center justify-center p-4">
+
+      {/* ── Form panel (right / bottom on mobile) ───────────────────── */}
+      <div className="flex flex-1 flex-col items-center justify-center px-6 py-12 lg:px-16">
+        {/* Mobile brand name (hidden on lg) */}
+        <p className="mb-8 text-lg font-bold lg:hidden">{appName}</p>
         <div className="w-full max-w-md">
-          <Link to={withTenant("/")} className="mb-8 flex items-center justify-center" aria-label="Home">
-            {tenant?.logo_url ? (
-              <img src={tenant.logo_url} alt={tenant.name} className="h-12 object-contain" />
-            ) : (
-              <div className="flex flex-col items-center leading-none">
-                <span className="text-lg font-bold uppercase tracking-widest text-foreground">{appName}</span>
-                <span className="mt-0.5 text-[9px] font-medium uppercase tracking-[0.22em] text-muted-foreground">
-                  {tenant?.tenant_ui_config?.branding.tagline || "Real estate"}
-                </span>
-              </div>
-            )}
-          </Link>
-          <Card className="rounded-2xl border-border bg-card shadow-sm">
-            <CardContent className="p-8">
-              <Outlet />
-            </CardContent>
-          </Card>
+          <Outlet />
         </div>
       </div>
     </div>

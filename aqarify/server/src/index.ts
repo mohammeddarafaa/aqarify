@@ -4,6 +4,7 @@ import cors from "cors";
 import helmet from "helmet";
 import { errorHandler } from "./middleware/errorHandler";
 import { logger } from "./utils/logger";
+import { requestIdMiddleware } from "./middleware/requestId";
 import { authRoutes } from "./routes/auth.routes";
 import { tenantRoutes } from "./routes/tenants.routes";
 import { unitRoutes } from "./routes/units.routes";
@@ -46,9 +47,11 @@ import { supabaseAdmin } from "./config/supabase";
 import { pluginRoutes } from "./routes/plugins.routes";
 import { platformAdminRoutes } from "./routes/platformAdmin.routes";
 import { registerDomainHandlers } from "./events/registerDomainHandlers";
-import { startDomainEventDispatcher } from "./events/domainEventBus";
+import { startDomainEventDispatcher, stopDomainEventDispatcher } from "./events/domainEventBus";
 import { favoriteRoutes } from "./routes/favorites.routes";
+import { seoRoutes } from "./routes/seo.routes";
 
+// ─── T1-E: Startup environment validation ────────────────────────────────────
 function validateEnv() {
   const required = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"];
   const missing = required.filter((k) => !process.env[k]);
@@ -64,7 +67,9 @@ function validateEnv() {
     const versions = parseEncryptionKeyVersions();
     for (const [label, key] of Object.entries(versions)) {
       if (key.length !== 32) {
-        logger.error(`Encryption key ${label} must be exactly 32 characters. Got: ${key.length}`);
+        logger.error(
+          `Encryption key ${label} must be exactly 32 characters. Got: ${key.length}`,
+        );
         process.exit(1);
       }
     }
@@ -80,13 +85,17 @@ validateEnv();
 const app = express();
 const PORT = process.env.PORT ?? 4000;
 
+// ─── CORS ─────────────────────────────────────────────────────────────────────
 const corsDomainCache = new Map<string, { allowed: boolean; expiresAt: number }>();
 const CORS_CACHE_MS = 5 * 60 * 1000;
 
-app.use(helmet());
-const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? process.env.CLIENT_URL ?? "http://localhost:3000").split(",").map((s) => s.trim()).filter(Boolean);
+const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? process.env.CLIENT_URL ?? "http://localhost:3000")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 const rootDomain = process.env.ROOT_DOMAIN ?? "localhost";
 
+app.use(helmet());
 app.use(
   cors({
     origin: async (origin, callback) => {
@@ -103,7 +112,8 @@ app.use(
         }
 
         const fromAllowlist = allowedOrigins.some((o) => origin === o);
-        const fromPlatformSubdomain = rootDomain !== "localhost" && host.endsWith(`.${rootDomain}`);
+        const fromPlatformSubdomain =
+          rootDomain !== "localhost" && host.endsWith(`.${rootDomain}`);
 
         let fromCustomDomain = false;
         if (!fromAllowlist && !fromPlatformSubdomain) {
@@ -128,6 +138,10 @@ app.use(
   }),
 );
 
+// ─── T2-E: Request ID — MUST be first middleware ──────────────────────────────
+app.use(requestIdMiddleware);
+
+// ─── Rate limiters ────────────────────────────────────────────────────────────
 app.use("/webhooks", webhookLimiter);
 app.use("/api/v1/auth", authLimiter);
 app.use("/api/v1/favorites", authLimiter);
@@ -142,16 +156,35 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(attachTenantRegionHeaders);
 
-// Routes — public (no subscription guard needed)
+// ─── T2-A: Health & readiness endpoints ──────────────────────────────────────
+// /health — no DB call; used by Docker HEALTHCHECK and Railway health probe
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok", service: "aqarify-api", version: "1.0.0", ts: Date.now() });
+});
+
+// /ready — verifies DB connectivity; returns 503 if unreachable
+app.get("/ready", async (_req, res) => {
+  try {
+    const { error } = await supabaseAdmin.from("tenants").select("id").limit(1);
+    if (error) throw error;
+    res.json({ status: "ready" });
+  } catch (err) {
+    logger.warn("Readiness check failed", err);
+    res.status(503).json({ status: "not_ready" });
+  }
+});
+
+// ─── Routes — public ─────────────────────────────────────────────────────────
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/favorites", favoriteRoutes);
 app.use("/api/v1/tenants", tenantRoutes);
 app.use("/api/v1/plans", planRoutes);
-app.use("/api/v1", platformSubscriptionRoutes); // /signup + /subscription/*
+app.use("/api/v1", platformSubscriptionRoutes);
 app.use("/api/v1/platform-admin", platformAdminRoutes);
+app.use("/", seoRoutes);
 app.use("/webhooks", webhookRoutes);
 
-// Routes — subscriptionGuard runs inside each router after resolveTenant (see middleware order)
+// ─── Routes — subscription-guarded ───────────────────────────────────────────
 app.use("/api/v1/units", unitRoutes);
 app.use("/api/v1/projects", projectRoutes);
 app.use("/api/v1/reservations", reservationRoutes);
@@ -175,17 +208,14 @@ app.use("/api/v1/manager", managerRoutes);
 app.use("/api/v1/admin", adminRoutes);
 app.use("/api/v1/plugins", pluginRoutes);
 
-// Health check + sitemap hint
-app.get("/health", (_req, res) => res.json({ ok: true, service: "aqarify-api", version: "1.0.0" }));
-
-// Error handler (must be last)
+// ─── Global error handler ─────────────────────────────────────────────────────
 app.use(errorHandler);
 
-app.listen(PORT, () => {
+// ─── Server startup ───────────────────────────────────────────────────────────
+const server = app.listen(PORT, () => {
   logger.info(`Aqarify API running on port ${PORT}`);
   registerDomainHandlers();
   startDomainEventDispatcher();
-  // Start cron jobs
   if (process.env.ENABLE_CRONS !== "false" && process.env.CRON_PROCESS_ROLE !== "api") {
     startPaymentReminderCron();
     startWaitlistTimerCron();
@@ -194,5 +224,33 @@ app.listen(PORT, () => {
     logger.info("All cron jobs started");
   }
 });
+
+// ─── T2-B: Graceful shutdown ──────────────────────────────────────────────────
+const SHUTDOWN_TIMEOUT_MS = 30_000;
+
+function gracefulShutdown(signal: string) {
+  logger.info(`${signal} received — starting graceful shutdown`);
+
+  // Stop accepting new connections immediately
+  server.close(() => {
+    logger.info("HTTP server closed");
+  });
+
+  // Stop the domain event dispatcher and any cron interval handles
+  stopDomainEventDispatcher();
+
+  // Force-exit if shutdown takes too long (e.g. a hung request)
+  const forceTimer = setTimeout(() => {
+    logger.error("Graceful shutdown timed out — forcing exit");
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS);
+  forceTimer.unref(); // don't block Node's event loop
+
+  // Allow in-flight requests to complete; process.exit called by server.close cb
+  server.closeAllConnections?.(); // Node ≥ 18.2
+}
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 export default app;

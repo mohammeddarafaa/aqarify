@@ -1,83 +1,258 @@
-import { Router, type Request, type Response } from "express";
-import { supabaseAdmin } from "../config/supabase";
-import { activateSubscription } from "../services/subscription.service";
-import { verifyPaymobHmac } from "../utils/hmac";
-import { logger } from "../utils/logger";
-import { handlePaymobTenantCallback } from "../services/paymobTenantWebhook.handler";
+// server/src/routes/webhooks.routes.ts
+import { Router, Response, NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
+import { SupabaseClient, createClient } from '@supabase/supabase-js';
+import { AuthenticatedRequest } from '../middleware/auth';
+import { logger } from '../utils/logger';
+import { verifyPaymobHmac } from '../utils/hmac';
+import { decrypt } from '../utils/encryption';
+import { emitDomainEvent } from '../events/domainEventBus';
 
-export const webhookRoutes = Router();
+const router = Router();
 
-/**
- * Paymob tenant webhook — delegates to {@link handlePaymobTenantCallback}.
- * Other PSPs: add routes like `/webhooks/konnect/callback` with their own handlers.
- */
-webhookRoutes.post("/paymob/callback", async (req: Request, res: Response) => {
-  try {
-    await handlePaymobTenantCallback(req, res);
-  } catch (err) {
-    logger.error("Webhook error", err);
-    if (!res.headersSent) res.status(500).json({ error: "webhook failed" });
-  }
+// Rate limit: 120 requests per minute per IP
+const webhookLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  message: 'Too many webhook requests',
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
-webhookRoutes.post("/paymob/platform", async (req: Request, res: Response) => {
-  try {
-    const hmac = String((req.query as { hmac?: string }).hmac ?? "");
-    const secret = process.env.AQARIFY_PAYMOB_HMAC_SECRET ?? "";
-    const payload = (req.body as { obj?: Record<string, unknown> })?.obj ?? (req.body as Record<string, unknown>);
+router.use(webhookLimiter);
 
-    if (!secret || !verifyPaymobHmac(payload as Record<string, unknown>, hmac, secret)) {
-      logger.warn("Platform Paymob HMAC mismatch — ignoring request");
+// Paymob webhook handler
+router.post('/paymob', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const supabaseAdmin = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { persistSession: false } }
+    );
+
+    const payload = req.body;
+    const signature = req.headers['x-hmac-signature'] as string;
+
+    logger.info('Webhook received', {
+      type: 'paymob',
+      transactionId: payload.id,
+      tenantId: req.tenantId,
+    });
+
+    // Retrieve tenant to get Paymob secret
+    const { data: tenant, error: tenantError } = await supabaseAdmin
+      .from('tenants')
+      .select('paymob_secret, subscription_status')
+      .eq('id', req.tenantId)
+      .single();
+
+    if (tenantError || !tenant) {
+      logger.warn('Tenant not found for webhook', { tenantId: req.tenantId });
+      // Always return 200 to not fingerprint the endpoint
       return res.status(200).json({ received: true });
     }
 
-    if (!payload.success) {
-      logger.info("Platform payment failed, tenant not activated");
-      return res.json({ received: true });
+    // Check subscription status
+    if (tenant.subscription_status === 'suspended') {
+      logger.warn('Webhook from suspended tenant', { tenantId: req.tenantId });
+      return res.status(200).json({ received: true });
     }
 
-    const subscriptionId: string = String(
-      payload.merchant_order_id ?? (payload.order as { id?: string })?.id ?? "",
-    );
-    const txId = String(payload.id ?? "");
-    const amountEgp = Number(payload.amount_cents ?? 0) / 100;
-    const eventKey = `platform:${txId}:${subscriptionId}:${String(payload.success ?? false)}`;
+    // Decrypt the secret
+    let paymobSecret: string;
+    try {
+      paymobSecret = decrypt(tenant.paymob_secret);
+    } catch (error) {
+      logger.error('Failed to decrypt Paymob secret', {
+        tenantId: req.tenantId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return res.status(200).json({ received: true });
+    }
 
-    const { error: eventErr } = await supabaseAdmin.from("webhook_events").insert({
-      provider: "paymob_platform",
-      event_key: eventKey,
+    // Verify HMAC signature
+    const payloadString = JSON.stringify(payload);
+    let isValid = false;
+    try {
+      isValid = verifyPaymobHmac(payload, signature, paymobSecret);
+    } catch (error) {
+      logger.warn('HMAC verification failed', {
+        tenantId: req.tenantId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    if (!isValid) {
+      logger.warn('Invalid webhook signature', {
+        tenantId: req.tenantId,
+        transactionId: payload.id,
+      });
+      // Return 200 without processing (don't fingerprint endpoint)
+      return res.status(200).json({ received: true });
+    }
+
+    // Check idempotency: has this webhook already been processed?
+    const { data: existingEvent, error: checkError } = await supabaseAdmin
+      .from('webhook_events')
+      .select('id, status')
+      .eq('tenant_id', req.tenantId)
+      .eq('source', 'paymob')
+      .eq('external_id', String(payload.id))
+      .single();
+
+    if (!checkError && existingEvent) {
+      logger.info('Webhook already processed (idempotent)', {
+        tenantId: req.tenantId,
+        transactionId: payload.id,
+        status: existingEvent.status,
+      });
+      return res.status(200).json({
+        received: true,
+        duplicated: true,
+      });
+    }
+
+    // Insert webhook event FIRST (before processing) to ensure idempotency
+    const { data: webhookRecord, error: insertError } = await supabaseAdmin
+      .from('webhook_events')
+      .insert({
+        tenant_id: req.tenantId,
+        source: 'paymob',
+        external_id: String(payload.id),
+        payload,
+        status: 'pending',
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      logger.error('Failed to insert webhook record', {
+        tenantId: req.tenantId,
+        error: insertError.message,
+      });
+      return res.status(200).json({ received: true });
+    }
+
+    // Now process the webhook
+    await processPaymobWebhook(
+      supabaseAdmin,
+      req.tenantId!,
       payload,
+      webhookRecord.id
+    );
+
+    // Update webhook status to processed
+    await supabaseAdmin
+      .from('webhook_events')
+      .update({ status: 'processed' })
+      .eq('id', webhookRecord.id);
+
+    logger.info('Webhook processed successfully', {
+      tenantId: req.tenantId,
+      transactionId: payload.id,
     });
-    if (eventErr && eventErr.code === "23505") {
-      logger.info(`Duplicate platform webhook ignored: ${eventKey}`);
-      return res.json({ received: true });
-    }
-    if (eventErr) {
-      logger.error("Platform webhook_events insert", eventErr);
-      return res.status(500).json({ error: "platform webhook failed" });
-    }
 
-    if (!subscriptionId) {
-      logger.warn("Platform webhook missing merchant_order_id");
-      return res.json({ received: true });
-    }
-
-    const { data: sub } = await supabaseAdmin
-      .from("tenant_subscriptions")
-      .select("id, status")
-      .eq("id", subscriptionId)
-      .maybeSingle();
-
-    if (sub && sub.status !== "pending_payment") {
-      logger.info(`Platform webhook skipped: subscription ${subscriptionId} already ${sub.status}`);
-      return res.json({ received: true });
-    }
-
-    await activateSubscription(subscriptionId, txId, amountEgp);
-    logger.info(`Platform webhook activated subscription ${subscriptionId}`);
-    return res.json({ received: true });
-  } catch (err) {
-    logger.error("Platform webhook error", err);
-    return res.status(500).json({ error: "platform webhook failed" });
+    res.status(200).json({
+      received: true,
+      processed: true,
+    });
+  } catch (error) {
+    logger.error('Webhook processing error', {
+      error: error instanceof Error ? error.message : String(error),
+      body: req.body,
+    });
+    // Always return 200
+    res.status(200).json({ received: true });
   }
 });
+
+async function processPaymobWebhook(
+  supabaseAdmin: SupabaseClient,
+  tenantId: string,
+  payload: any,
+  webhookEventId: string
+): Promise<void> {
+
+
+  // Check payment status
+  if (payload.success !== true) {
+    logger.info('Payment unsuccessful in webhook', {
+      transactionId: payload.id,
+      success: payload.success,
+    });
+    return;
+  }
+
+  // Find reservation by transaction ID
+  const { data: payment, error: paymentError } = await supabaseAdmin
+    .from('reservation_payments')
+    .select('reservation_id')
+    .eq('external_transaction_id', String(payload.id))
+    .eq('tenant_id', tenantId)
+    .single();
+
+  if (paymentError || !payment) {
+    logger.warn('No reservation payment found for transaction', {
+      transactionId: payload.id,
+      tenantId,
+    });
+    return;
+  }
+
+  // Update payment status
+  await supabaseAdmin
+    .from('reservation_payments')
+    .update({
+      status: 'completed',
+      completed_at: new Date(),
+    })
+    .eq('reservation_id', payment.reservation_id)
+    .eq('tenant_id', tenantId);
+
+  // Update reservation status to payment_confirmed
+  const { data: reservation, error: updateError } = await supabaseAdmin
+    .from('reservations')
+    .update({
+      status: 'payment_confirmed',
+      payment_confirmed_at: new Date(),
+    })
+    .eq('id', payment.reservation_id)
+    .eq('tenant_id', tenantId)
+    .select()
+    .single();
+
+  if (updateError) {
+    logger.error('Failed to update reservation status', {
+      error: updateError.message,
+    });
+    await supabaseAdmin
+      .from('webhook_events')
+      .update({
+        status: 'failed',
+        error: updateError.message,
+      })
+      .eq('id', webhookEventId);
+    return;
+  }
+
+  // Emit domain event for downstream handlers
+  await emitDomainEvent({
+    eventType: 'reservation.payment_confirmed',
+    tenantId,
+    payload: {
+      reservationId: payment.reservation_id,
+      customerId: reservation.customer_id,
+      unitId: reservation.unit_id,
+      transactionId: payload.id,
+      tenantId,
+    },
+  });
+
+  logger.info('Payment confirmed via webhook', {
+    reservationId: payment.reservation_id,
+    transactionId: payload.id,
+  });
+}
+
+export default router;
+export const webhookRoutes = router;

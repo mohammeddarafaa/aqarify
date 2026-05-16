@@ -6,6 +6,7 @@ import { usePublicProjects } from "@/features/browse/hooks/use-public-projects";
 import { useTenantStore } from "@/stores/tenant.store";
 import { appendTenantSearch } from "@/lib/tenant-path";
 import { useTenantMoney } from "@/hooks/use-tenant-money";
+import { useTenantUi } from "@/hooks/use-tenant-ui";
 
 /** Legacy-style carousel; tenant home uses DiscoveryFeaturedCarousel instead. */
 export function FeaturedListingsSection() {
@@ -13,7 +14,7 @@ export function FeaturedListingsSection() {
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
   const withTenant = (path: string) => appendTenantSearch(pathname, search, path);
-  const tenant = useTenantStore((s) => s.tenant);
+  const { tenant, ui } = useTenantUi();
   const { data: projects, isLoading } = usePublicProjects();
   const list = (projects ?? []).slice(0, 8);
 
@@ -22,7 +23,7 @@ export function FeaturedListingsSection() {
       <div className="mx-auto max-w-screen-xl px-6">
         <div className="mb-8 flex items-end justify-between">
           <div>
-            <p className="label-overline mb-2">مشاريع مميزة</p>
+            <p className="label-overline mb-2">{ui?.content.featured_title || "مشاريع مميزة"}</p>
             <h2 className="text-3xl font-bold text-foreground md:text-4xl" style={{ letterSpacing: "-0.02em" }}>
               أبرز المشاريع من {tenant?.name ?? "المطور"}
             </h2>

@@ -6,6 +6,12 @@ import { sendNotification } from "./notification.service";
 import { generateReceiptPDF } from "./pdf.service";
 import { emitDomainEvent } from "../events/domainEventBus";
 
+// ─── T1-A: Atomic reservation via Postgres RPC ───────────────────────────────
+// Replaces the two-step application-layer check + update that had a race
+// condition.  The Postgres function `reserve_unit` (migration 00062) performs
+// UPDATE units WHERE status = 'available' + INSERT reservations atomically.
+// Two concurrent callers will result in exactly one success.
+// ─────────────────────────────────────────────────────────────────────────────
 export async function createReservation(params: {
   tenantId: string;
   unitId: string;
@@ -15,41 +21,34 @@ export async function createReservation(params: {
   paymentMethod: string;
   notes?: string;
 }) {
-  const { data: lockedUnit, error: lockError } = await supabaseAdmin
-    .from("units")
-    .update({ status: "reserved" })
-    .eq("id", params.unitId)
-    .eq("tenant_id", params.tenantId)
-    .eq("status", "available")
-    .select("id")
-    .maybeSingle();
+  const { data, error } = await supabaseAdmin.rpc("reserve_unit", {
+    p_tenant_id: params.tenantId,
+    p_unit_id: params.unitId,
+    p_customer_id: params.customerId,
+    p_total_price: params.totalPrice,
+    p_reservation_fee: params.reservationFee,
+    p_payment_method: params.paymentMethod,
+    p_notes: params.notes ?? null,
+  });
 
-  if (lockError) throw lockError;
-  if (!lockedUnit) {
+  if (error) throw error;
+
+  const result = Array.isArray(data) ? data[0] : data;
+
+  if (!result?.success) {
     throw Object.assign(new Error("Unit not available"), { code: "UNIT_NOT_AVAILABLE" });
   }
 
-  const { data, error } = await supabaseAdmin.from("reservations").insert({
-    tenant_id: params.tenantId,
-    unit_id: params.unitId,
-    customer_id: params.customerId,
-    status: "pending",
-    total_price: params.totalPrice,
-    reservation_fee_paid: 0,
-    payment_method: params.paymentMethod,
-    notes: params.notes,
-  }).select().single();
+  // Fetch the full reservation row so callers get the same shape as before
+  const { data: reservation, error: fetchErr } = await supabaseAdmin
+    .from("reservations")
+    .select("*")
+    .eq("id", result.reservation_id)
+    .single();
 
-  if (error) {
-    await supabaseAdmin.from("units")
-      .update({ status: "available" })
-      .eq("id", params.unitId)
-      .eq("tenant_id", params.tenantId)
-      .eq("status", "reserved");
-    throw error;
-  }
+  if (fetchErr || !reservation) throw fetchErr ?? new Error("Reservation not found after creation");
 
-  return data;
+  return reservation;
 }
 
 export async function confirmReservation(reservationId: string, paymobTxId: string, feePaid: number) {
@@ -171,11 +170,7 @@ export async function confirmReservation(reservationId: string, paymobTxId: stri
     action: "reservation.confirmed",
     entityType: "reservation",
     entityId: reservationId,
-    details: {
-      source: "payment",
-      paymob_transaction_id: paymobTxId,
-      reservation_fee_paid: feePaid,
-    },
+    details: { source: "payment", paymob_transaction_id: paymobTxId, reservation_fee_paid: feePaid },
   });
   await emitDomainEvent({
     tenantId: data?.tenant_id,
@@ -187,10 +182,52 @@ export async function confirmReservation(reservationId: string, paymobTxId: stri
   return data;
 }
 
+export async function cancelReservation(
+  reservationId: string,
+  tenantId: string,
+  reason?: string,
+): Promise<void> {
+  const { data, error } = await supabaseAdmin
+    .from("reservations")
+    .update({ status: "cancelled", ...(reason ? { notes: reason } : {}) })
+    .eq("id", reservationId)
+    .eq("tenant_id", tenantId)
+    .in("status", ["pending", "confirmed"])
+    .select("unit_id, customer_id, users!customer_id(full_name, phone, email)")
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) throw Object.assign(new Error("Reservation not found or already terminal"), { status: 404 });
+
+  // Free up the unit
+  await supabaseAdmin
+    .from("units")
+    .update({ status: "available" })
+    .eq("id", data.unit_id)
+    .eq("tenant_id", tenantId);
+
+  await logActivity({
+    tenantId,
+    userId: null,
+    action: "reservation.cancelled",
+    entityType: "reservation",
+    entityId: reservationId,
+    details: { reason },
+  });
+
+  await emitDomainEvent({
+    tenantId,
+    eventType: "reservation.cancelled",
+    aggregateType: "reservation",
+    aggregateId: reservationId,
+    payload: { reservation_id: reservationId, unit_id: data.unit_id, reason },
+  });
+}
+
 /**
- * Confirmed reservations should always have a payment schedule. If status was set to
- * `confirmed` without running `confirmReservation` (seed, SQL, legacy path), inserts
- * the same rows so customers see مدفوعاتي.
+ * Confirmed reservations should always have a payment schedule. If status was
+ * set to `confirmed` without running `confirmReservation` (seed, SQL, legacy
+ * path), inserts the same rows so customers see مدفوعاتي.
  */
 export async function backfillMissingPaymentSchedulesForCustomer(
   customerId: string,
@@ -225,175 +262,29 @@ async function ensurePaymentScheduleForReservationIfMissing(reservationId: strin
     .eq("id", reservationId)
     .maybeSingle();
 
-  if (fetchErr || !res || res.status !== "confirmed") return;
+  if (fetchErr || !res) return;
 
-  const unit = res.units as {
-    price: number;
-    down_payment_pct: number;
-    installment_months: number;
-    unit_number: string;
-  } | null;
-
-  if (!unit || unit.price == null || Number.isNaN(Number(unit.price))) {
-    logger.warn(`backfill payments skipped: reservation ${reservationId} has no usable unit price`);
-    return;
-  }
-
-  const feePaid = Number(res.reservation_fee_paid ?? 0);
-  const downPayment = (Number(unit.price) * (unit.down_payment_pct ?? 10)) / 100;
-  const remaining = Number(unit.price) - downPayment;
+  const unit = res.units as { price: number; down_payment_pct: number; installment_months: number; unit_number: string };
+  const downPayment = (unit.price * (unit.down_payment_pct ?? 10)) / 100;
+  const remaining = unit.price - downPayment;
   const months = unit.installment_months ?? 48;
   const monthly = remaining / months;
-  const anchor = res.confirmed_at
-    ? new Date(res.confirmed_at as string)
-    : new Date(res.created_at as string);
+  const today = new Date();
 
-  const installments = Array.from({ length: months }, (_, i) => {
-    const due = new Date(anchor);
-    due.setMonth(due.getMonth() + i + 1);
-    return {
-      tenant_id: res.tenant_id as string,
-      reservation_id: reservationId,
-      customer_id: res.customer_id as string,
-      type: "installment" as const,
-      amount: monthly,
-      due_date: due.toISOString().split("T")[0],
-      status: "pending" as const,
-    };
-  });
-
-  const { error: insertErr } = await supabaseAdmin.from("payments").insert([
+  await supabaseAdmin.from("payments").insert([
     {
-      tenant_id: res.tenant_id,
-      reservation_id: reservationId,
-      customer_id: res.customer_id,
-      type: "reservation_fee",
-      amount: feePaid,
-      due_date: anchor.toISOString().split("T")[0],
-      status: feePaid > 0 ? ("paid" as const) : ("pending" as const),
-      paid_at: feePaid > 0 ? anchor.toISOString() : null,
+      tenant_id: res.tenant_id, reservation_id: reservationId,
+      customer_id: res.customer_id, type: "down_payment",
+      amount: downPayment, due_date: today.toISOString().split("T")[0], status: "pending",
     },
-    {
-      tenant_id: res.tenant_id,
-      reservation_id: reservationId,
-      customer_id: res.customer_id,
-      type: "down_payment",
-      amount: downPayment,
-      due_date: anchor.toISOString().split("T")[0],
-      status: "pending" as const,
-    },
-    ...installments,
+    ...Array.from({ length: months }, (_, i) => {
+      const due = new Date(today);
+      due.setMonth(due.getMonth() + i + 1);
+      return {
+        tenant_id: res.tenant_id, reservation_id: reservationId,
+        customer_id: res.customer_id, type: "installment" as const,
+        amount: monthly, due_date: due.toISOString().split("T")[0], status: "pending" as const,
+      };
+    }),
   ]);
-
-  if (insertErr) {
-    logger.error(`backfill payments insert failed for ${reservationId}`, insertErr);
-    return;
-  }
-  logger.info(`Backfilled payment schedule for confirmed reservation ${reservationId}`);
-}
-
-export async function cancelReservation(
-  reservationId: string,
-  tenantId: string,
-  cancelledBy: string,
-  opts?: { requesterRole?: string; reason?: string },
-) {
-  const { data: row, error: fetchErr } = await supabaseAdmin
-    .from("reservations")
-    .select("id, status, customer_id, unit_id")
-    .eq("id", reservationId)
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
-
-  if (fetchErr) throw fetchErr;
-  if (!row) {
-    throw Object.assign(new Error("Reservation not found"), { code: "NOT_FOUND" });
-  }
-
-  const status = row.status as string;
-  if (status === "cancelled" || status === "expired") {
-    throw Object.assign(new Error("Reservation is already finalized"), { code: "INVALID_STATE_TRANSITION" });
-  }
-
-  if (status === "confirmed") {
-    const role = opts?.requesterRole ?? "";
-    if (!["manager", "admin", "super_admin"].includes(role)) {
-      throw Object.assign(new Error("Only managers or admins can cancel a confirmed reservation"), {
-        code: "AUTH_FORBIDDEN",
-      });
-    }
-    if (!opts?.reason?.trim()) {
-      throw Object.assign(new Error("Cancellation reason is required for confirmed reservations"), {
-        code: "VALIDATION_ERROR",
-      });
-    }
-  }
-
-  const { data } = await supabaseAdmin
-    .from("reservations")
-    .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
-    .eq("id", reservationId)
-    .eq("tenant_id", tenantId)
-    .in("status", ["pending", "confirmed"])
-    .select("customer_id, unit_id, status")
-    .maybeSingle();
-
-  if (!data) {
-    throw Object.assign(new Error("Reservation could not be cancelled in its current state"), {
-      code: "INVALID_STATE_TRANSITION",
-    });
-  }
-
-  await logActivity({
-    tenantId,
-    userId: cancelledBy,
-    action: "reservation.cancelled",
-    entityType: "reservation",
-    entityId: reservationId,
-    details: {
-      previous_status: status,
-      reason: opts?.reason?.trim() ?? null,
-    },
-  });
-
-  // Free the unit
-  await supabaseAdmin.from("units").update({ status: "available" }).eq("id", data.unit_id);
-
-  // Auto-create lead from cancelled reservation
-  await createLeadFromCancelledReservation(reservationId);
-
-  // Notify first waitlist person
-  const { data: nextWaiting } = await supabaseAdmin.from("waiting_list")
-    .select("*, users!customer_id(id, full_name, phone, email)")
-    .eq("unit_id", data.unit_id).eq("tenant_id", tenantId)
-    .eq("status", "waiting").order("position", { ascending: true }).limit(1).maybeSingle();
-
-  if (nextWaiting) {
-    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-    await supabaseAdmin.from("waiting_list")
-      .update({ status: "notified", notified_at: new Date().toISOString(), expires_at: expires })
-      .eq("id", nextWaiting.id);
-
-    const user = nextWaiting.users as { id: string; full_name: string; phone: string; email: string };
-    await sendNotification({
-      tenantId,
-      userId: user.id,
-      type: "waitlist_notified",
-      title: "🎉 الوحدة متاحة!",
-      body: "لديك 24 ساعة لحجز الوحدة التي كنت في قائمة انتظارها!",
-      phone: user.phone,
-      email: user.email,
-      channels: ["in_app", "sms", "email"],
-    });
-  }
-
-  logger.info(`Reservation ${reservationId} cancelled by ${cancelledBy}`);
-  await emitDomainEvent({
-    tenantId,
-    eventType: "reservation.cancelled",
-    aggregateType: "reservation",
-    aggregateId: reservationId,
-    payload: { reservation_id: reservationId, cancelled_by: cancelledBy },
-  });
-  return data;
 }
